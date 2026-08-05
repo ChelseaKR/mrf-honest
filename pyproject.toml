@@ -1,0 +1,52 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mrf-honest"
+version = "0.1.0.dev0"
+description = "Honest ingestion, quality grading, and comparison of hospital and payer price-transparency files"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Chelsea Kelly-Reif" }]
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-cov>=5", "hypothesis>=6", "mypy>=1.11", "ruff>=0.6"]
+
+[project.scripts]
+mrf-honest = "mrf_honest.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mrf_honest"]
+
+[tool.mypy]
+strict = true
+python_version = "3.12"
+files = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "S", "C90", "UP", "RUF"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--strict-markers"
+
+[tool.coverage.run]
+branch = true
+source = ["src/mrf_honest"]
+
+[tool.coverage.report]
+fail_under = 85
+show_missing = true

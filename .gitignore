@@ -6,3 +6,4 @@ site/
 data/cache/
 *.parquet
 *.duckdb
+data/cache/
