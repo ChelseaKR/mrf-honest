@@ -102,3 +102,37 @@ error this project is built to refuse, and it is the default outcome of naive an
   detection, and zip containers all appeared in a sample of four.
 - **Segment by methodology from the very first model.** Retrofitting that later would mean every
   published number before the fix was wrong.
+
+
+---
+
+## Phase 1 result: streaming, measured against the same file
+
+The streaming reader was built on these findings and measured on the same 65 MB Cincinnati file:
+
+| Approach | Peak RSS | Ratio to file |
+|---|---:|---:|
+| naive `json.load` | 506 MB | 7.8x |
+| streaming reader | **27 MB** | **0.42x** |
+
+30,114 charge items parsed, BOM detected and handled rather than fatal. An 18.7x reduction, and
+memory now sits below the file size instead of multiples above it, which is what makes payer-scale
+files reachable at all.
+
+### The bug worth recording
+
+The first working version corrupted **exactly one item per buffer refill**, and every test passed.
+The cause: `_scan_value` captured absolute `start` and `end` indices into the buffer, and a refill
+between those two captures compacted the buffer underneath them, so the slice mixed a stale start
+with a fresh end. It was invisible on small fixtures because no refill ever occurred, and invisible
+on large ones because the items still parsed as valid JSON, just the wrong ones.
+
+Two fixes, and the second is the real one:
+
+1. Pin the buffer against compaction for the duration of a single value scan, which bounds growth
+   by one item rather than by the file.
+2. **Change the API so the bug cannot be expressed.** `_scan_value` now returns the value's bytes
+   instead of a span. Nothing outside the function ever holds an index into a buffer that can move.
+
+The regression test forces a 512-byte chunk size rather than relying on a large fixture, because
+the defect only appears at boundaries and a realistic fixture would hide it.
