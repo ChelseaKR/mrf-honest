@@ -1,0 +1,12 @@
+cff-version: 1.2.0
+message: "If you use this software or its findings, please cite it as below."
+title: "mrf-honest"
+type: software
+authors:
+  - family-names: "Kelly-Reif"
+    given-names: "Chelsea"
+license: Apache-2.0
+abstract: >-
+  Honest ingestion, quality grading, and comparison of US hospital and payer
+  price-transparency machine-readable files (MRFs). Pre-release: version and
+  date-released will be added with the first dated release.
