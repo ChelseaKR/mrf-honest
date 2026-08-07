@@ -1,0 +1,47 @@
+# Pre-commit + pre-push hooks for mrf-honest.
+#
+# Setup (once):
+#   pre-commit install                       # fast hooks on every commit
+#   pre-commit install --hook-type pre-push  # full gate before push
+#
+# The lint/typecheck/test hooks are LOCAL and call the same Makefile targets `make verify` runs,
+# using the repo's own .venv (uv sync --extra dev, versions from uv.lock). Hook results therefore
+# always match the gate; there is no second toolchain to drift.
+default_install_hook_types: [pre-commit, pre-push]
+default_stages: [pre-commit]
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-added-large-files
+        args: ["--maxkb=800"]
+      - id: check-merge-conflict
+      - id: mixed-line-ending
+        args: ["--fix=lf"]
+
+  - repo: local
+    hooks:
+      - id: lint
+        name: ruff check (make lint)
+        entry: make lint
+        language: system
+        types: [python]
+        pass_filenames: false
+      - id: typecheck
+        name: mypy --strict (make typecheck)
+        entry: make typecheck
+        language: system
+        types: [python]
+        pass_filenames: false
+      - id: test
+        name: pytest with coverage floor (make test)
+        entry: make test
+        language: system
+        stages: [pre-push]
+        always_run: true
+        pass_filenames: false

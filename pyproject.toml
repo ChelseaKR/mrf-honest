@@ -13,10 +13,7 @@ authors = [{ name = "Chelsea Kelly-Reif" }]
 dependencies = []
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "pytest-cov>=5", "hypothesis>=6", "mypy>=1.11", "ruff>=0.6"]
-
-[project.scripts]
-mrf-honest = "mrf_honest.cli:main"
+dev = ["pytest>=8", "pytest-cov>=5", "hypothesis>=6", "mypy>=1.18", "ruff>=0.15"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/mrf_honest"]
