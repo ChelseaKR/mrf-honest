@@ -15,7 +15,7 @@ Target for a defensible v0.1: **phases 0 through 3**. Phases 4 and 5 are what ma
 - [ ] Pull CMS's current payer schema and validator from `CMSgov/price-transparency-guide`
 - [ ] Fetch **one** hospital file and **one** payer index file by hand. Record actual byte sizes.
 - [ ] Attempt a naive `json.load()` on the payer file and watch it fail. Write down the number.
-- [ ] Confirm the current hospital template schema from CMS documentation, not from memory
+- [x] Confirm the current hospital template schema from CMS documentation, not from memory
 
 **Stop condition:** if hospital files turn out to be uniformly small and clean, the data-platform
 premise weakens and the project should be rescoped or dropped. Better to learn that in half a day.
@@ -24,14 +24,18 @@ premise weakens and the project should be rescoped or dropped. Better to learn t
 
 *Goal: read files that do not fit in memory, without cleverness that cannot be explained.*
 
-- [ ] Streaming JSON reader over gzip, incremental rather than buffered
-- [ ] A registry of publishers with the same verification discipline as `fhir-scorecard`: no
+- [x] Incremental JSON reader plus a bounded fetch layer that decodes gzip to the verified cache
+- [x] A registry of publishers with the same verification discipline as `fhir-scorecard`: no
       guessed URLs, every entry records how and when it was confirmed
-- [ ] Polite fetcher: identifying User-Agent with contact, conditional requests, on-disk cache so
+- [x] Polite fetcher: identifying User-Agent with contact, conditional requests, on-disk cache so
       a file is retrieved once, backoff, and **error messages that name the cause**. The
       `fhir-scorecard` lesson applies directly: a bare `URLError` once caused a live endpoint to
       be recorded as dead.
-- [ ] Record fetch outcomes per publisher as data, including failures, with dates
+- [x] Record fetch outcomes per publisher as data, including failures, with dates
+
+The implemented fetch path is operator-invoked and serial. A broad scheduled collector is not yet
+authorized by this checkbox: `robots.txt` policy, per-host pacing, and `Retry-After` handling remain
+explicit prerequisites in the responsible-tech audit.
 
 **Deliverable:** can ingest the largest file found in phase 0 on a laptop, with bounded memory.
 Measure and publish the peak memory and wall time; those numbers are the credibility.
@@ -40,18 +44,35 @@ Measure and publish the peak memory and wall time; those numbers are the credibi
 
 *Goal: the piece that closes the actual gap. Do not skip the modeling rigor to get to results.*
 
-- [ ] Land raw extracts as **partitioned Parquet** (publisher, period, file version)
-- [ ] **DuckDB** as the query engine over that Parquet
-- [ ] A staging → intermediate → mart model layering, dbt-shaped, with each model documented
-- [ ] **Data contracts enforced at layer boundaries**: expected columns, types, nullability,
+- [x] Archive the exact admitted source by content SHA-256 and export all 13 declared models as
+      **partitioned Parquet** (publisher, period, file version, run identity)
+- [x] **DuckDB** as the local query engine and catalog alongside portable Parquet exports
+- [x] A staging → intermediate → mart model layering, dbt-shaped, with each model documented
+- [x] **Data contracts enforced at layer boundaries**: expected columns, types, nullability,
       accepted code sets, referential expectations. A contract violation fails the build; it does
       not warn.
-- [ ] Idempotent, re-runnable loads with a stable natural key per rate row
-- [ ] Record cost signals per model: bytes scanned, rows produced, wall time. Query cost thinking
+- [x] Idempotent loads keyed by pipeline version + publisher + content + inspection `as_of` +
+      transformation fingerprint, including inspection policy/catalog identity, with stable
+      source-scoped keys per rate representation
+- [x] Retain exact raw item/modifier text and hashes; project typed numerics as `DECIMAL(38,10)`;
+      retain every item code in ordered `codes_json`; and expose exact/canonical/unresolved
+      modifier context rather than inventing a primary code or silently dropping failed joins
+- [x] Resolve modifiers by charge setting, report selected/candidate settings and explicit setting
+      mismatches, allow disjoint inpatient/outpatient definitions, and reject applicable-setting
+      overlap
+- [x] Schema-v4 run manifests with a digest over every immutable body field, content-addressed
+      artifact integrity, and recoverable `prepared` → catalog commit → `success` finalization
+- [x] Record cost signals per model: bytes scanned, rows produced, wall time. Query cost thinking
       is half of what data-platform interviews are actually probing.
 
-**Deliverable:** a documented model DAG and a query that answers a real question across multiple
-publishers.
+**Deliverable status:** the model DAG and methodology-safe multi-publisher query are documented.
+The post-audit `hospital-json-v2` path passed the 153-test gate and a clean real-file acceptance:
+30,114 items, 13 Parquets, zero parser problems or raw hash mismatches, 46.66 seconds wall time,
+and 534,790,144 bytes maximum process RSS. The real file's 11 modifier definitions omitted their
+optional setting, so synthetic regressions—not the real run—establish setting mismatch, disjoint
+definition, and overlap-rejection behavior. An empirically executed multi-publisher result remains
+open. Concurrent writers, historical warehouse migrations, and a full SIGKILL/fsync crash matrix
+are not represented as complete.
 
 ## Phase 3: per-publisher quality grades
 
@@ -70,13 +91,13 @@ Candidate dimensions, each deterministic and each citing the rule or schema clau
 - [ ] Fail closed: unretrievable is a stated grade with a reason, never a gap in the dataset
 - [ ] Grades comparable **within publisher type only** (hospital versus payer), the same rule
       `fhir-scorecard` enforces across kinds
-- [ ] A `docs/how-we-grade` page where every finding code links to its citation
+- [x] A `docs/how-we-grade` page where every finding code links to its citation
 
 ## Phase 4: honest comparison
 
 *Goal: the thesis. If this phase is done badly the project should not ship.*
 
-- [ ] **Never average across arrangement types.** Fixed dollar, percentage-of-billed, and per-diem
+- [x] **Never average across arrangement types.** Fixed dollar, percentage-of-billed, and per-diem
       rates are not commensurable. Segment or refuse.
 - [ ] **Small-cell suppression** before anything is displayed, with the threshold stated
 - [ ] **Uncertainty intervals** on every published comparison, using the same discipline as
@@ -95,7 +116,8 @@ Candidate dimensions, each deterministic and each citing the rule or schema clau
 - [ ] `CITATION.cff` and dated releases
 - [ ] MCP server over the published dataset, read-only, with a `grading_method` tool returning the
       documented limits
-- [ ] CI: scheduled refresh, quality gates, SHA-pinned actions
+- [ ] CI: quality/build gates are committed with SHA-pinned actions; scheduled refresh and a
+      first observed hosted run remain open
 - [ ] A claim and correction flow, non-adversarial, honoring removal requests without demanding
       proof
 - [ ] A write-up in the pattern of `docs/payer-verifiability.md`, **including a section on what

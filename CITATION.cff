@@ -7,6 +7,8 @@ authors:
     given-names: "Chelsea"
 license: Apache-2.0
 abstract: >-
-  Honest ingestion, quality grading, and comparison of US hospital and payer
-  price-transparency machine-readable files (MRFs). Pre-release: version and
-  date-released will be added with the first dated release.
+  Local retrieval, bounded inspection, and contracted DuckDB/Parquet ingestion of
+  CMS hospital price-transparency JSON v3 files, with source-cited findings and
+  methodology-safe rate representations. Payer adapters and published comparisons
+  are planned, not implemented. Pre-release: version and date-released will be added
+  with the first dated release.

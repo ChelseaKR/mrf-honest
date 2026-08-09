@@ -85,11 +85,27 @@ def _check_mrf_url(raw: str | None, problems: list[str]) -> str | None:
     if raw is None:
         problems.append("no mrf-url field")
         return None
-    if not raw.lower().startswith("https://"):
+    if any(char.isspace() or ord(char) < 0x20 or ord(char) == 0x7F for char in raw):
+        problems.append(f"mrf-url contains whitespace or control characters: {raw[:80]!r}")
+        return None
+    try:
+        parsed = urlparse(raw)
+        hostname = parsed.hostname
+        port = parsed.port
+    except (UnicodeError, ValueError):
+        # urllib deliberately does only light URL validation and raises for a few malformed
+        # authorities (notably unmatched IPv6 brackets and invalid ports). Those inputs are
+        # findings, not a reason for this never-raises parser to fail.
+        problems.append(f"mrf-url is not a resolvable URL: {raw[:80]!r}")
+        return None
+    if parsed.scheme.lower() != "https":
         # Refused rather than upgraded: a price file fetched over plaintext is not verifiable.
         problems.append(f"mrf-url is not https: {raw[:80]!r}")
         return None
-    if not urlparse(raw).netloc:
+    if parsed.username is not None or parsed.password is not None:
+        problems.append(f"mrf-url contains credentials: {raw[:80]!r}")
+        return None
+    if not parsed.netloc or not hostname or port == 0:
         problems.append(f"mrf-url is not a resolvable URL: {raw[:80]!r}")
         return None
     return raw
@@ -101,8 +117,9 @@ def parse_cms_hpt(text: str, *, domain: str) -> Discovery:
     # treating that as "no file" loses the distinction between absent and misconfigured.
     stripped = text.lstrip(BOM).strip()
     if stripped[:1] == "<" or "<html" in stripped[:512].lower():
-        return Discovery(domain=domain,
-                         problems=("served HTML rather than a cms-hpt.txt document",))
+        return Discovery(
+            domain=domain, problems=("served HTML rather than a cms-hpt.txt document",)
+        )
     if not stripped:
         return Discovery(domain=domain, problems=("cms-hpt.txt is empty",))
 
@@ -133,8 +150,9 @@ def parse_mrf_filename(url: str) -> FilenameFacts:
     match = _FILENAME_RE.match(filename)
     if not match:
         extension = filename.rsplit(".", 1)[-1].lower() if "." in filename else None
-        return FilenameFacts(ein=None, hospital_name=None, extension=extension,
-                             follows_convention=False)
+        return FilenameFacts(
+            ein=None, hospital_name=None, extension=extension, follows_convention=False
+        )
     return FilenameFacts(
         ein=match.group("ein"),
         hospital_name=match.group("name").replace("-", " ").replace("_", " ").strip(),
@@ -145,7 +163,7 @@ def parse_mrf_filename(url: str) -> FilenameFacts:
 
 def cms_hpt_url(domain: str) -> str:
     """The conventional location, given a bare domain or a URL."""
-    host = domain.strip()
-    if "://" in host:
-        host = urlparse(host).netloc or host
+    raw = domain.strip()
+    parsed = urlparse(raw if "://" in raw else f"//{raw}")
+    host = parsed.netloc or raw
     return f"https://{host.strip('/')}/cms-hpt.txt"

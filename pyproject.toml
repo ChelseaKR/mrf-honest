@@ -5,15 +5,29 @@ build-backend = "hatchling.build"
 [project]
 name = "mrf-honest"
 version = "0.1.0.dev0"
-description = "Honest ingestion, quality grading, and comparison of hospital and payer price-transparency files"
+description = "Bounded inspection and contracted local ingestion of CMS hospital price-transparency files"
 readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
 authors = [{ name = "Chelsea Kelly-Reif" }]
 dependencies = []
 
+[project.scripts]
+mrf-honest = "mrf_honest.cli:main"
+
 [project.optional-dependencies]
-dev = ["pytest>=8", "pytest-cov>=5", "hypothesis>=6", "mypy>=1.18", "ruff>=0.15"]
+dev = [
+    "pytest>=8",
+    "pytest-cov>=5",
+    "hypothesis>=6",
+    "mypy>=1.18",
+    "ruff>=0.15",
+    "duckdb>=1.4,<2",
+    "pre-commit>=4,<5",
+]
+lakehouse = [
+    "duckdb>=1.4,<2",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/mrf_honest"]

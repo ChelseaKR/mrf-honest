@@ -31,5 +31,7 @@ could compact underneath them.
   (`[project] dependencies = []`) and stay that way for this layer.
 - Peak-RSS measurements published in the docs are attributable to code in this repo, not to a
   third-party parser's internals.
-- The buffer API trades a small amount of copying for structural immunity to index invalidation;
-  the measured result (27 MB peak on the 65 MB file, 0.42x) is well within budget.
+- The buffer API trades a small amount of copying for structural immunity to index invalidation.
+  The original result was 27 MB peak on the 65 MB file (0.42x); after parser hardening, the
+  final 2026-08-09 gate is 33,865,728 bytes on the 64,828,148-byte file (0.5224x). Both
+  measurements and their context remain in `docs/PHASE-0-FINDINGS.md`.

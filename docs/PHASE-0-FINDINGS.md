@@ -1,6 +1,7 @@
 # Phase 0 findings: the constraint is real
 
-Measured 2026-08-05 from `davis-ca/residential`. Every number here was observed, not estimated.
+The phase-0 survey was measured 2026-08-05 from `davis-ca/residential`; the final hardened-reader
+acceptance was remeasured 2026-08-09. Every number here was observed, not estimated.
 
 **Verdict: proceed.** The stop condition was "if hospital files turn out to be uniformly small and
 clean, rescope or drop." They are neither.
@@ -113,11 +114,12 @@ The streaming reader was built on these findings and measured on the same 65 MB 
 | Approach | Peak RSS | Ratio to file |
 |---|---:|---:|
 | naive `json.load` | 506 MB | 7.8x |
-| streaming reader | **27 MB** | **0.42x** |
+| first streaming reader (historical) | 27 MB | 0.42x |
+| final hardened reader | **33,865,728 B (32.30 MiB)** | **0.5224x** |
 
-30,114 charge items parsed, BOM detected and handled rather than fatal. An 18.7x reduction, and
-memory now sits below the file size instead of multiples above it, which is what makes payer-scale
-files reachable at all.
+The final reader parsed 30,114 charge items with zero parser problems and handled the BOM rather
+than failing. Maximum RSS remains below the input size instead of several multiples above it,
+which is the bounded-memory property the pipeline needs.
 
 ### The bug worth recording
 
@@ -136,3 +138,22 @@ Two fixes, and the second is the real one:
 
 The regression test forces a 512-byte chunk size rather than relying on a large fixture, because
 the defect only appears at boundaries and a realistic fixture would hide it.
+
+### 2026-08-09 remeasurement after parser hardening
+
+`stream.py` changed after the original result: it gained strict comma/trailing-content checks,
+bounded exact problem accounting, invalid-UTF-8 evidence, and streaming discard of large sibling
+values. The current reader was therefore remeasured rather than carrying the 27 MB figure forward
+unchanged:
+
+```sh
+/usr/bin/time -l .venv/bin/python -c \
+  'from pathlib import Path; from mrf_honest.stream import stream_array_items; p=Path("data/cache/uchealth.json"); f=p.open("rb"); n=sum(1 for _ in stream_array_items(f,"standard_charge_information")); f.close(); print(n)'
+```
+
+The final result on macOS with Python 3.14.5 was 30,114 items, zero parser problems, 9.25 seconds
+real time, and 33,865,728 bytes maximum RSS (32.30 MiB, 0.5224 times the 64,828,148-byte input).
+macOS also reported a 26,231,240-byte peak memory footprint. RSS and peak footprint are separate
+operating-system measurements and are retained as reported. The earlier 27 MB result remains the
+historical phase-1 measurement; no causal claim is made for the difference because both the parser
+and measurement environment changed.

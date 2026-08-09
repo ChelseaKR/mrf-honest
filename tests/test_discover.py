@@ -44,6 +44,41 @@ def test_non_https_mrf_url_is_refused_not_upgraded() -> None:
     assert any("not https" in p for p in d.problems)
 
 
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://[broken",
+        "https://x.test:invalid/prices.json",
+        "https:///prices.json",
+        "https://:443/prices.json",
+    ],
+)
+def test_malformed_https_urls_are_findings_not_exceptions(url: str) -> None:
+    d = parse_cms_hpt(f"mrf-url: {url}", domain="x.test")
+    assert not d.usable
+    assert any("not a resolvable URL" in problem for problem in d.problems)
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://x.test/a file.json",
+        "https://x.test/a\tfile.json",
+        "https://x.test/a\x00file.json",
+    ],
+)
+def test_mrf_urls_with_whitespace_or_controls_are_refused(url: str) -> None:
+    d = parse_cms_hpt(f"mrf-url: {url}", domain="x.test")
+    assert not d.usable
+    assert any("whitespace or control" in problem for problem in d.problems)
+
+
+def test_mrf_url_with_credentials_is_not_usable_by_the_fetch_pipeline() -> None:
+    d = parse_cms_hpt("mrf-url: https://user:secret@x.test/prices.json", domain="x.test")
+    assert not d.usable
+    assert any("credentials" in problem for problem in d.problems)
+
+
 def test_missing_and_malformed_fields_become_problems_not_exceptions() -> None:
     d = parse_cms_hpt("location-name: Only A Name\nnonsense line\n", domain="x.test")
     assert not d.usable
@@ -52,8 +87,9 @@ def test_missing_and_malformed_fields_become_problems_not_exceptions() -> None:
 
 
 def test_duplicate_field_keeps_first_and_records_it() -> None:
-    d = parse_cms_hpt("mrf-url: https://a.test/1.json\nmrf-url: https://b.test/2.json",
-                      domain="x.test")
+    d = parse_cms_hpt(
+        "mrf-url: https://a.test/1.json\nmrf-url: https://b.test/2.json", domain="x.test"
+    )
     assert d.mrf_url == "https://a.test/1.json"
     assert any("more than once" in p for p in d.problems)
 
@@ -70,19 +106,21 @@ def test_unknown_fields_are_preserved_as_evidence() -> None:
 
 
 def test_filename_convention_yields_the_filer_ein() -> None:
-    f = parse_mrf_filename(
-        "https://x.test/dam/946174066_stanford-health-care_standardcharges.json")
+    f = parse_mrf_filename("https://x.test/dam/946174066_stanford-health-care_standardcharges.json")
     assert f.follows_convention
     assert f.ein == "946174066"
     assert f.hospital_name == "stanford health care"
     assert f.extension == "json"
 
 
-@pytest.mark.parametrize("url,ext", [
-    ("https://x.test/prices.json", "json"),
-    ("https://x.test/charges.csv", "csv"),
-    ("https://x.test/nofile", None),
-])
+@pytest.mark.parametrize(
+    "url,ext",
+    [
+        ("https://x.test/prices.json", "json"),
+        ("https://x.test/charges.csv", "csv"),
+        ("https://x.test/nofile", None),
+    ],
+)
 def test_nonconforming_filenames_still_report_what_they_can(url: str, ext: str | None) -> None:
     f = parse_mrf_filename(url)
     assert not f.follows_convention
@@ -94,3 +132,4 @@ def test_cms_hpt_url_from_domain_or_url() -> None:
     assert cms_hpt_url("x.test") == "https://x.test/cms-hpt.txt"
     assert cms_hpt_url("https://x.test/some/page") == "https://x.test/cms-hpt.txt"
     assert cms_hpt_url(" x.test/ ") == "https://x.test/cms-hpt.txt"
+    assert cms_hpt_url("x.test/some/page") == "https://x.test/cms-hpt.txt"

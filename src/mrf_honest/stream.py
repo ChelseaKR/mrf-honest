@@ -18,13 +18,16 @@ from __future__ import annotations
 
 import io
 import json
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator, MutableMapping
 from dataclasses import dataclass, field
+from decimal import Decimal
 from typing import Any, BinaryIO
 
 BOM = b"\xef\xbb\xbf"
 _WHITESPACE = b" \t\r\n"
 _CHUNK = 1 << 20  # 1 MiB reads; large enough to amortize syscalls, small enough to stay flat
+MAX_PROBLEM_SAMPLES = 100
+STREAM_PARSER_VERSION = "bounded-json-object-array-v2-decimal-duplicate-safe"
 
 
 @dataclass
@@ -35,10 +38,31 @@ class StreamStats:
     items_yielded: int = 0
     had_bom: bool = False
     problems: list[str] = field(default_factory=list)
+    problem_count: int = 0
+
+    def record_problem(self, problem: str) -> None:
+        """Count every problem while retaining only a bounded, backwards-compatible sample."""
+        self.problem_count += 1
+        if len(self.problems) < MAX_PROBLEM_SAMPLES:
+            self.problems.append(problem)
+
+    @property
+    def problems_total(self) -> int:
+        """Alias that makes the relationship between the count and sample list explicit."""
+        return self.problem_count
 
 
 class StreamError(Exception):
     """Raised only when the document cannot be interpreted at all."""
+
+
+@dataclass(frozen=True)
+class StreamItem:
+    """One valid array object with its source ordinal and exact JSON value bytes."""
+
+    ordinal: int
+    value: dict[str, Any]
+    raw: bytes
 
 
 def _skip_ws(buf: bytes, i: int) -> int:
@@ -109,7 +133,11 @@ class _Reader:
         offset = i - self._pos
         if not self.fill(offset + 1):
             return -1
-        return self._pos + offset
+        rebased = self._pos + offset
+        # ``fill`` can reach EOF with some bytes still buffered but fewer than ``need``.  Its
+        # boolean result answers "is anything left?", not "was the requested absolute index
+        # satisfied?".  Re-check the index so a bounded head read cannot become an IndexError.
+        return rebased if rebased < len(self._buf) else -1
 
     def peek(self) -> int | None:
         if not self.fill(1):
@@ -201,13 +229,75 @@ def _scan_value(reader: _Reader) -> bytes:
         else:
             end = _scan_scalar(reader, start)
             if end == start:
-                raise StreamError(
-                    f"unexpected byte {bytes([first])!r} while scanning a value")
+                raise StreamError(f"unexpected byte {bytes([first])!r} while scanning a value")
         raw = bytes(reader.buf[start:end])
         reader.pos = end
         return raw
     finally:
         reader.unpin()
+
+
+def _discard_string(reader: _Reader) -> None:
+    """Consume a string whose opening quote is at the current position."""
+    reader.pos += 1
+    escaped = False
+    while True:
+        if not reader.fill(1):
+            raise StreamError("unexpected end of input inside a string")
+        byte = reader.buf[reader.pos]
+        reader.pos += 1
+        if escaped:
+            escaped = False
+        elif byte == 0x5C:
+            escaped = True
+        elif byte == 0x22:
+            return
+
+
+def _discard_container(reader: _Reader) -> None:
+    """Consume an object or array while retaining at most the reader's current chunk."""
+    depth = 0
+    while True:
+        if not reader.fill(1):
+            raise StreamError("unexpected end of input inside a container")
+        byte = reader.buf[reader.pos]
+        if byte == 0x22:
+            _discard_string(reader)
+            continue
+        reader.pos += 1
+        if byte in (0x7B, 0x5B):
+            depth += 1
+        elif byte in (0x7D, 0x5D):
+            depth -= 1
+            if depth == 0:
+                return
+
+
+def _discard_scalar(reader: _Reader) -> None:
+    while reader.fill(1) and reader.buf[reader.pos] not in b",]}: \t\r\n":
+        reader.pos += 1
+
+
+def _discard_value(reader: _Reader) -> None:
+    """Consume one JSON value without retaining it.
+
+    Sibling values can be surprisingly large (the CMS v3 modifier catalogue can precede the
+    charge array). Calling :func:`_scan_value` for those values pins and copies the whole sibling,
+    weakening the reader's memory guarantee. These consumers advance ``reader.pos`` as they scan,
+    which lets each refill compact the consumed prefix.
+    """
+    first = reader.peek()
+    if first is None:
+        raise StreamError("unexpected end of input while skipping a value")
+    if first in (0x7B, 0x5B):
+        _discard_container(reader)
+    elif first == 0x22:
+        _discard_string(reader)
+    else:
+        start = reader.pos
+        _discard_scalar(reader)
+        if reader.pos == start:
+            raise StreamError(f"unexpected byte {bytes([first])!r} while skipping a value")
 
 
 def _open_object(fh: BinaryIO, st: StreamStats) -> _Reader:
@@ -225,63 +315,188 @@ def _open_object(fh: BinaryIO, st: StreamStats) -> _Reader:
     return reader
 
 
-def stream_array_items(
-    fh: BinaryIO, array_key: str, *, stats: StreamStats | None = None
-) -> Iterator[dict[str, Any]]:
-    """Yield items from the top-level array at ``array_key`` one at a time.
+def _invalid_utf8(scope: str, raw: bytes, exc: UnicodeDecodeError) -> str:
+    """Describe invalid input with a small hexadecimal sample rather than replacement text."""
+    evidence = raw[exc.start : max(exc.end, exc.start + 1)][:8].hex()
+    return f"invalid UTF-8 in {scope} at byte {exc.start}: 0x{evidence}"
+
+
+def _read_object_key(reader: _Reader) -> str:
+    raw = _scan_value(reader)
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise StreamError(_invalid_utf8("object key", raw, exc)) from exc
+    try:
+        key = json.loads(text)
+    except ValueError as exc:
+        raise StreamError(f"invalid top-level object key: {exc}") from exc
+    if not isinstance(key, str):
+        raise StreamError("top-level object key is not a string")
+    return key
+
+
+def _decode_json_value(raw: bytes, scope: str) -> Any:
+    """Decode one already-scanned JSON value with bounded error evidence."""
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise StreamError(_invalid_utf8(scope, raw, exc)) from exc
+    try:
+        return json.loads(text, object_pairs_hook=_unique_object)
+    except ValueError as exc:
+        raise StreamError(f"invalid JSON in {scope}: {exc}") from exc
+
+
+def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate object key {key!r}")
+        result[key] = value
+    return result
+
+
+def _remember_top_level_key(key: str, seen: set[str]) -> None:
+    if key in seen:
+        raise StreamError(f"duplicate top-level object key {key!r}")
+    seen.add(key)
+
+
+def _sequence_has_next(reader: _Reader, closing: int, context: str) -> bool:
+    """Consume a required comma or closing delimiter after one sequence value."""
+    nxt = reader.peek()
+    if nxt == closing:
+        reader.pos += 1
+        return False
+    if nxt is None:
+        raise StreamError(f"unterminated {context}")
+    if nxt != 0x2C:  # ,
+        delimiter = chr(closing)
+        raise StreamError(f"expected ',' or {delimiter!r} in {context}")
+    reader.pos += 1
+    nxt = reader.peek()
+    if nxt is None:
+        raise StreamError(f"unterminated {context}")
+    if nxt == closing:
+        raise StreamError(f"trailing comma in {context}")
+    return True
+
+
+def _ensure_document_end(reader: _Reader) -> None:
+    if reader.peek() is not None:
+        raise StreamError("unexpected content after top-level object")
+
+
+def stream_array_entries(
+    fh: BinaryIO,
+    array_key: str,
+    *,
+    stats: StreamStats | None = None,
+    envelope: MutableMapping[str, Any] | None = None,
+    envelope_keys: Iterable[str] = (),
+    required: bool = True,
+) -> Iterator[StreamItem]:
+    """Yield source-aware entries from one top-level object array.
 
     Sibling keys are skipped without being materialized. The caller decides what to keep, so peak
-    memory is bounded by the largest single item rather than by the file.
+    memory is bounded by the largest single item or requested envelope value rather than by the
+    file. Requested envelope fields are collected wherever they occur in the top-level object,
+    including after the streamed array. The generator must therefore be exhausted before the
+    envelope is complete.
     """
     st = stats if stats is not None else StreamStats()
+    captured_keys = frozenset(envelope_keys) if envelope is not None else frozenset()
     reader = _open_object(fh, st)
-    while True:
-        nxt = reader.peek()
-        if nxt is None:
-            raise StreamError(f"no {array_key!r} array found before end of input")
-        if nxt == 0x7D:  # }
+    found = False
+    seen_keys: set[str] = set()
+    if reader.peek() == 0x7D:  # }
+        reader.pos += 1
+        _ensure_document_end(reader)
+        if required:
             raise StreamError(f"no {array_key!r} array found in object")
-        if nxt == 0x2C:  # ,
-            reader.pos += 1
-            continue
-        key = json.loads(_scan_value(reader).decode("utf-8", "replace"))
+        return
+    while True:
+        key = _read_object_key(reader)
+        _remember_top_level_key(key, seen_keys)
         if reader.peek() != 0x3A:  # :
             raise StreamError(f"expected ':' after key {key!r}")
         reader.pos += 1
 
-        if key != array_key:
-            _scan_value(reader)  # skipped without being materialized
-            continue
-
-        if reader.peek() != 0x5B:  # [
-            raise StreamError(f"{array_key!r} is not an array")
-        reader.pos += 1
-        yield from _iter_array(reader, st, array_key)
-        return
-
-
-def _iter_array(reader: _Reader, st: StreamStats, array_key: str) -> Iterator[dict[str, Any]]:
-    """Yield each object in the already-opened array, recording items it cannot use."""
-    while True:
-        nxt = reader.peek()
-        if nxt is None:
-            raise StreamError(f"unterminated {array_key!r} array")
-        if nxt == 0x5D:  # ]
-            return
-        if nxt == 0x2C:  # ,
+        if envelope is not None and key != array_key and key in captured_keys:
+            envelope[key] = _decode_json_value(_scan_value(reader), f"top-level field {key!r}")
+        elif key != array_key or found:
+            _discard_value(reader)
+        else:
+            if reader.peek() != 0x5B:  # [
+                raise StreamError(f"{array_key!r} is not an array")
             reader.pos += 1
-            continue
+            found = True
+            yield from _iter_array(reader, st, array_key)
+        if not _sequence_has_next(reader, 0x7D, "top-level object"):
+            break
+    if not found and required:
+        raise StreamError(f"no {array_key!r} array found in object")
+    _ensure_document_end(reader)
+
+
+def stream_array_items(
+    fh: BinaryIO,
+    array_key: str,
+    *,
+    stats: StreamStats | None = None,
+    envelope: MutableMapping[str, Any] | None = None,
+    envelope_keys: Iterable[str] = (),
+    required: bool = True,
+) -> Iterator[dict[str, Any]]:
+    """Yield object values while retaining the bounded legacy API."""
+    for entry in stream_array_entries(
+        fh,
+        array_key,
+        stats=stats,
+        envelope=envelope,
+        envelope_keys=envelope_keys,
+        required=required,
+    ):
+        yield entry.value
+
+
+def _iter_array(reader: _Reader, st: StreamStats, array_key: str) -> Iterator[StreamItem]:
+    """Yield each object in the already-opened array, recording items it cannot use."""
+    ordinal = 0
+    if reader.peek() == 0x5D:  # ]
+        reader.pos += 1
+        return
+    while True:
         raw = _scan_value(reader)
         try:
-            item = json.loads(raw.decode("utf-8", "replace"))
-        except ValueError as exc:
-            st.problems.append(f"item {st.items_yielded}: {exc}")
-            continue
-        if isinstance(item, dict):
-            st.items_yielded += 1
-            yield item
+            decoded = raw.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            st.record_problem(f"item {ordinal}: {_invalid_utf8('array item', raw, exc)}")
         else:
-            st.problems.append(f"item {st.items_yielded}: not an object")
+            item = _parse_item(decoded, ordinal, st)
+            if item is not None:
+                st.items_yielded += 1
+                yield StreamItem(ordinal=ordinal, value=item, raw=raw)
+        ordinal += 1
+        if not _sequence_has_next(reader, 0x5D, f"{array_key!r} array"):
+            return
+
+
+def _parse_item(decoded: str, ordinal: int, st: StreamStats) -> dict[str, Any] | None:
+    try:
+        item = json.loads(
+            decoded,
+            parse_float=Decimal,
+            object_pairs_hook=_unique_object,
+        )
+    except ValueError as exc:
+        st.record_problem(f"item {ordinal}: {exc}")
+        return None
+    if not isinstance(item, dict):
+        st.record_problem(f"item {ordinal}: not an object")
+        return None
+    return item
 
 
 def read_envelope(fh: BinaryIO, array_key: str, *, max_bytes: int = 1 << 20) -> dict[str, Any]:
@@ -306,16 +521,16 @@ def read_envelope(fh: BinaryIO, array_key: str, *, max_bytes: int = 1 << 20) -> 
             reader.pos += 1
             continue
         try:
-            key = json.loads(_scan_value(reader).decode("utf-8", "replace"))
+            key = json.loads(_scan_value(reader).decode("utf-8"))
             if reader.peek() != 0x3A:
                 return envelope
             reader.pos += 1
             raw = _scan_value(reader)
-        except (StreamError, ValueError):
+        except (StreamError, UnicodeDecodeError, ValueError):
             return envelope
         if key == array_key:
             continue  # the big one; never materialized here
         try:
-            envelope[str(key)] = json.loads(raw.decode("utf-8", "replace"))
-        except ValueError:
+            envelope[str(key)] = json.loads(raw.decode("utf-8"))
+        except (UnicodeDecodeError, ValueError):
             continue

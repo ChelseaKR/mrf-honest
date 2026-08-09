@@ -1,11 +1,14 @@
 # Data landscape: what MRFs actually are
 
-Written from working knowledge as of 2026-08-05. **Verify every schema detail against CMS's own
-documentation before writing code**, because the templates have changed more than once and this
-document will drift.
+Written from working knowledge as of 2026-08-05 and source-checked for the implemented hospital
+path on 2026-08-09. **Verify every schema detail against CMS's own documentation before extending
+code**, because the templates have changed more than once and this document will drift.
 
-Primary source of truth: CMS publishes the payer schemas and validator tooling openly at
-`github.com/CMSgov/price-transparency-guide`. Start there, not here.
+Primary sources of truth: CMS publishes payer schemas and validator tooling at
+[`CMSgov/price-transparency-guide`](https://github.com/CMSgov/price-transparency-guide) and the
+implemented hospital JSON v3 template at
+[`CMSgov/hospital-price-transparency`](https://github.com/CMSgov/hospital-price-transparency/tree/master/documentation/JSON).
+Start there, not here.
 
 ## Two different rules, two different datasets
 
