@@ -74,6 +74,8 @@ def test_discover_domain_composes_fetch_parser_and_append_only_log(tmp_path: Pat
             b"location-name: Hospital",
             b"source-page-url: https://hospital.test/prices",
             b"mrf-url: https://hospital.test/123456789_hospital_standardcharges.json",
+            b"contact-name: Hospital MRF Team",
+            b"contact-email: mrf@hospital.test",
         ]
     )
     opener = OneResponse(Response(text))
@@ -93,9 +95,130 @@ def test_discover_domain_composes_fetch_parser_and_append_only_log(tmp_path: Pat
     assert record.ok and record.discovery is not None
     assert record.discovery.location_name == "Hospital"
     assert record.discovery.mrf_url is not None
+    assert record.discovery.contact_name == "Hospital MRF Team"
+    assert record.discovery.contact_email == "mrf@hospital.test"
     assert opener.request is not None
     assert tuple(registry) == (record,)
     assert registry.path.read_text(encoding="utf-8").count("\n") == 1
+
+
+def test_registry_round_trips_multiple_discovery_entries_and_extras(tmp_path: Path) -> None:
+    text = b"\n".join(
+        [
+            b"location-name: Hospital East",
+            b"source-page-url: https://hospital.test/prices",
+            b"mrf-url: https://hospital.test/east.json",
+            b"contact-name: East Team",
+            b"contact-email: east@hospital.test",
+            b"vendor-id: east-1",
+            b"",
+            b"location-name: Hospital West",
+            b"source-page-url: https://hospital.test/prices",
+            b"mrf-url: https://hospital.test/west.json",
+            b"contact-name: West Team",
+            b"contact-email: west@hospital.test",
+            b"vendor-id: west-2",
+        ]
+    )
+    registry = Registry(tmp_path / "registry.jsonl")
+
+    record = discover_domain(
+        "hospital.test",
+        registry=registry,
+        cache_dir=tmp_path / "cache",
+        policy=policy(),
+        opener=OneResponse(Response(text)),
+        clock=clock,
+    )
+
+    loaded = registry.records()[0]
+    assert loaded == record
+    assert loaded.discovery is not None
+    assert len(loaded.discovery.entries) == 2
+    assert loaded.discovery.entries[0].contact_email == "east@hospital.test"
+    assert loaded.discovery.entries[0].extra_fields == (("vendor-id", "east-1"),)
+    assert loaded.discovery.entries[1].contact_name == "West Team"
+    assert loaded.discovery.entries[1].extra_fields == (("vendor-id", "west-2"),)
+    assert loaded.to_dict()["version"] == 2
+
+
+def test_discovery_with_missing_required_contact_fields_is_not_ok(tmp_path: Path) -> None:
+    record = discover_domain(
+        "hospital.test",
+        registry=Registry(tmp_path / "registry.jsonl"),
+        cache_dir=tmp_path / "cache",
+        policy=policy(),
+        opener=OneResponse(
+            Response(
+                b"\n".join(
+                    [
+                        b"location-name: Hospital",
+                        b"source-page-url: https://hospital.test/prices",
+                        b"mrf-url: https://hospital.test/prices.json",
+                    ]
+                )
+            )
+        ),
+        clock=clock,
+    )
+
+    assert record.discovery is not None and record.discovery.usable
+    assert "no contact-name field" in record.discovery.problems
+    assert "no contact-email field" in record.discovery.problems
+    assert not record.ok
+
+
+def test_registry_reads_legacy_v1_single_discovery_without_inventing_contacts(
+    tmp_path: Path,
+) -> None:
+    registry = Registry(tmp_path / "registry.jsonl")
+    record = discover_domain(
+        "hospital.test",
+        registry=registry,
+        cache_dir=tmp_path / "cache",
+        policy=policy(),
+        opener=OneResponse(
+            Response(
+                b"\n".join(
+                    [
+                        b"location-name: Hospital",
+                        b"source-page-url: https://hospital.test/prices",
+                        b"mrf-url: https://hospital.test/prices.json",
+                        b"contact-name: MRF Team",
+                        b"contact-email: mrf@hospital.test",
+                    ]
+                )
+            )
+        ),
+        clock=clock,
+    )
+    current = record.to_dict()
+    current["version"] = 1
+    current_discovery = current["discovery"]
+    assert isinstance(current_discovery, dict)
+    current_entries = current_discovery["entries"]
+    assert isinstance(current_entries, list)
+    current_entry = current_entries[0]
+    assert isinstance(current_entry, dict)
+    current["discovery"] = {
+        "domain": current_discovery["domain"],
+        "location_name": current_entry["location_name"],
+        "source_page_url": current_entry["source_page_url"],
+        "mrf_url": current_entry["mrf_url"],
+        "extra_fields": [["legacy-key", "legacy-value"]],
+        "problems": ["legacy parse problem"],
+    }
+    registry.path.write_text(json.dumps(current) + "\n", encoding="utf-8")
+
+    loaded = registry.records()[0]
+
+    assert loaded.discovery is not None
+    assert len(loaded.discovery.entries) == 1
+    assert loaded.discovery.contact_name is None
+    assert loaded.discovery.contact_email is None
+    assert loaded.discovery.extra_fields == (("legacy-key", "legacy-value"),)
+    assert loaded.discovery.problems == ("legacy parse problem",)
+    assert not loaded.ok
 
 
 def test_failed_fetch_is_still_dated_and_recorded(tmp_path: Path) -> None:

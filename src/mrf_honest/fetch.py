@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import tempfile
 import time
@@ -18,7 +19,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
-from http.client import HTTPException, HTTPMessage
+from http.client import HTTPException, HTTPMessage, InvalidURL
 from pathlib import Path
 from typing import IO, Protocol, cast
 from urllib.error import HTTPError, URLError
@@ -74,11 +75,11 @@ class FetchPolicy:
             raise ValueError("contact must be a single line")
         if self.max_bytes <= 0:
             raise ValueError("max_bytes must be positive")
-        if self.timeout_seconds <= 0:
+        if not math.isfinite(self.timeout_seconds) or self.timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be positive")
         if self.retries < 0:
             raise ValueError("retries cannot be negative")
-        if self.backoff_seconds < 0:
+        if not math.isfinite(self.backoff_seconds) or self.backoff_seconds < 0:
             raise ValueError("backoff_seconds cannot be negative")
         if self.chunk_size <= 0:
             raise ValueError("chunk_size must be positive")
@@ -347,7 +348,7 @@ def _timestamp(clock: Clock) -> str:
 
 
 def _url_problem(url: str) -> str | None:
-    if not url or any(char.isspace() or ord(char) < 0x20 for char in url):
+    if not url or any(char.isspace() or ord(char) < 0x20 or ord(char) == 0x7F for char in url):
         return "URL is empty or contains whitespace/control characters"
     try:
         parsed = urlsplit(url)
@@ -410,7 +411,14 @@ def _atomic_json(path: Path, data: Mapping[str, object]) -> None:
     tmp = Path(raw_tmp)
     try:
         with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-            json.dump(data, handle, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+            json.dump(
+                data,
+                handle,
+                allow_nan=False,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            )
             handle.write("\n")
             handle.flush()
             os.fsync(handle.fileno())
@@ -940,7 +948,7 @@ def fetch_url(  # noqa: C901 - each branch is a distinct structured terminal out
                 url,
                 FetchStatus.INVALID_URL,
                 attempted_at,
-                attempt,
+                0,
                 f"invalid URL: {exc}",
             )
         except HTTPError as exc:
@@ -955,6 +963,14 @@ def fetch_url(  # noqa: C901 - each branch is a distinct structured terminal out
                 )
             finally:
                 exc.close()
+        except InvalidURL as exc:
+            outcome = _error_outcome(
+                url,
+                FetchStatus.INVALID_URL,
+                attempted_at,
+                0,
+                f"invalid URL: {exc}",
+            )
         except (HTTPException, URLError, TimeoutError, OSError) as exc:
             reason = exc.reason if isinstance(exc, URLError) else exc
             outcome = _error_outcome(

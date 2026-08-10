@@ -1,26 +1,109 @@
-# How local files are assessed
+# How files are assessed
 
-`mrf-honest inspect` reports five independent dimensions for one local CMS hospital JSON v3
-file. It deliberately does **not** calculate a composite score, rank, letter grade, pass/fail
-result, or CMS compliance label. The word “grade” in this document means only the deterministic
-assignment of a status and source-cited findings within each dimension.
+`mrf-honest inspect` reports local-file evidence, while `mrf-honest scorecard` (also available as
+`grade`) performs one identified retrieval and durably combines that remote evidence with the
+local inspection. Both report five independent dimensions for one CMS hospital JSON v3 file. They
+deliberately do **not** calculate a composite score, rank, letter grade, pass/fail result, or CMS
+compliance label. The word “grade” in this document means only the deterministic assignment of a
+status and source-cited findings within each dimension.
 
 The inspector streams `standard_charge_information` with bounded retained state. It records one
 finding per finding code, plus an `occurrences` value, instead of retaining an unbounded list of
 row-level errors. The caller must supply `as_of`, so the same file and date produce the same
 freshness result.
 
-The inspection policy, accepted sets, freshness rule, and complete finding catalog are hashed into
+The inspection policy, accepted sets, freshness rule, and local finding catalog are hashed into
 an inspection fingerprint. The lakehouse transformation fingerprint incorporates it, so a grading
 policy or catalog change creates a new run identity instead of silently reusing findings produced
 under older semantics. The measured fingerprint for the current acceptance is recorded in
 [Phase 2 validation](PHASE-2-FINDINGS.md).
 
+The remote scorecard has a separate policy fingerprint and artifact. Retrieval evidence changes
+over time and therefore does not mutate the content-based lakehouse run identity. Each scorecard
+record embeds sanitized fetch evidence, policy limits, the integrated dimensions, explicit
+coverage flags, a portable semantic assessment ID, and a digest over the complete record body in
+single-writer JSONL. Each append atomically replaces the complete validated file, so the workflow
+does not leave a partial trailing line. Local cache paths, URL query/fragment values, and the
+operator's required contact are not published; exact URL hashes preserve identity without
+publishing query tokens.
+
+## Remote scorecard workflow
+
+```sh
+uv run mrf-honest scorecard https://files.example.org/standardcharges.json \
+  --publisher-id example-health \
+  --publisher-type hospital \
+  --location-id main-campus \
+  --url-provenance cms_hpt \
+  --registry data/scorecards.jsonl \
+  --cache-dir data/cache \
+  --contact operator@example.org \
+  --format json
+```
+
+`url-provenance` is required. `cms_hpt` is a caller assertion that the URL came from confirmed CMS
+TXT evidence; `operator` means it was supplied directly by the operator. Version 1 does not yet
+embed the discovery-record digest, so provenance alone never turns a pre-network invalid URL into a
+publisher finding. It remains a comparison-scope field and prevents operator and discovered cohorts
+from being treated as methodologically identical.
+
+The scorecard maps every terminal fetch status explicitly:
+
+| Retrieval evidence | Retrievability result |
+|---|---|
+| `fetched` or verified `not_modified`, with matching body digest and size and a completed local inspection | `OBSERVED` |
+| HTTP, network, or decoded-content failure | `FINDINGS`, retaining status, HTTP status when available, attempt count, time, final URL, and bounded cause |
+| Invalid or unsafe redirect target observed after a request began | `FINDINGS` |
+| Malformed, non-credential URL reported as `invalid_url` before a network attempt | `NOT_ASSESSED`; caller provenance alone cannot attribute invalid input to the publisher |
+| Configured decoded-size limit (`too_large`) | `NOT_ASSESSED`; a project limit is not a publisher availability finding |
+| Local cache error or cache miss | `NOT_ASSESSED`; local infrastructure is not attributed to the publisher |
+| Fetch says success but the exact cached body cannot be verified and inspected | `NOT_ASSESSED` and an operational problem |
+
+Every terminal status still produces a target row in the scorecard registry. Publisher/file
+findings return a successful command status because they are the result; local cache, integrity,
+inspection, or persistence failures are operational command failures. When no verified body is
+available, conformance, completeness, interpretability, and freshness are all explicitly
+`NOT_ASSESSED` rather than omitted. Version 1 also does not stitch a current failed attempt to an
+older cached inspection; a future join must reference the prior assessment by digest rather than
+quietly mixing observation dates.
+
+HTTP 401 and 403 produce `MRF_AUTOMATION_BARRIER_OBSERVED`; other observed direct-download
+failures produce `MRF_DIRECT_DOWNLOAD_FAILED`. These are dated technical observations, not legal
+conclusions. CMS currently requires the MRF to be accessible without an account, password, or
+personally identifying information and to permit automated search and direct download; CMS also
+names CAPTCHA, terms acceptance, blocking code, and required information submission as barriers.
+See [45 CFR § 180.50] and the [CMS policy FAQ].
+
+`as_of` is the UTC calendar date of the recorded retrieval attempt. MRF freshness remains based
+only on the file's required `last_updated_on`; HTTP `Last-Modified`, cache validation time, and the
+age of `cms-hpt.txt` are not substitutes.
+
+## Comparison boundary
+
+Each scorecard carries an explicit publisher type and comparison scope. Direct comparison is
+refused unless publisher type, assessment profile, URL provenance, assessment-policy fingerprint,
+retrieval-policy fingerprint, and `as_of` all match. The implemented profile accepts hospitals
+only; `payer` is a reserved explicit type, not a silent default or a claim that a payer adapter
+exists. Multiple locations remain separate assessment subjects even when they share an
+organization or hosting origin.
+
+Injected openers, sleepers, backoff functions, or clocks are marked `custom` in retrieval-policy
+evidence and are categorically refused by `require_comparable`; the marker cannot fully identify
+arbitrary code. Version 1 also has no persisted collector-run or network-vantage identifier.
+Accordingly, even matching default-policy rows are candidates for comparison only when the caller
+knows they came from the same controlled collection run. Encoding that context is a phase-4
+prerequisite before any public retrievability comparison is published.
+
+Coverage flags preserve the distinctions needed for denominators: `targeted`, `network_attempted`,
+`verified_body_available`, `inspection_performed`, and `inspection_scan_completed`. An invalid URL
+with zero attempts remains targeted but is not counted as a network attempt; an unreachable target
+that was attempted therefore remains visible instead of disappearing from the dataset.
+
 ## Dimension and status semantics
 
 | Dimension | What the local inspector observes | When it is `NOT_ASSESSED` |
 |---|---|---|
-| Retrievability | Nothing. Network access is outside local-file inspection. | Always. The note explicitly says that local inspection does not perform or infer a network retrieval. |
+| Retrievability | Nothing. Network access is outside `inspect`; use `scorecard` for the separate remote workflow. | Always for `inspect`. The note explicitly says that local inspection does not perform or infer a network retrieval. |
 | Conformance | Selected CMS v3 envelope, structure, accepted-value, JSON-stream, and attestation checks. | Never after the file has been opened; a stream failure is itself a conformance finding. |
 | Completeness | Presence and basic usability of selected envelope and charge fields. | When the charge-array scan does not complete. Existing completeness findings remain attached for transparency. |
 | Interpretability | Whether payer rates exist and whether percentage or algorithm representations require separate treatment. | When the scan does not complete, or when it completes without a usable item object. |
@@ -62,7 +145,7 @@ Severities have intentionally narrow meanings:
 
 These labels express the inspector's reporting priority. They do not express legal materiality.
 
-## Authoritative finding catalog
+## Authoritative local finding catalog
 
 The following 44 codes mirror `FINDING_CATALOG` in `mrf_honest.inspect`. The catalog description
 is stable; an emitted finding's message can add file-specific context such as the observed value
@@ -132,8 +215,15 @@ or dates.
 | `FRESHNESS_DATE_IN_FUTURE` | WARNING | The source publication date is after `as_of`. | [45 CFR § 180.50] |
 | `FRESHNESS_DATE_NOT_USABLE` | ERROR | Freshness cannot be assessed from `last_updated_on`. | [JSON dictionary], [45 CFR § 180.50] |
 
-Retrievability currently has no local-file finding codes because it is always `NOT_ASSESSED` by
-this inspector.
+### Retrievability (remote scorecard only)
+
+These two codes are owned by the remote scorecard policy, not the local inspection fingerprint.
+`mrf-honest explain CODE` resolves both local and remote codes.
+
+| Code | Severity | Catalog description | Citations |
+|---|---|---|---|
+| `MRF_AUTOMATION_BARRIER_OBSERVED` | ERROR | The direct-download request received an HTTP access barrier. | [45 CFR § 180.50], [CMS policy FAQ] |
+| `MRF_DIRECT_DOWNLOAD_FAILED` | ERROR | The direct-download request did not produce a verified local body. | [45 CFR § 180.50] |
 
 ## Freshness boundary
 
@@ -156,8 +246,9 @@ This inspection is narrower than CMS validation and legal review:
 - It does not determine compliance with 45 CFR part 180 or any other law or regulation.
 - It does not prove that published prices, payer names, plan names, codes, or attestations are
   factually accurate.
-- It does not retrieve a remote URL, evaluate TLS, redirects, HTTP freshness, `robots.txt`, or
-  download reliability. Those belong to the separate retrieval workflow.
+- Local `inspect` does not retrieve a URL. Remote `scorecard` performs one bounded GET, validates
+  HTTPS redirects, and records that attempt; it does not establish long-run download reliability,
+  inspect `robots.txt`, or infer MRF freshness from HTTP metadata.
 - It does not compare hospitals or mix dollar, percentage, and algorithm representations.
 - It does not turn severities, occurrence counts, or dimension statuses into an overall score.
 
@@ -167,3 +258,4 @@ scope. Preserve the evidence and citations when presenting any result.
 [JSON dictionary]: https://github.com/CMSgov/hospital-price-transparency/blob/master/documentation/JSON/README.md
 [JSON schema]: https://github.com/CMSgov/hospital-price-transparency/blob/master/documentation/JSON/schemas/V3.0.0_Hospital_price_transparency_schema.json
 [45 CFR § 180.50]: https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-E/part-180/subpart-B/section-180.50
+[CMS policy FAQ]: https://www.cms.gov/files/document/hpt-policy-faqs-june-2026.pdf

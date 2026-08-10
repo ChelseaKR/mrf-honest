@@ -14,14 +14,16 @@ Start there, not here.
 
 ### 1. Transparency in Coverage (payers)
 
-Health insurers must publish machine-readable files of negotiated rates. Structure:
+Non-grandfathered group health plans and health insurance issuers must publish machine-readable
+rate files. Structure:
 
-- A **table-of-contents / index file** listing the actual MRF URLs, because the real files are too
-  large to enumerate any other way
+- A **table-of-contents / index file** may list the actual MRF URLs and is required when one index
+  groups multiple plans; a single-plan publication need not have an index
 - **In-network rates** files: negotiated rates by provider, billing code, and arrangement
 - **Allowed amounts** files: out-of-network historical allowed amounts
 
-Format is JSON, usually gzipped. **Scale is the defining problem.** Individual payer files
+CMS requires a non-proprietary open format and lists JSON, XML, and YAML; neither JSON nor gzip is
+universal. **Scale is the defining problem.** Individual payer files
 routinely run to tens of gigabytes and the largest are far bigger. Nothing about this fits in
 memory, and naive tooling dies immediately. This is precisely why the project is worth building:
 the constraint is real rather than simulated.
@@ -37,6 +39,16 @@ services, which is out of scope here.
 Hospital files are the better starting point: smaller, standardized, and there are thousands of
 publishers, which is a genuine registry rather than a handful.
 
+For discovery, CMS's current `cms-hpt.txt` convention uses five fields per location
+(`location-name`, `source-page-url`, `mrf-url`, `contact-name`, and `contact-email`) and permits
+multiple repeated location blocks. The document belongs at the root of the public site selected
+to host the MRF, which may be a health-system or vendor origin rather than the hospital's corporate
+domain. The `mrf-url` identifies the direct download. CMS expressly permits the root TXT URL itself
+to redirect; this project's separately validated HTTPS redirect handling for an MRF request is a
+transport policy, not a claimed CMS format requirement. See the
+[CMS TXT FAQ](https://www.cms.gov/files/document/hospital-price-transparency-txt-file-frequently-asked-questions-faqs.pdf)
+and [technical generator](https://cmsgov.github.io/hpt-tool/txt-generator/).
+
 ## Known pitfalls, all of which are the actual product
 
 These are the reasons the data is hard, and grading them is the point:
@@ -44,12 +56,12 @@ These are the reasons the data is hard, and grading them is the point:
 - **Technically valid, practically useless.** A file can satisfy the schema and still be
   unusable: every rate reported as a percentage of an undisclosed fee schedule, or codes without
   the context to interpret them.
-- **URL rot.** Published locations move, and the index file goes stale. Any registry must record
+- **URL rot.** Published locations move, and a discovery link or index goes stale. Any registry must record
   when a URL was last confirmed and distinguish "gone" from "we could not reach it," which is the
   exact lesson `fhir-scorecard` learned when TLS interception made a live endpoint look dead.
-- **Fetch hostility.** Some files sit behind CDN rules, bot protection, or authentication walls
-  that arguably conflict with the publication requirement. Record that as a finding rather than
-  fighting it.
+- **Fetch hostility.** For hospital MRFs, account, password, PII, and automation barriers are
+  expressly barred. CDN or bot controls matter when they actually prevent the required access;
+  record the observed result as a finding rather than inferring from the technology alone.
 - **Enormous files with thin content.** Size does not equal completeness. A 40GB file can carry
   less usable rate information than a 200MB one.
 - **Identifier inconsistency.** NPI and TIN reporting varies in quality; provider groups are
@@ -75,7 +87,8 @@ comparable than it is. An open one does not, and that asymmetry is the entire re
 - These files are **required to be publicly posted**. Retrieving them is the intended use.
 - Fetch politely: identify the client with a contact address, honor robots and rate limits, do not
   parallelize aggressively against one publisher, and cache so a file is fetched once.
-- **No PHI.** MRFs contain prices, not patients. If individual-level data ever appears in one,
+- **No intended PHI.** The required MRF schemas do not call for patient data, so MRFs should not
+  contain PHI. If individual-level data ever appears in one,
   that is a disclosure incident to report to the publisher, not a dataset to analyze. Say so in
   the repository before it happens.
 - Grades describe observable properties of published files. **Not compliance determinations**, and

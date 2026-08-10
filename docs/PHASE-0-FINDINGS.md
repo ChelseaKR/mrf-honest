@@ -8,12 +8,20 @@ clean, rescope or drop." They are neither.
 
 ## 1. Hospitals are discoverable by convention, and this inverts the fhir-scorecard problem
 
-CMS requires hospitals to publish `cms-hpt.txt` at their domain root. It is a structured file:
+CMS requires a `cms-hpt.txt` at the root of the public website selected to host the MRF. That
+origin may belong to a hospital, health system, or vendor; it must not be guessed from a hospital's
+corporate domain. Each location entry has five attributes, and one document may repeat the block
+for multiple locations:
+
+The contact fields in this example are illustrative; they are not claimed as values observed from
+Stanford's published TXT evidence.
 
 ```
 location-name: Stanford Health Care
 source-page-url: https://stanfordhealthcare.org/for-patients-visitors/price-transparency.html
 mrf-url: https://stanfordhealthcare.org/content/dam/SHC/...
+contact-name: Price Transparency Team
+contact-email: transparency@example.org
 ```
 
 Four of five domains tried returned a usable one on the first attempt.
@@ -21,15 +29,18 @@ Four of five domains tried returned a usable one on the first attempt.
 This is the **opposite** of the payer FHIR situation in `fhir-scorecard`, where only 7 of 9
 organizations with documented base URLs could be verified and 15 guessed URLs resolved to nothing,
 forcing a registry curated one developer portal at a time. Here the registry can be **built
-automatically from a list of hospital domains**, which changes the shape of the whole project:
-coverage becomes an engineering problem rather than a manual research problem.
+automatically once the selected MRF-hosting origins are confirmed**, which changes the shape of
+the whole project: each structured document can yield one or more location records without
+guessing an MRF path. Establishing the hosting origin is still a provenance step; an absent file
+on an arbitrary corporate domain is not evidence about the hospital's publication.
 
-MRF filenames also follow a CMS convention: `{EIN}_{hospital-name}_standardcharges.{json|csv|xlsx}`,
+MRF filenames also follow a CMS convention: `{EIN}_{hospital-name}_standardcharges.{json|csv}`,
 which gives a second structured signal (the EIN identifies the filer).
 
-**Already observed failure mode:** `mayoclinic.org` returned **403** to an identified client. Bot
-protection versus a publication requirement is a real tension and belongs in the grading as a
-finding, not as a silent gap.
+**Already observed target-probe failure mode:** `mayoclinic.org` returned **403** to an identified
+client. That corporate-domain probe was not confirmed as Mayo's selected MRF-hosting origin or
+publication path, so it is not a hospital finding. It does demonstrate why the assessment must
+retain failed targets and provenance rather than silently dropping them.
 
 ## 2. File sizes: not small
 
@@ -64,13 +75,13 @@ reader is not a nicety, and this number is the justification.
 JSONDecodeError: Unexpected UTF-8 BOM (decode using utf-8-sig)
 ```
 
-A UTF-8 byte-order mark makes a technically-JSON document unreadable by a standard parser. This is
-exactly the "technically conforming, practically unusable" category the project exists to grade,
-and it appeared on file number one without looking for it.
+A UTF-8 byte-order mark made the byte stream unreadable by the standard parser. Strict JSON
+producers should not emit a BOM even though parsers may choose to tolerate one. This is a practical
+hardening case, and it appeared on file number one without looking for it.
 
 ## 5. The thesis is confirmed by the data itself
 
-CMS's payer schema (`CMSgov/price-transparency-guide`, updated 2026-07-30) defines
+CMS's payer schema (`CMSgov/price-transparency-guide`, source-checked 2026-08-09) defines
 `negotiated_type` as an enum:
 
 ```
@@ -97,8 +108,10 @@ error this project is built to refuse, and it is the default outcome of naive an
 
 - **Start with hospitals, not payers.** Discoverable, standardized, thousands of publishers, and
   large enough to force real engineering. Payers come later, when streaming is proven.
-- **Discovery is automatable.** Build a `cms-hpt.txt` discovery module early; it is the cheapest
-  path to a genuinely large registry and the thing `fhir-scorecard` could never have.
+- **Discovery is automatable from confirmed hosting origins.** Build a multi-entry `cms-hpt.txt`
+  discovery module early; it is the cheapest path to a genuinely large registry and the thing
+  `fhir-scorecard` could never have. Never infer a missing publication from an unconfirmed
+  corporate-domain probe.
 - **Encoding tolerance is a first-class requirement**, not a bug fix. BOM handling, encoding
   detection, and zip containers all appeared in a sample of four.
 - **Segment by methodology from the very first model.** Retrofitting that later would mean every

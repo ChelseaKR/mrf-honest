@@ -11,10 +11,11 @@ from enum import StrEnum
 from pathlib import Path
 from typing import cast
 
-from mrf_honest.discover import Discovery, cms_hpt_url, parse_cms_hpt
+from mrf_honest.discover import Discovery, DiscoveryEntry, cms_hpt_url, parse_cms_hpt
 from mrf_honest.fetch import Backoff, Clock, FetchOutcome, FetchPolicy, Opener, Sleeper, fetch_url
 
-_REGISTRY_VERSION = 1
+_REGISTRY_VERSION = 2
+_READABLE_REGISTRY_VERSIONS = frozenset({1, _REGISTRY_VERSION})
 _DISCOVERY_MAX_BYTES = 1 << 20
 
 
@@ -43,7 +44,9 @@ class RegistryRecord:
 
     @property
     def ok(self) -> bool:
-        parsed_ok = self.discovery is None or self.discovery.usable
+        parsed_ok = self.discovery is None or (
+            self.discovery.usable and not self.discovery.all_problems
+        )
         return self.fetch.ok and parsed_ok and not self.problems
 
     def to_dict(self) -> dict[str, object]:
@@ -51,11 +54,8 @@ class RegistryRecord:
         if self.discovery is not None:
             discovery = {
                 "domain": self.discovery.domain,
-                "location_name": self.discovery.location_name,
-                "source_page_url": self.discovery.source_page_url,
-                "mrf_url": self.discovery.mrf_url,
-                "extra_fields": [list(pair) for pair in self.discovery.extra_fields],
-                "problems": list(self.discovery.problems),
+                "entries": [_entry_to_dict(entry) for entry in self.discovery.entries],
+                "problems": list(self.discovery.document_problems),
             }
         return {
             "version": _REGISTRY_VERSION,
@@ -70,14 +70,15 @@ class RegistryRecord:
 
     @classmethod
     def from_dict(cls, data: Mapping[str, object]) -> RegistryRecord:
-        if _integer(data, "version") != _REGISTRY_VERSION:
+        version = _integer(data, "version")
+        if version not in _READABLE_REGISTRY_VERSIONS:
             raise ValueError("unsupported registry record version")
         raw_fetch = data.get("fetch")
         if not isinstance(raw_fetch, dict):
             raise ValueError("'fetch' must be an object")
         fetch = FetchOutcome.from_dict(cast(dict[str, object], raw_fetch))
         raw_discovery = data.get("discovery")
-        discovery = _discovery_from_object(raw_discovery)
+        discovery = _discovery_from_object(raw_discovery, version=version)
         problems = _string_tuple(data.get("problems"), "problems")
         domain = _string(data, "domain")
         kind = AttemptKind(_string(data, "kind"))
@@ -127,17 +128,23 @@ def _string_tuple(value: object, name: str) -> tuple[str, ...]:
     return tuple(cast(list[str], value))
 
 
-def _discovery_from_object(value: object) -> Discovery | None:
-    if value is None:
-        return None
-    if not isinstance(value, dict):
-        raise ValueError("'discovery' must be an object or null")
-    data = cast(dict[str, object], value)
-    raw_extra = data.get("extra_fields")
-    if not isinstance(raw_extra, list):
+def _entry_to_dict(entry: DiscoveryEntry) -> dict[str, object]:
+    return {
+        "location_name": entry.location_name,
+        "source_page_url": entry.source_page_url,
+        "mrf_url": entry.mrf_url,
+        "contact_name": entry.contact_name,
+        "contact_email": entry.contact_email,
+        "extra_fields": [list(pair) for pair in entry.extra_fields],
+        "problems": list(entry.problems),
+    }
+
+
+def _extra_fields(value: object) -> tuple[tuple[str, str], ...]:
+    if not isinstance(value, list):
         raise ValueError("'extra_fields' must be an array")
     extra: list[tuple[str, str]] = []
-    for pair in raw_extra:
+    for pair in value:
         if (
             not isinstance(pair, list)
             or len(pair) != 2
@@ -146,13 +153,50 @@ def _discovery_from_object(value: object) -> Discovery | None:
         ):
             raise ValueError("each extra field must be a string pair")
         extra.append((pair[0], pair[1]))
-    return Discovery(
-        domain=_string(data, "domain"),
+    return tuple(extra)
+
+
+def _entry_from_object(value: object) -> DiscoveryEntry:
+    if not isinstance(value, dict):
+        raise ValueError("each discovery entry must be an object")
+    data = cast(dict[str, object], value)
+    return DiscoveryEntry(
         location_name=_nullable_string(data, "location_name"),
         source_page_url=_nullable_string(data, "source_page_url"),
         mrf_url=_nullable_string(data, "mrf_url"),
-        extra_fields=tuple(extra),
+        contact_name=_nullable_string(data, "contact_name"),
+        contact_email=_nullable_string(data, "contact_email"),
+        extra_fields=_extra_fields(data.get("extra_fields")),
+        problems=_string_tuple(data.get("problems"), "discovery entry problems"),
+    )
+
+
+def _legacy_discovery(data: Mapping[str, object]) -> Discovery:
+    entry = DiscoveryEntry(
+        location_name=_nullable_string(data, "location_name"),
+        source_page_url=_nullable_string(data, "source_page_url"),
+        mrf_url=_nullable_string(data, "mrf_url"),
+        extra_fields=_extra_fields(data.get("extra_fields")),
         problems=_string_tuple(data.get("problems"), "discovery problems"),
+    )
+    return Discovery(domain=_string(data, "domain"), entries=(entry,))
+
+
+def _discovery_from_object(value: object, *, version: int) -> Discovery | None:
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise ValueError("'discovery' must be an object or null")
+    data = cast(dict[str, object], value)
+    if version == 1:
+        return _legacy_discovery(data)
+    raw_entries = data.get("entries")
+    if not isinstance(raw_entries, list):
+        raise ValueError("'entries' must be an array")
+    return Discovery(
+        domain=_string(data, "domain"),
+        entries=tuple(_entry_from_object(entry) for entry in raw_entries),
+        document_problems=_string_tuple(data.get("problems"), "discovery problems"),
     )
 
 

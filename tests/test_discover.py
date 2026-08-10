@@ -4,10 +4,12 @@ import pytest
 
 from mrf_honest.discover import cms_hpt_url, parse_cms_hpt, parse_mrf_filename
 
-# Shape observed live from stanfordhealthcare.org on 2026-08-05.
+# The URL shape was observed live on 2026-08-05; POC values are synthetic parser fixtures.
 REAL = """location-name: Stanford Health Care
 source-page-url: https://stanfordhealthcare.org/for-patients-visitors/price-transparency.html
 mrf-url: https://stanfordhealthcare.org/content/dam/SHC/946174066_stanford-health-care_standardcharges.json
+contact-name: Stanford MRF Team
+contact-email: mrf@stanfordhealthcare.org
 """
 
 
@@ -16,6 +18,9 @@ def test_parses_a_real_shaped_file() -> None:
     assert d.usable
     assert d.location_name == "Stanford Health Care"
     assert d.mrf_url.endswith("_standardcharges.json")
+    assert d.contact_name == "Stanford MRF Team"
+    assert d.contact_email == "mrf@stanfordhealthcare.org"
+    assert len(d.entries) == 1
     assert d.problems == ()
 
 
@@ -49,6 +54,7 @@ def test_non_https_mrf_url_is_refused_not_upgraded() -> None:
     [
         "https://[broken",
         "https://x.test:invalid/prices.json",
+        "https://x.test:/prices.json",
         "https:///prices.json",
         "https://:443/prices.json",
     ],
@@ -79,6 +85,21 @@ def test_mrf_url_with_credentials_is_not_usable_by_the_fetch_pipeline() -> None:
     assert any("credentials" in problem for problem in d.problems)
 
 
+def test_complete_entry_records_invalid_source_page_and_contact_email() -> None:
+    text = """location-name: Example Hospital
+source-page-url: not-a-url
+mrf-url: https://files.example.test/prices.json
+contact-name: Example Team
+contact-email: not-an-email
+"""
+
+    discovery = parse_cms_hpt(text, domain="example.test")
+
+    assert discovery.usable
+    assert any("source-page-url" in problem for problem in discovery.problems)
+    assert any("contact-email" in problem for problem in discovery.problems)
+
+
 def test_missing_and_malformed_fields_become_problems_not_exceptions() -> None:
     d = parse_cms_hpt("location-name: Only A Name\nnonsense line\n", domain="x.test")
     assert not d.usable
@@ -94,6 +115,92 @@ def test_duplicate_field_keeps_first_and_records_it() -> None:
     assert any("more than once" in p for p in d.problems)
 
 
+def test_multiple_complete_location_blocks_are_distinct_entries() -> None:
+    text = """location-name: Hospital East
+source-page-url: https://system.test/prices
+mrf-url: https://system.test/east.json
+contact-name: East MRF Team
+contact-email: east@system.test
+vendor-id: east-1
+
+location-name: Hospital West
+source-page-url: https://system.test/prices
+mrf-url: https://system.test/west.json
+contact-name: West MRF Team
+contact-email: west@system.test
+vendor-id: west-2
+"""
+
+    discovery = parse_cms_hpt(text, domain="system.test")
+
+    assert discovery.usable
+    assert discovery.problems == ()
+    assert len(discovery.entries) == 2
+    assert discovery.entries[0].mrf_url == "https://system.test/east.json"
+    assert discovery.entries[0].extra_fields == (("vendor-id", "east-1"),)
+    assert discovery.entries[1].mrf_url == "https://system.test/west.json"
+    assert discovery.entries[1].extra_fields == (("vendor-id", "west-2"),)
+
+
+def test_adjacent_generator_blocks_can_repeat_location_name_without_duplicate_problem() -> None:
+    text = """location-name: Hospital East
+source-page-url: https://system.test/prices
+mrf-url: https://system.test/east.json
+contact-name: MRF Team
+contact-email: mrf@system.test
+location-name: Hospital West
+source-page-url: https://system.test/prices
+mrf-url: https://system.test/west.json
+contact-name: MRF Team
+contact-email: mrf@system.test
+"""
+
+    discovery = parse_cms_hpt(text, domain="system.test")
+
+    assert len(discovery.entries) == 2
+    assert discovery.problems == ()
+
+
+def test_adjacent_complete_blocks_can_restart_with_any_known_field() -> None:
+    text = """location-name: Hospital East
+source-page-url: https://system.test/prices
+mrf-url: https://system.test/east.json
+contact-name: East Team
+contact-email: east@system.test
+mrf-url: https://system.test/west.json
+contact-email: west@system.test
+contact-name: West Team
+location-name: Hospital West
+source-page-url: https://system.test/prices
+"""
+
+    discovery = parse_cms_hpt(text, domain="system.test")
+
+    assert len(discovery.entries) == 2
+    assert discovery.entries[1].location_name == "Hospital West"
+    assert discovery.entries[1].mrf_url == "https://system.test/west.json"
+    assert discovery.problems == ()
+
+
+def test_each_entry_retains_its_own_required_field_problems() -> None:
+    text = """location-name: Incomplete
+mrf-url: https://system.test/incomplete.json
+
+location-name: Complete
+source-page-url: https://system.test/prices
+mrf-url: https://system.test/complete.json
+contact-name: MRF Team
+contact-email: mrf@system.test
+"""
+
+    discovery = parse_cms_hpt(text, domain="system.test")
+
+    assert discovery.usable
+    assert any("no contact-name" in problem for problem in discovery.entries[0].problems)
+    assert any("no contact-email" in problem for problem in discovery.entries[0].problems)
+    assert discovery.entries[1].problems == ()
+
+
 def test_empty_value_recorded() -> None:
     d = parse_cms_hpt("mrf-url:\nlocation-name: X", domain="x.test")
     assert not d.usable
@@ -101,8 +208,8 @@ def test_empty_value_recorded() -> None:
 
 
 def test_unknown_fields_are_preserved_as_evidence() -> None:
-    d = parse_cms_hpt(f"{REAL}contact-email: billing@x.test\n", domain="x.test")
-    assert ("contact-email", "billing@x.test") in d.extra_fields
+    d = parse_cms_hpt(f"{REAL}vendor-id: hospital-42\n", domain="x.test")
+    assert ("vendor-id", "hospital-42") in d.extra_fields
 
 
 def test_filename_convention_yields_the_filer_ein() -> None:
@@ -118,6 +225,7 @@ def test_filename_convention_yields_the_filer_ein() -> None:
     [
         ("https://x.test/prices.json", "json"),
         ("https://x.test/charges.csv", "csv"),
+        ("https://x.test/123456789_hospital_standardcharges.xlsx", "xlsx"),
         ("https://x.test/nofile", None),
     ],
 )

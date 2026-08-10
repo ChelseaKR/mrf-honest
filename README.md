@@ -1,9 +1,10 @@
 # mrf-honest
 
-**Status: working local hospital-JSON path through phase 2 and most of phase 3.** The repository
-can discover and retrieve CMS hospital MRFs, inspect one without loading it into memory, and build
-an idempotent DuckDB + partitioned-Parquet snapshot with executable contracts. It does not yet
-publish cross-hospital comparisons, a site, or an API. The original memory constraint and parser
+**Status: working hospital-JSON path through phase 3.** The repository can discover and retrieve
+CMS hospital MRFs, inspect one without loading it into memory, persist a fail-closed remote-plus-
+local scorecard, and build an idempotent DuckDB + partitioned-Parquet snapshot with executable
+contracts. It does not yet publish cross-hospital comparisons, a site, or an API. The original
+memory constraint and parser
 measurements remain in [docs/PHASE-0-FINDINGS.md](docs/PHASE-0-FINDINGS.md); the lakehouse
 acceptance evidence is in [docs/PHASE-2-FINDINGS.md](docs/PHASE-2-FINDINGS.md).
 
@@ -37,9 +38,21 @@ uv run mrf-honest ingest prices.json \
   --warehouse warehouse \
   --as-of 2026-08-09 \
   --format json
+
+# Retrieve one file and atomically retain its remote-plus-local scorecard.
+uv run mrf-honest scorecard https://files.example.org/standardcharges.json \
+  --publisher-id example-health \
+  --publisher-type hospital \
+  --location-id main-campus \
+  --url-provenance cms_hpt \
+  --registry data/scorecards.jsonl \
+  --cache-dir data/cache \
+  --contact operator@example.org \
+  --format json
 ```
 
-The CLI also provides `discover`, `fetch`, `profile`, and `explain`. Retrieval requires an
+The CLI also provides `discover`, `fetch`, `profile`, and `explain`; `grade` is an alias for
+`scorecard`. Retrieval requires an
 identifying contact string, caches decoded content by SHA-256, validates HTTPS redirects, applies
 size limits and retry backoff, and records discovery attempts—including failures—in append-only
 JSONL evidence.
@@ -78,11 +91,16 @@ Built:
 - A standard-library streaming JSON reader with bounded problem samples, strict delimiters,
   invalid-UTF-8 evidence, UTF-8 BOM tolerance, and peak memory tied to one item rather than the
   whole file ([ADR 0002](docs/adr/0002-stdlib-only-streaming-core.md)).
-- `cms-hpt.txt` discovery, an identified conditional fetcher, content-addressed cache, and an
-  append-only registry that retains dated success and failure evidence.
+- Five-field, multi-location `cms-hpt.txt` discovery, an identified conditional fetcher,
+  content-addressed cache, and a v2 append-only registry that retains dated success and failure
+  evidence while reading v1 history.
 - A deterministic five-dimension file inspection: retrievability, conformance, completeness,
   interpretability, and freshness. Local inspection explicitly reports retrievability as
   `NOT_ASSESSED`; there is no composite score or organization ranking.
+- A separate integrity-hashed scorecard artifact that performs one bounded retrieval, records every
+  terminal outcome as a row, verifies and re-hashes any admitted body, composes retrievability with
+  the local dimensions, retains honest coverage flags, redacts local paths and URL query tokens,
+  and refuses cross-type/policy/date comparison ([ADR 0004](docs/adr/0004-separate-remote-scorecard-artifacts.md)).
 - A DuckDB + Parquet `hospital-json-v2` lakehouse with 13 exported raw, staging, intermediate,
   finding, and mart models; exact raw item/modifier text and SHA-256; `DECIMAL(38,10)` typed
   numerics; and all source codes retained as ordered `codes_json` rather than choosing a synthetic
@@ -105,7 +123,8 @@ Built:
 
 Still open:
 
-- combine remote retrieval evidence with local inspection into a published per-file scorecard;
+- execute and publish a real multi-publisher scorecard cohort; the phase-3 method is implemented
+  and tested, but no hosted grade distribution is claimed;
 - exercise and document a real multi-publisher query rather than only providing its safe shape;
 - add hospital CSV and payer-MRF adapters (there is no payer-MRF pipeline yet);
 - add `robots.txt` policy, per-host pacing, and `Retry-After` handling before broad scheduled
@@ -124,6 +143,7 @@ Still open:
 | [docs/IMPLEMENTATION-PLAN.md](docs/IMPLEMENTATION-PLAN.md) | Phased build plan with decision points and stop conditions |
 | [docs/PHASE-0-FINDINGS.md](docs/PHASE-0-FINDINGS.md) | Measured phase-0 constraint study and the phase-1 streaming result |
 | [docs/PHASE-2-FINDINGS.md](docs/PHASE-2-FINDINGS.md) | Real-file lakehouse acceptance, counts, storage, and limits |
+| [docs/PHASE-3-FINDINGS.md](docs/PHASE-3-FINDINGS.md) | Fail-closed remote scorecard contract, verification, and limits |
 | [docs/MODEL-DAG.md](docs/MODEL-DAG.md) | Model grains, lineage, contracts, and methodology-safe query |
 | [docs/how-we-grade.md](docs/how-we-grade.md) | Scorecard semantics and source-cited finding catalog |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Current position, observability declaration, metrics ledger |
@@ -136,9 +156,9 @@ ADR in [docs/adr/](docs/adr/). No blank rows, no silent skips.
 
 | Standard | State |
 |---|---|
-| Code Quality | Applies: `make verify` runs ruff (security `S` rules, `max-complexity=10`), `mypy --strict`, and pytest with a branch-coverage floor of 85. Current: 153 tests, 91.00% branch coverage, zero lint/type errors (2026-08-09). Floors: Python >= 3.12 (`.python-version` pins 3.14), ruff >= 0.15, mypy >= 1.18, locked in `uv.lock`. |
+| Code Quality | Applies: `make verify` runs ruff (security `S` rules, `max-complexity=10`), `mypy --strict`, and pytest with a branch-coverage floor of 85. Current: 226 tests, 89.78% branch coverage, zero lint/type errors (2026-08-09). Floors: Python >= 3.12 (`.python-version` pins 3.14), ruff >= 0.15, mypy >= 1.18, locked in `uv.lock`. |
 | Security & Supply-Chain | Applies: the streaming, inspection, discovery, fetch, and registry path is standard-library-only; DuckDB is an optional lakehouse dependency ([ADRs 0002-0003](docs/adr/)). The lockfile, ruff `S` gate, HTTPS/redirect validation, bounded downloads, and SHA-pinned CI actions reduce the current surface. Hosted SAST/secret/dependency scanners remain a phase-5 gap. |
-| CI/CD | Applies: a SHA-pinned GitHub Actions workflow mirrors `make verify` on Python 3.12 and 3.14 and builds distributions. The repository has no configured remote, so no hosted run is claimed. |
+| CI/CD | Applies: a SHA-pinned GitHub Actions workflow mirrors `make verify` on Python 3.12 and 3.14 and builds distributions. The public repository and its initial hosted branch/PR runs were green on both interpreters; the current increment must pass the same gate before merge. |
 | Observability | Applies to the local batch shape: finalized run manifests and DuckDB `model_metric` rows retain status, counts, rows scanned/produced, bytes, wall time, and DuckDB peak-buffer signals. No service availability claim applies. See [docs/ROADMAP.md](docs/ROADMAP.md). |
 | Accessibility | N/A (no human-facing HTML). The phase-5 static site brings this into scope before it ships. |
 | Internationalization | Applies narrowly: the operator CLI and documentation are English-only; structured JSON keys and CMS source fields are stable. The public-site decision is still required before phase 5: [docs/I18N.md](docs/I18N.md). |

@@ -9,6 +9,14 @@ no version tags yet; until the first dated release (phase 5 of
 
 ### Added
 
+- Phase 3 remote-plus-local scorecards: explicit hospital/location/URL provenance, exhaustive
+  terminal-fetch semantics, source-cited retrievability findings, honest coverage denominators,
+  cross-scope comparison refusal, portable semantic IDs, full-body integrity digests, and an
+  atomic single-writer assessment registry. `scorecard` is also available as the `grade` alias.
+- CMS `cms-hpt.txt` discovery now models all five required fields and repeated multi-location
+  entries. Registry schema v2 persists every entry and retains backward reading for v1 evidence.
+- ADR 0004 documents why mutable retrieval evidence is a separate artifact from content-derived
+  lakehouse runs and how operator/infrastructure failures avoid publisher attribution.
 - Phase 2 `hospital-json-v2` lakehouse: optional DuckDB catalog, bounded TSV normalization spools,
   a content-addressed exact-source archive, 13 partitioned Parquet model exports, and a documented
   raw → staging → intermediate → mart DAG.
@@ -43,7 +51,7 @@ no version tags yet; until the first dated release (phase 5 of
 - Final real-file acceptance on the 64,828,148-byte UC Medical Center source: 30,114 items,
   247,423 rate observations, 11 modifiers, 737 modifier-payer mappings, 536 charge modifier
   references, zero parser/hash reconciliation problems, 13 verified Parquets, and verified warm
-  reuse. The final gate is 153 tests at 91.00% branch coverage with ruff and mypy clean.
+  reuse. The current phase-3 gate is 226 tests at 89.78% branch coverage with ruff and mypy clean.
 - Portfolio standards conformance pass: `CHANGELOG.md`, `CONTRIBUTING.md`, `SECURITY.md`,
   `CITATION.cff`, `CODEOWNERS`, ADR log (`docs/adr/`), `docs/I18N.md`, `docs/ROADMAP.md`
   (observability declaration and metrics ledger), `docs/RESPONSIBLE-TECH-AUDITS.md`,
@@ -57,6 +65,10 @@ no version tags yet; until the first dated release (phase 5 of
   discards large sibling values without pinning them in memory.
 - Discovery URL validation now fails safely for malformed authorities, ports, whitespace, and
   embedded credentials instead of allowing URL-library exceptions to escape.
+- Discovery schema v2 retains all five CMS TXT fields and ordered multi-location entries. This is
+  a pre-release constructor migration: callers that instantiated the old three-field `Discovery`
+  directly must construct `DiscoveryEntry` values instead. Registry v1 reads preserve their
+  historical three-field `ok` semantics rather than inventing missing contact failures.
 - Dollar, percentage, and algorithm rate representations are modeled separately; only stated
   dollars enter the segmented comparison mart and methodology remains a required segment.
 - The comparison mart retains every ordered item code instead of assigning semantic meaning to

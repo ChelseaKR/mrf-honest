@@ -1,4 +1,4 @@
-"""Command-line interface for local MRF retrieval, inspection, and ingestion."""
+"""Command-line interface for MRF retrieval, assessment, inspection, and ingestion."""
 
 from __future__ import annotations
 
@@ -14,6 +14,15 @@ from mrf_honest.fetch import FetchPolicy, fetch_url
 from mrf_honest.inspect import FileInspection, explain_finding, inspect_hospital_file
 from mrf_honest.lakehouse import ingest_hospital_file, query_file_profile
 from mrf_honest.registry import Registry, discover_domain
+from mrf_honest.scorecard import (
+    RETRIEVAL_FINDING_CATALOG,
+    AssessmentRegistry,
+    AssessmentSubject,
+    FileAssessment,
+    PublisherType,
+    URLProvenance,
+    assess_hospital_url,
+)
 from mrf_honest.types import PublisherRef
 
 _SUCCESS = 0
@@ -76,6 +85,28 @@ def _emit_inspection_human(inspection: FileInspection) -> None:
     if not inspection.findings:
         print("  none")
     for finding in inspection.findings:
+        occurrences = f" x{finding.occurrences}" if finding.occurrences > 1 else ""
+        print(f"  [{finding.severity}] {finding.code}{occurrences}: {finding.message}")
+
+
+def _emit_assessment_human(assessment: FileAssessment) -> None:
+    public_subject = assessment.subject.to_dict()
+    print(f"assessment_id: {assessment.assessment_id}")
+    print(f"publisher: {assessment.subject.publisher.identifier}")
+    print(f"publisher_type: {assessment.subject.publisher_type.value}")
+    print(f"location_id: {assessment.subject.location_id}")
+    print(f"url: {public_subject['requested_url']}")
+    print(f"observed_at: {assessment.fetch.attempted_at}")
+    print(f"retrieval_status: {assessment.fetch.status.value}")
+    print(f"as_of: {assessment.as_of.isoformat()}")
+    print("dimensions:")
+    for dimension in assessment.scorecard.dimensions:
+        note = f" — {dimension.note}" if dimension.note else ""
+        print(f"  {dimension.name}: {dimension.status}{note}")
+    print("findings:")
+    if not assessment.findings:
+        print("  none")
+    for finding in assessment.findings:
         occurrences = f" x{finding.occurrences}" if finding.occurrences > 1 else ""
         print(f"  [{finding.severity}] {finding.code}{occurrences}: {finding.message}")
 
@@ -167,12 +198,50 @@ def _run_discover(args: argparse.Namespace) -> int:
     return _FAILURE if infrastructure_failed else _SUCCESS
 
 
+def _run_scorecard(args: argparse.Namespace) -> int:
+    url = cast(str, args.url)
+    publisher = PublisherRef(
+        identifier=cast(str, args.publisher_id),
+        name=cast(str | None, args.publisher_name),
+        source_url=url,
+    )
+    subject = AssessmentSubject(
+        publisher=publisher,
+        publisher_type=PublisherType(cast(str, args.publisher_type)),
+        location_id=cast(str, args.location_id),
+        requested_url=url,
+        url_provenance=URLProvenance(cast(str, args.url_provenance)),
+    )
+    policy = FetchPolicy(
+        contact=cast(str, args.contact),
+        max_bytes=cast(int, args.max_bytes),
+    )
+    if args.output_format == "human":
+        print(f"Assessing {subject.to_dict()['requested_url']} ...", file=sys.stderr)
+    assessment = assess_hospital_url(
+        subject,
+        cast(Path, args.cache_dir),
+        policy=policy,
+        registry=AssessmentRegistry(cast(Path, args.registry)),
+    )
+    if args.output_format == "json":
+        _emit_json(assessment.to_dict())
+    else:
+        _emit_assessment_human(assessment)
+    # Publisher/file findings are data. Only local workflow failure is a command failure.
+    return _SUCCESS if assessment.operationally_complete else _FAILURE
+
+
 def _run_explain(args: argparse.Namespace) -> int:
+    code = cast(str, args.finding_code)
     try:
-        definition = explain_finding(cast(str, args.finding_code))
+        definition = explain_finding(code)
     except KeyError as exc:
-        message = str(exc.args[0]) if exc.args else "unknown finding code"
-        raise ValueError(message) from exc
+        try:
+            definition = RETRIEVAL_FINDING_CATALOG[code]
+        except KeyError:
+            message = str(exc.args[0]) if exc.args else "unknown finding code"
+            raise ValueError(message) from exc
     _emit_json(
         {
             "citations": list(definition.citations),
@@ -188,7 +257,7 @@ def _run_explain(args: argparse.Namespace) -> int:
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="mrf-honest",
-        description="Retrieve, inspect, and ingest hospital price-transparency files.",
+        description="Retrieve, assess, inspect, and ingest hospital price-transparency files.",
     )
     commands = parser.add_subparsers(dest="command", required=True)
 
@@ -239,6 +308,28 @@ def _build_parser() -> argparse.ArgumentParser:
     discover_parser.add_argument("--cache-dir", type=Path, required=True)
     discover_parser.add_argument("--contact", required=True)
     discover_parser.set_defaults(handler=_run_discover)
+
+    scorecard_parser = commands.add_parser(
+        "scorecard",
+        aliases=["grade"],
+        help="retrieve and durably assess one hospital MRF",
+    )
+    scorecard_parser.add_argument("url", metavar="URL")
+    scorecard_parser.add_argument("--publisher-id", required=True)
+    scorecard_parser.add_argument("--publisher-name")
+    scorecard_parser.add_argument("--publisher-type", choices=("hospital",), required=True)
+    scorecard_parser.add_argument("--location-id", required=True)
+    scorecard_parser.add_argument(
+        "--url-provenance", choices=tuple(item.value for item in URLProvenance), required=True
+    )
+    scorecard_parser.add_argument("--registry", type=Path, required=True)
+    scorecard_parser.add_argument("--cache-dir", type=Path, required=True)
+    scorecard_parser.add_argument("--contact", required=True)
+    scorecard_parser.add_argument("--max-bytes", type=_positive_int, default=_DEFAULT_MAX_BYTES)
+    scorecard_parser.add_argument(
+        "--format", dest="output_format", choices=("human", "json"), default="human"
+    )
+    scorecard_parser.set_defaults(handler=_run_scorecard)
 
     explain_parser = commands.add_parser("explain", help="explain a quality finding code")
     explain_parser.add_argument("finding_code", metavar="FINDING_CODE")

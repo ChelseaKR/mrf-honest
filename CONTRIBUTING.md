@@ -1,6 +1,6 @@
 # Contributing
 
-mrf-honest is a solo-maintained, pre-publication project, but the workflow below is the same one
+mrf-honest is a solo-maintained, public pre-release project, but the workflow below is the same one
 a second contributor would use.
 
 ## Setup

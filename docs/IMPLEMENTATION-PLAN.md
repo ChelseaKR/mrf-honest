@@ -88,10 +88,18 @@ Candidate dimensions, each deterministic and each citing the rule or schema clau
 | Interpretability | Are rates expressed as usable amounts, or as percentages of undisclosed schedules? |
 | Freshness | Is it updated on the required cadence, and does the file say when? |
 
-- [ ] Fail closed: unretrievable is a stated grade with a reason, never a gap in the dataset
-- [ ] Grades comparable **within publisher type only** (hospital versus payer), the same rule
+- [x] Fail closed: unretrievable is a stated grade with a reason, never a gap in the dataset
+- [x] Grades comparable **within publisher type only** (hospital versus payer), the same rule
       `fhir-scorecard` enforces across kinds
 - [x] A `docs/how-we-grade` page where every finding code links to its citation
+
+**Deliverable status:** `scorecard`/`grade` writes one integrity-checked assessment for every
+terminal fetch status, including failures. It requires explicit hospital type, location, and URL
+provenance; retains network/body/inspection/scan denominators; and rejects comparisons when type,
+profile, provenance, retrieval policy, assessment policy, or date differ. The payer type is
+reserved but fails closed because no payer adapter exists. Current evidence is deterministic
+fixture coverage; a real multi-publisher grade distribution remains a phase-4 publication input,
+not a phase-3 claim.
 
 ## Phase 4: honest comparison
 
@@ -116,8 +124,8 @@ Candidate dimensions, each deterministic and each citing the rule or schema clau
 - [ ] `CITATION.cff` and dated releases
 - [ ] MCP server over the published dataset, read-only, with a `grading_method` tool returning the
       documented limits
-- [ ] CI: quality/build gates are committed with SHA-pinned actions; scheduled refresh and a
-      first observed hosted run remain open
+- [ ] CI: quality/build gates are committed with SHA-pinned actions and initial hosted branch/PR
+      runs were observed green; scheduled refresh remains open
 - [ ] A claim and correction flow, non-adversarial, honoring removal requests without demanding
       proof
 - [ ] A write-up in the pattern of `docs/payer-verifiability.md`, **including a section on what

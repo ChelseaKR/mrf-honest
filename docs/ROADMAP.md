@@ -5,11 +5,12 @@ stop conditions); this file carries the standards-facing declarations that sit a
 
 ## Current position
 
-Phases 0 through 2 are implemented and measured (`PHASE-0-FINDINGS.md` and
-`PHASE-2-FINDINGS.md`). Phase 3 has a deterministic local hospital-file inspector, independent
-dimension statuses, an authoritative cited finding catalog, and lakehouse persistence. Remote
-retrievability evidence is still separate from that scorecard, so phase 3 is not represented as
-complete. Target for a defensible v0.1 remains phases 0 through 3.
+Phases 0 through 3 are implemented (`PHASE-0-FINDINGS.md`, `PHASE-2-FINDINGS.md`,
+`PHASE-3-FINDINGS.md`, and `how-we-grade.md`). Phase 3 keeps local inspection separate from mutable remote evidence, then
+combines them in an integrity-hashed `FileAssessment`: every terminal fetch outcome becomes a row,
+publisher type and URL provenance are explicit, missing bodies leave four dimensions explicitly
+`NOT_ASSESSED`, and comparison is refused across type/profile/provenance/policy/date scopes. No
+real multi-publisher grade distribution or hosted scorecard surface is claimed yet.
 
 ## Observability
 
@@ -41,7 +42,7 @@ estimated; dates are when the number was last observed on this tree.
 
 | Metric | Target | Measured by | Gate | Last measured |
 |---|---|---|---|---|
-| Branch coverage | >= 85% | `pytest --cov` (branch mode, `fail_under = 85`) | AUTO (`make verify`) | 91.00%, 153 tests passing, 2026-08-09 |
+| Branch coverage | >= 85% | `pytest --cov` (branch mode, `fail_under = 85`) | AUTO (`make verify`) | 89.78%, 226 tests passing, 2026-08-09 |
 | Lint findings (ruff `E,F,I,B,S,C90,UP,RUF`, `max-complexity=10`) | 0 | `ruff check src tests` | AUTO (`make verify`) | 0, 2026-08-09 |
 | `mypy --strict` errors | 0 | `mypy` over `src` | AUTO (`make verify`) | 0, 2026-08-09 |
 | Streaming scan on the 64,828,148-byte reference file | RSS below file size; zero problems | `/usr/bin/time -l`, recorded in `PHASE-0-FINDINGS.md` | REVIEW (re-measure when `stream.py` changes) | 30,114 items, 0 problems, 9.25 s, 33,865,728-byte RSS (0.5224x), 26,231,240-byte peak footprint, 2026-08-09 |

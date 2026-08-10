@@ -73,5 +73,6 @@ than `fhir-scorecard` took, because the data volume is real. Do not start it exp
   section is the most valuable thing in the repository. Same discipline here.
 - **No scraping what is not offered.** These are files publishers are legally required to post.
   Fetch politely, honor robots and rate limits, identify the client, and stop if asked.
-- **No PHI.** MRFs contain prices, not patients. If a file somehow contains individual-level data,
-  that is a disclosure incident to report to the publisher, not a dataset to analyze.
+- **No intended PHI.** The required MRF schemas do not call for patient data, and MRFs should not
+  contain it. If a file contains individual-level data, that is a disclosure incident to report to
+  the publisher, not a dataset to analyze.

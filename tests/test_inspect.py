@@ -15,6 +15,7 @@ from mrf_honest.inspect import (
     explain_finding,
     inspect_hospital_file,
 )
+from mrf_honest.scorecard import RETRIEVAL_FINDING_CATALOG
 from mrf_honest.stream import BOM
 
 
@@ -348,8 +349,8 @@ def test_inspection_policy_has_a_content_fingerprint() -> None:
     assert re.fullmatch(r"[0-9a-f]{64}", INSPECTION_FINGERPRINT)
 
 
-def test_grading_document_covers_the_authoritative_catalog() -> None:
+def test_grading_document_covers_the_authoritative_catalogs() -> None:
     document = Path("docs/how-we-grade.md").read_text(encoding="utf-8")
     documented = set(re.findall(r"^\| `([A-Z0-9_]+)` \|", document, flags=re.MULTILINE))
 
-    assert documented == set(FINDING_CATALOG)
+    assert documented == set(FINDING_CATALOG) | set(RETRIEVAL_FINDING_CATALOG)

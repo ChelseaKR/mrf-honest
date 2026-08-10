@@ -9,6 +9,8 @@ __pycache__/
 htmlcov/
 site/
 data/cache/
+data/registry*.jsonl
+data/scorecards*.jsonl
 warehouse/
 .mrf-honest/
 dist/

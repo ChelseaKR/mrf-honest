@@ -17,6 +17,12 @@ class _Result:
         return self.payload
 
 
+class _AssessmentResult(_Result):
+    def __init__(self, payload: dict[str, object], *, operationally_complete: bool) -> None:
+        super().__init__(payload)
+        self.operationally_complete = operationally_complete
+
+
 def test_inspect_json_passes_explicit_context_and_findings_exit_zero(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -279,6 +285,157 @@ def test_discover_records_each_domain_and_treats_findings_as_data(
     assert observed[0][3].contact == "operator@example.test"  # type: ignore[attr-defined]
 
 
+@pytest.mark.parametrize(
+    ("operationally_complete", "expected_status"),
+    [(True, 0), (False, 1)],
+)
+def test_scorecard_persists_explicit_subject_and_only_local_failures_are_nonzero(
+    operationally_complete: bool,
+    expected_status: int,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    observed: dict[str, object] = {}
+
+    def fake_assess(
+        subject: object,
+        cache_dir: Path,
+        *,
+        policy: object,
+        registry: object,
+    ) -> _AssessmentResult:
+        observed.update(
+            subject=subject,
+            cache_dir=cache_dir,
+            policy=policy,
+            registry=registry,
+        )
+        return _AssessmentResult(
+            {
+                "assessment_id": "assessment-1",
+                "coverage": {"targeted": True, "remotely_observed": False},
+                "scorecard": {"retrievability": {"status": "FINDINGS"}},
+            },
+            operationally_complete=operationally_complete,
+        )
+
+    monkeypatch.setattr(cli, "assess_hospital_url", fake_assess)
+    registry_path = tmp_path / "scorecards.jsonl"
+    cache_dir = tmp_path / "cache"
+    status = cli.main(
+        [
+            "scorecard",
+            "https://files.example.test/prices.json",
+            "--publisher-id",
+            "example-health",
+            "--publisher-name",
+            "Example Health",
+            "--publisher-type",
+            "hospital",
+            "--location-id",
+            "main-campus",
+            "--url-provenance",
+            "cms_hpt",
+            "--registry",
+            str(registry_path),
+            "--cache-dir",
+            str(cache_dir),
+            "--contact",
+            "operator@example.test",
+            "--max-bytes",
+            "4096",
+            "--format",
+            "json",
+        ]
+    )
+
+    assert status == expected_status
+    assert json.loads(capsys.readouterr().out)["assessment_id"] == "assessment-1"
+    subject = observed["subject"]
+    assert subject.publisher.identifier == "example-health"  # type: ignore[attr-defined]
+    assert subject.publisher.name == "Example Health"  # type: ignore[attr-defined]
+    assert subject.publisher_type == "hospital"  # type: ignore[attr-defined]
+    assert subject.location_id == "main-campus"  # type: ignore[attr-defined]
+    assert subject.url_provenance == "cms_hpt"  # type: ignore[attr-defined]
+    assert observed["cache_dir"] == cache_dir
+    assert observed["registry"].path == registry_path  # type: ignore[attr-defined]
+    assert observed["policy"].max_bytes == 4096  # type: ignore[attr-defined]
+
+
+def test_grade_is_a_scorecard_alias(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(
+        cli,
+        "assess_hospital_url",
+        lambda *args, **kwargs: _AssessmentResult(
+            {"assessment_id": "alias"}, operationally_complete=True
+        ),
+    )
+
+    assert (
+        cli.main(
+            [
+                "grade",
+                "https://example.test/prices.json",
+                "--publisher-id",
+                "example",
+                "--publisher-type",
+                "hospital",
+                "--location-id",
+                "one",
+                "--url-provenance",
+                "operator",
+                "--registry",
+                str(tmp_path / "scorecards.jsonl"),
+                "--cache-dir",
+                str(tmp_path / "cache"),
+                "--contact",
+                "operator@example.test",
+                "--format",
+                "json",
+            ]
+        )
+        == 0
+    )
+    assert json.loads(capsys.readouterr().out)["assessment_id"] == "alias"
+
+
+def test_scorecard_human_output_redacts_url_tokens_on_stdout_and_stderr(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    status = cli.main(
+        [
+            "scorecard",
+            "https://[broken?token=private#fragment",
+            "--publisher-id",
+            "example",
+            "--publisher-type",
+            "hospital",
+            "--location-id",
+            "one",
+            "--url-provenance",
+            "operator",
+            "--registry",
+            str(tmp_path / "scorecards.jsonl"),
+            "--cache-dir",
+            str(tmp_path / "cache"),
+            "--contact",
+            "operator@example.test",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert status == 0
+    assert "private" not in captured.out + captured.err
+    assert "fragment" not in captured.out + captured.err
+    assert "https://[broken" in captured.out
+
+
 def test_explain_emits_the_authoritative_catalog_entry(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -289,6 +446,17 @@ def test_explain_emits_the_authoritative_catalog_entry(
     assert payload["dimension"] == "freshness"
     assert payload["severity"] == "WARNING"
     assert payload["description"]
+    assert payload["citations"]
+
+
+def test_explain_includes_remote_retrieval_findings(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert cli.main(["explain", "MRF_AUTOMATION_BARRIER_OBSERVED"]) == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["dimension"] == "retrievability"
+    assert payload["severity"] == "ERROR"
     assert payload["citations"]
 
 

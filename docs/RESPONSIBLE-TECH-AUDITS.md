@@ -4,7 +4,7 @@ Instantiates the portfolio's RESPONSIBLE-TECH-FRAMEWORK for this repository. Cre
 as part of the standards conformance pass. Append-only, like ADRs: deeper artifacts get added to
 this file, not written as replacements.
 
-**Status: declarations for the current local scope (phases 0-2 and partial phase 3), not a full
+**Status: declarations for the current local scope (phases 0-3), not a full
 publication pass.** Every line below is accurate as of 2026-08-09. The project has no deployed
 surface, no users other than the maintainer, and no model component; the same sections must be
 re-run before phase 4 (published comparisons) and phase 5 (public site).
@@ -36,6 +36,13 @@ collection must not launch until that gap is resolved or documented by a superse
 Files are fetched only from publisher-provided or CMS-conventional locations, never guessed MRF
 paths.
 
+The phase-3 scorecard separates publisher observations from operator/infrastructure ambiguity.
+HTTP, network, and content failures after an attempt are dated findings; invalid pre-network
+input, configured size limits, cache misses, and cache failures are `NOT_ASSESSED`. URL provenance
+is required but caller-asserted, so version 1 does not use it alone to attribute invalid input.
+Every target remains a row with explicit network/body/inspection/scan coverage flags. No composite
+score or legal compliance label is produced.
+
 ## B. Bias
 
 The known hazard is statistical, not demographic: mixing incommensurable rate methodologies
@@ -50,15 +57,20 @@ the same publishing budget) is owed before phase 3 grades are published.
 ## C. Privacy
 
 Data inventory today: public price-transparency files (prices and institutional identifiers, no
-intended individual-level data), fetch metadata and failure reasons, content-addressed local cache,
-DuckDB catalog, Parquet snapshots, and immutable run manifests. Generated data directories are
-gitignored. No user data, telemetry, or accounts. Standing rule: if a fetched file is ever found to contain
-individual-level data, that is a disclosure incident to report to the publisher, never a
-dataset to analyze (`docs/CONTEXT.md`; also restated in `SECURITY.md`).
+intended patient-level data); public professional contact names and emails CMS requires in TXT location entries;
+fetch metadata and failure reasons; content-addressed local cache; DuckDB catalog; Parquet
+snapshots; and immutable run manifests. The POC fields remain source evidence in the local
+discovery registry, are not copied into scorecard artifacts, and are not used for analysis or
+outreach. `data/registry*.jsonl` is gitignored. Operators should keep this contact evidence only as
+long as needed to reproduce and audit discovery; phase 4 must set a concrete retention period
+before cohort collection. There are no accounts or telemetry. Standing rule: if
+a fetched file is ever found to contain individual-level data, that is a disclosure incident to
+report to the publisher, never a dataset to analyze (`docs/CONTEXT.md`; also restated in
+`SECURITY.md`).
 
 ## D. Transparency
 
-The methodology and complete finding catalog are public. Inspections preserve independent
+The methodology and complete local and remote finding catalogs are public. Inspections preserve independent
 dimensions with citations and deliberately produce no composite grade or compliance label.
 Percentage and algorithm rates are structurally excluded from the dollar-comparison mart.
 `docs/PHASE-0-FINDINGS.md` documents the buffer-refill corruption bug found during phase 1,
@@ -71,6 +83,8 @@ The base streaming, discovery, retrieval, registry, and inspection path has no t
 dependency (ADR 0002). DuckDB is an explicit optional lakehouse dependency (ADR 0003). The dev
 toolchain and optional dependency are locked in `uv.lock`; `make verify` runs ruff's security (`S`)
 rules. Retrieval accepts public HTTPS URLs only, rejects credentials and unsafe redirects, limits
-decoded size, verifies cached blob digests, and writes metadata atomically. The SHA-pinned CI
-workflow is committed but has no observed hosted run; SAST, secret scanning, and dependency-audit
-jobs remain open before publication.
+decoded size, verifies cached blob digests, and writes metadata atomically. Scorecard artifacts
+omit local paths and contact values, remove URL query/fragment values while retaining exact-URL
+digests, and atomically replace a validated single-writer JSONL registry. The SHA-pinned CI
+workflow has observed green public branch and pull-request runs; SAST, secret scanning, and
+dependency-audit jobs remain open before publication.

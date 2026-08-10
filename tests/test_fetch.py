@@ -448,8 +448,12 @@ def test_policy_requires_a_real_contact() -> None:
         {"user_agent": ""},
         {"max_bytes": 0},
         {"timeout_seconds": 0},
+        {"timeout_seconds": float("nan")},
+        {"timeout_seconds": float("inf")},
         {"retries": -1},
         {"backoff_seconds": -1},
+        {"backoff_seconds": float("nan")},
+        {"backoff_seconds": float("inf")},
         {"chunk_size": 0},
     ],
 )
@@ -466,11 +470,13 @@ def test_policy_rejects_invalid_limits(changes: dict[str, object]) -> None:
         "https://example.test:/empty-port",
         "https://example.test:0/zero-port",
         "https://example.test:99999/bad-port",
+        "https://example.test/\x7f.json",
     ],
 )
 def test_malformed_https_urls_are_structured(tmp_path: Path, url: str) -> None:
     outcome = fetch_url(url, tmp_path, policy=policy(), opener=FakeOpener(), clock=clock)
     assert outcome.status is FetchStatus.INVALID_URL
+    assert outcome.attempts == 0
 
 
 def test_serializers_reject_wrong_types_and_cache_versions() -> None:
