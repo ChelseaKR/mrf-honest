@@ -9,6 +9,49 @@ no version tags yet; until the first dated release (phase 5 of
 
 ### Added
 
+- Phase 3 remote-plus-local scorecards: explicit hospital/location/URL provenance, exhaustive
+  terminal-fetch semantics, source-cited retrievability findings, honest coverage denominators,
+  cross-scope comparison refusal, portable semantic IDs, full-body integrity digests, and an
+  atomic single-writer assessment registry. `scorecard` is also available as the `grade` alias.
+- CMS `cms-hpt.txt` discovery now models all five required fields and repeated multi-location
+  entries. Registry schema v2 persists every entry and retains backward reading for v1 evidence.
+- ADR 0004 documents why mutable retrieval evidence is a separate artifact from content-derived
+  lakehouse runs and how operator/infrastructure failures avoid publisher attribution.
+- Phase 2 `hospital-json-v2` lakehouse: optional DuckDB catalog, bounded TSV normalization spools,
+  a content-addressed exact-source archive, 13 partitioned Parquet model exports, and a documented
+  raw → staging → intermediate → mart DAG.
+- Schema-v4 run manifests with `prepared` → catalog commit → `success` finalization, integrity
+  records for the source archive and every Parquet artifact, and `manifest_body_sha256` over every
+  immutable manifest field. Reuse now fails closed on tampered inspection, envelope, or metrics.
+- Idempotent identity over pipeline version, publisher, content, inspection `as_of`, and a
+  transformation fingerprint that incorporates the inspection policy/catalog fingerprint.
+- Raw item and modifier models that retain exact admitted JSON element text plus SHA-256; typed
+  `DECIMAL(38,10)` numeric projections; ordered all-code `codes_json`; and separate modifier,
+  modifier-payer, and charge-modifier grains with explicit exact/canonical/unresolved context.
+- Setting-aware modifier resolution with selected and candidate settings, explicit
+  `setting_mismatch` / `modifier_setting_mismatch` states, support for disjoint inpatient and
+  outpatient definitions sharing a canonical code, and contract rejection when applicable
+  settings overlap.
+- Executable data contracts for model types, exact raw hashes, source-scoped uniqueness, source
+  ordinals, references and reconciliation, CMS v3 code sets/settings/methodologies, positive
+  amounts, derived-rate context, representation eligibility, modifier relationships, finding
+  classifications, and mart denominators. Violations roll back database rows and promote no
+  completed Parquet snapshot.
+- Deterministic local file inspection with independent retrievability, conformance, completeness,
+  interpretability, and freshness dimensions; a complete source-cited finding catalog; bounded
+  evidence samples; and no composite score or compliance label.
+- Identified HTTPS fetcher with conditional requests, content-addressed verified cache, decoded
+  size limits, gzip handling, backoff, safe-redirect checks, atomic metadata, and structured named
+  outcomes.
+- Append-only JSONL registry for dated discovery and retrieval attempts, including failures.
+- Operator CLI commands: `discover`, `fetch`, `inspect`, `ingest`, `profile`, and `explain`, with
+  canonical JSON output and a packaged `mrf-honest` console entry point.
+- SHA-pinned GitHub Actions verification/build workflow for Python 3.12 and 3.14.
+- ADR 0003, model-DAG documentation, grading-method documentation, and measured phase-2 findings.
+- Final real-file acceptance on the 64,828,148-byte UC Medical Center source: 30,114 items,
+  247,423 rate observations, 11 modifiers, 737 modifier-payer mappings, 536 charge modifier
+  references, zero parser/hash reconciliation problems, 13 verified Parquets, and verified warm
+  reuse. The current phase-3 gate is 226 tests at 89.78% branch coverage with ruff and mypy clean.
 - Portfolio standards conformance pass: `CHANGELOG.md`, `CONTRIBUTING.md`, `SECURITY.md`,
   `CITATION.cff`, `CODEOWNERS`, ADR log (`docs/adr/`), `docs/I18N.md`, `docs/ROADMAP.md`
   (observability declaration and metrics ledger), `docs/RESPONSIBLE-TECH-AUDITS.md`,
@@ -17,6 +60,22 @@ no version tags yet; until the first dated release (phase 5 of
 
 ### Changed
 
+- Streaming parser now enforces JSON delimiters, reports invalid UTF-8 with bounded evidence,
+  retains exact problem totals separately from bounded samples, preserves source ordinals, and
+  discards large sibling values without pinning them in memory.
+- Discovery URL validation now fails safely for malformed authorities, ports, whitespace, and
+  embedded credentials instead of allowing URL-library exceptions to escape.
+- Discovery schema v2 retains all five CMS TXT fields and ordered multi-location entries. This is
+  a pre-release constructor migration: callers that instantiated the old three-field `Discovery`
+  directly must construct `DiscoveryEntry` values instead. Registry v1 reads preserve their
+  historical three-field `ok` semantics rather than inventing missing contact failures.
+- Dollar, percentage, and algorithm rate representations are modeled separately; only stated
+  dollars enter the segmented comparison mart and methodology remains a required segment.
+- The comparison mart retains every ordered item code instead of assigning semantic meaning to
+  code ordinal zero, and surfaces modifier resolution failures instead of silently dropping them.
+- Phase-2 evidence now reports the post-audit measurement: 46.66-second clean build,
+  534,790,144-byte maximum RSS, 52,459,578 bytes across 13 Parquets, a 64,828,148-byte archived
+  source, 251,678,531 transient spool bytes, and 0.34-second verified warm reuse.
 - README status corrected: it still said "planning only, no code yet" after phases 0 and 1 had
   landed. It now describes what is actually built.
 - Dev toolchain floors raised to `ruff>=0.15` and `mypy>=1.18` (previously `0.6` / `1.11`; the
@@ -24,8 +83,8 @@ no version tags yet; until the first dated release (phase 5 of
 
 ### Removed
 
-- Dangling `[project.scripts]` entry `mrf-honest = "mrf_honest.cli:main"`: no `cli` module exists
-  yet, so the declared console script could never resolve. It returns when the CLI is built.
+- The previous dangling CLI declaration was removed during the standards pass; this release adds
+  it back with a real, tested implementation.
 
 ## 2026-08-04
 

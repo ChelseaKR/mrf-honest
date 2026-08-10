@@ -2,20 +2,20 @@
 
 ## Supported versions
 
-mrf-honest is a pre-release local project with no releases and no deployed service. Only the
-current `master` branch is supported.
+mrf-honest is a public pre-release project with no versioned releases and no deployed service.
+Security fixes are made on the current development branch and proposed to `master`; no released
+version has a support commitment yet.
 
 | Version | Supported |
 |---|---|
-| `master` (latest) | yes |
-| anything else | no |
+| current pre-release source | best effort |
+| versioned releases | none exist |
 
 ## Reporting a vulnerability
 
-There is no public issue tracker yet (the repository is not published). Email the maintainer
-directly: `ckellyreif@gmail.com`, subject line `SECURITY: mrf-honest`. When the repository gets a
-public remote, GitHub private vulnerability reporting becomes the preferred channel and this file
-will be updated to point at it.
+Do not disclose secrets or exploitable details in a public issue. Email the maintainer directly at
+`ckellyreif@gmail.com`, subject line `SECURITY: mrf-honest`. Ordinary non-sensitive bugs can use the
+[public issue tracker](https://github.com/ChelseaKR/mrf-honest/issues).
 
 ## Response targets
 

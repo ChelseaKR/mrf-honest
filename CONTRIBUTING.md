@@ -1,6 +1,6 @@
 # Contributing
 
-mrf-honest is a solo-maintained, pre-publication project, but the workflow below is the same one
+mrf-honest is a solo-maintained, public pre-release project, but the workflow below is the same one
 a second contributor would use.
 
 ## Setup
@@ -17,17 +17,21 @@ The dev toolchain is floor-pinned in `pyproject.toml` (`ruff>=0.15`, `mypy>=1.18
 
 ```sh
 make verify
+uv build
 ```
 
 `make verify` runs the full gate: `ruff check` (including the security `S` rules and
 `max-complexity=10`), `mypy --strict`, and `pytest` with a branch-coverage floor of 85. If it
-passes locally, the pre-push hook (which runs the same commands) will pass too. Do not lower any
+passes locally, the pre-push hook (which runs the same commands) will pass too. `uv build` verifies
+the wheel and source distribution, including the `mrf-honest` console entry point. Do not lower any
 floor to make a change pass; fix the change.
 
 ## House rules
 
-- Standard library only in `src/` for the streaming path: a dependency that hides memory
-  behaviour defeats the point of measuring it (`docs/adr/0002-stdlib-only-streaming-core.md`).
+- Standard library only for streaming, discovery, retrieval, registry, and inspection: a dependency
+  that hides memory behaviour defeats the point of measuring it
+  (`docs/adr/0002-stdlib-only-streaming-core.md`). DuckDB begins at the optional lakehouse boundary
+  (`docs/adr/0003-local-lakehouse-duckdb-parquet.md`).
 - Every number that appears in a doc or README is measured, never estimated. If you did not run
   it, do not write it.
 - Architecture decisions that are expensive to reverse get an ADR in `docs/adr/`
