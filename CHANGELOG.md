@@ -81,6 +81,18 @@ no version tags yet; until the first dated release (phase 5 of
 - Dev toolchain floors raised to `ruff>=0.15` and `mypy>=1.18` (previously `0.6` / `1.11`; the
   installed tools, ruff 0.16.2 and mypy 2.3.0, already satisfied both, so nothing weakened).
 
+### Fixed
+
+- **A quoted spool field appearing after DuckDB's CSV sniffer sample failed the lakehouse
+  load.** The spool writer is `csv.writer` with minimal quoting, so the JSON modifier-code list
+  is the rare field that gets quoted. The first real file with charge-level modifier codes
+  (Stanford Health Care, retrieved 2026-08-14) put its first quoted field tens of thousands of
+  rows in; the sniffer had locked in "no quoting" from its sample and the `COPY` failed. Latent
+  until now because the acceptance file's modifier lists were all file-level and every test
+  fixture was smaller than one sniffer sample. The `COPY` now declares the writer's exact
+  dialect (`QUOTE '"'`, `ESCAPE '"'`), and a regression test pins a quoted field one row past
+  the 20,480-row sample boundary.
+
 ### Removed
 
 - The previous dangling CLI declaration was removed during the standards pass; this release adds

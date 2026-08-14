@@ -429,9 +429,14 @@ def _load_spools(
 ) -> list[ModelMetric]:
     metrics: list[ModelMetric] = []
     for model, path in paths.items():
+        # The spool writer is Python ``csv.writer`` (QUOTE_MINIMAL, doubled quotes). Declare that
+        # dialect instead of letting the reader sniff it: on the first real file whose only quoted
+        # field appeared after the sniffer's sample rows (Stanford Health Care's charge-level
+        # modifier codes, 2026-08-14), the sniffer locked in "no quoting" and the load failed.
         sql = (
             f"COPY {model} FROM {_sql_string(path)} "
-            f"(FORMAT CSV, HEADER TRUE, DELIMITER '\t', NULL '{NULL_TOKEN}')"
+            "(FORMAT CSV, HEADER TRUE, DELIMITER '\t', QUOTE '\"', ESCAPE '\"', "
+            f"NULL '{NULL_TOKEN}')"
         )
         profile = _profile_execute(connection, sql, [], profile_dir / f"load-{model}.json")
         metric = _metric_from_profile(model, _row_count(connection, model, run_id), profile)
