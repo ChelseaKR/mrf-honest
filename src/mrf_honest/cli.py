@@ -6,10 +6,11 @@ import argparse
 import json
 import sys
 from collections.abc import Callable, Sequence
-from datetime import date
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import cast
 
+from mrf_honest.cohort import build_comparison
 from mrf_honest.fetch import FetchPolicy, fetch_url
 from mrf_honest.inspect import FileInspection, explain_finding, inspect_hospital_file
 from mrf_honest.lakehouse import ingest_hospital_file, query_file_profile
@@ -232,6 +233,48 @@ def _run_scorecard(args: argparse.Namespace) -> int:
     return _SUCCESS if assessment.operationally_complete else _FAILURE
 
 
+def _load_json_object(path: Path, label: str) -> dict[str, object]:
+    loaded: object = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(loaded, dict):
+        raise ValueError(f"{label} must be a JSON object: {path.name}")
+    return cast(dict[str, object], loaded)
+
+
+def _emit_comparison_human(comparison: dict[str, object]) -> None:
+    summary = cast(dict[str, object], comparison["summary"])
+    print(
+        "cohort: "
+        f"targeted={summary['targeted']}, graded={summary['graded']}, "
+        f"not_graded={summary['not_graded']}"
+    )
+    for row in cast(list[dict[str, object]], comparison["files"]):
+        grade = cast(dict[str, object], row["grade"])
+        print(f"{row['slug']}: {grade['grade']} — {grade['reason']}")
+
+
+def _run_compare(args: argparse.Namespace) -> int:
+    registry = AssessmentRegistry(cast(Path, args.assessments))
+    manifest = _load_json_object(cast(Path, args.manifest), "manifest")
+    ingest_results = [
+        _load_json_object(path, "ingest result")
+        for path in cast(list[Path], args.ingest_results)
+    ]
+    generated_at = cast(str | None, args.generated_at) or (
+        datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
+    )
+    comparison = build_comparison(
+        registry.records(),
+        manifest,
+        ingest_results=ingest_results,
+        generated_at=generated_at,
+    )
+    if args.output_format == "json":
+        _emit_json(comparison)
+    else:
+        _emit_comparison_human(comparison)
+    return _SUCCESS
+
+
 def _run_explain(args: argparse.Namespace) -> int:
     code = cast(str, args.finding_code)
     try:
@@ -330,6 +373,26 @@ def _build_parser() -> argparse.ArgumentParser:
         "--format", dest="output_format", choices=("human", "json"), default="human"
     )
     scorecard_parser.set_defaults(handler=_run_scorecard)
+
+    compare_parser = commands.add_parser(
+        "compare",
+        help="build the published cross-file comparison for one attested collection run",
+    )
+    compare_parser.add_argument("--assessments", type=Path, required=True)
+    compare_parser.add_argument("--manifest", type=Path, required=True)
+    compare_parser.add_argument(
+        "--ingest-result",
+        dest="ingest_results",
+        type=Path,
+        action="append",
+        default=[],
+        metavar="INGEST_JSON",
+    )
+    compare_parser.add_argument("--generated-at", dest="generated_at")
+    compare_parser.add_argument(
+        "--format", dest="output_format", choices=("human", "json"), default="json"
+    )
+    compare_parser.set_defaults(handler=_run_compare)
 
     explain_parser = commands.add_parser("explain", help="explain a quality finding code")
     explain_parser.add_argument("finding_code", metavar="FINDING_CODE")

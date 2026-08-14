@@ -88,3 +88,31 @@ omit local paths and contact values, remove URL query/fragment values while reta
 digests, and atomically replace a validated single-writer JSONL registry. The SHA-pinned CI
 workflow has observed green public branch and pull-request runs; SAST, secret scanning, and
 dependency-audit jobs remain open before publication.
+
+## Appendix, 2026-08-14: bias review before publishing file grades
+
+Section B recorded a debt: a review of the grading dimensions against publisher size and
+resources before any phase-3 grades are published. The comparison layer (ADR 0005) now publishes
+per-file letter grades, so this is that review, run against what the policy actually does rather
+than what it intends.
+
+**What the policy does to protect small publishers.** The grade counts *dimensions with
+structural errors*, not raw finding occurrences, so a small hospital with one systematic export
+defect is a `C`, not an `F`, regardless of how many rows the defect touches. `INFO` observations
+never lower a grade; warnings alone cap at `B` rather than failing anyone. Nothing in the policy
+rewards file size, publisher brand, or engineering budget directly.
+
+**Where the observed hazard actually fell.** In the first collected cohort the resource-shaped
+hazard hit a *large* publisher: the project's own decoded-size ceiling nearly excluded the
+cohort's biggest file (884 MB) before the ceiling was raised to the documented default. The
+policy's answer is structural: a project limit is `NOT_GRADED` with the reason stated, never an
+`F`, so a publisher is not penalized for the operator's budget. That rule protects small
+publishers on slow hosting for the same reason.
+
+**What this review cannot yet establish.** The first cohort is six files from four large,
+well-resourced health systems, selected because their `cms-hpt.txt` documents were discoverable
+from origins already recorded in phase 0. It contains no small or rural hospital, so no claim is
+made that the observed grade distribution generalizes, and the published copy must state the
+cohort's size and composition wherever grades appear. Re-run this review when the cohort grows
+past its current composition, and before any aggregate statistic about hospitals as a class is
+published.

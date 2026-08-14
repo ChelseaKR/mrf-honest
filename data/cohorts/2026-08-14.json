@@ -1,0 +1,96 @@
+{
+  "policy": "A cohort manifest attests the collection context that assessment rows cannot carry by themselves (docs/PHASE-3-FINDINGS.md). `build_comparison` refuses to compare rows without the operator_controlled_single_run attestation. Exclusions are recorded targets, not findings: `basis` says how far the review went, `reason` says what it found. Robots and discovery entries are dated evidence of how each origin was approached; contact evidence stays in the local discovery registry and is never published.",
+  "cohort_id": "hospital-json-v3-2026-08-14",
+  "collection": {
+    "operator_controlled_single_run": true,
+    "utc_date": "2026-08-14",
+    "description": "One serial, operator-invoked run of `mrf-honest scorecard` per target under the default retrieval policy: identified User-Agent with a contact address, HTTPS only, conditional revalidation against the verified cache, retry backoff, and the default 1 GiB decoded-size ceiling. One bounded GET per file, with a pause between requests. An earlier same-day pass under a lower 500 MB ceiling was superseded by this run; its rows remain in the operator registry and fall outside this cohort's retrieval-policy scope.",
+    "user_agent": "mrf-honest/0.1",
+    "robots_txt": [
+      {
+        "host": "www.uchealth.com",
+        "checked": "2026-08-13",
+        "method": "urllib.robotparser over https://www.uchealth.com/robots.txt, exact MRF URLs, project user agent and *",
+        "result": "allowed"
+      },
+      {
+        "host": "stanfordhealthcare.org",
+        "checked": "2026-08-13",
+        "method": "urllib.robotparser over https://stanfordhealthcare.org/robots.txt, exact MRF URLs, project user agent and *",
+        "result": "allowed"
+      },
+      {
+        "host": "www.cedars-sinai.org",
+        "checked": "2026-08-13",
+        "method": "urllib.robotparser over https://www.cedars-sinai.org/robots.txt, exact MRF URL, project user agent and *",
+        "result": "allowed"
+      },
+      {
+        "host": "health.ucdavis.edu",
+        "checked": "2026-08-13",
+        "method": "urllib.robotparser over https://health.ucdavis.edu/robots.txt, exact MRF URL, project user agent and *",
+        "result": "allowed"
+      }
+    ]
+  },
+  "discovery": {
+    "method": "`mrf-honest discover` retrieved https://<domain>/cms-hpt.txt for each candidate origin with an identified client; every attempt, including failures, is durable evidence in the local discovery registry",
+    "date": "2026-08-13",
+    "domains": [
+      {"domain": "www.uchealth.com", "outcome": "cms-hpt.txt published; three location entries, two distinct MRF URLs"},
+      {"domain": "stanfordhealthcare.org", "outcome": "cms-hpt.txt published; three location entries, two distinct MRF URLs"},
+      {"domain": "www.cedars-sinai.org", "outcome": "cms-hpt.txt published; one location entry, one MRF URL"},
+      {"domain": "health.ucdavis.edu", "outcome": "cms-hpt.txt published; one location entry, one MRF URL"},
+      {"domain": "www.ohsu.edu", "outcome": "cms-hpt.txt published; the single mrf-url is a .zip archive"},
+      {"domain": "www.massgeneral.org", "outcome": "TXT retrieval ended in a network error; recorded, not attributed"},
+      {"domain": "www.sutterhealth.org", "outcome": "TXT retrieval ended in a network error; recorded, not attributed"},
+      {"domain": "www.clevelandclinic.org", "outcome": "TXT retrieval returned HTTP 404 at this origin; an absent TXT on one checked origin is not publisher evidence"}
+    ]
+  },
+  "exclusions": [
+    {
+      "id": "ohsu-standardcharges-zip",
+      "name": "Oregon Health and Science University",
+      "basis": "discovery_reviewed",
+      "reason": "the cms-hpt.txt entry points at a .zip archive; this cohort's implemented profile inspects CMS hospital JSON v3 documents only, and grading a non-JSON publication against a JSON profile would measure the wrong thing",
+      "reviewed": {
+        "method": "cms-hpt.txt retrieved and parsed; the single mrf-url ends in .zip",
+        "date": "2026-08-13",
+        "source": "https://www.ohsu.edu/cms-hpt.txt"
+      }
+    },
+    {
+      "id": "massgeneral-txt-unreachable",
+      "name": "www.massgeneral.org (origin, not a graded publisher)",
+      "basis": "txt_fetch_failed",
+      "reason": "the cms-hpt.txt retrieval ended in a network error at this origin; no MRF URL was obtained, and a failed probe of one corporate origin is not evidence about the hospital's publication",
+      "reviewed": {
+        "method": "`mrf-honest discover` attempt recorded in the local discovery registry",
+        "date": "2026-08-13",
+        "source": "https://www.massgeneral.org/cms-hpt.txt"
+      }
+    },
+    {
+      "id": "sutterhealth-txt-unreachable",
+      "name": "www.sutterhealth.org (origin, not a graded publisher)",
+      "basis": "txt_fetch_failed",
+      "reason": "the cms-hpt.txt retrieval ended in a network error at this origin; no MRF URL was obtained, and a failed probe of one corporate origin is not evidence about the hospital's publication",
+      "reviewed": {
+        "method": "`mrf-honest discover` attempt recorded in the local discovery registry",
+        "date": "2026-08-13",
+        "source": "https://www.sutterhealth.org/cms-hpt.txt"
+      }
+    },
+    {
+      "id": "clevelandclinic-txt-404",
+      "name": "www.clevelandclinic.org (origin, not a graded publisher)",
+      "basis": "txt_not_found_at_origin",
+      "reason": "this origin returned HTTP 404 for cms-hpt.txt; the conventional TXT belongs at the hospital's selected MRF-hosting origin, which may be elsewhere, so this records only that this origin did not serve one",
+      "reviewed": {
+        "method": "`mrf-honest discover` attempt recorded in the local discovery registry",
+        "date": "2026-08-13",
+        "source": "https://www.clevelandclinic.org/cms-hpt.txt"
+      }
+    }
+  ]
+}
