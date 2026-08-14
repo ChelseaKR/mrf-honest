@@ -730,3 +730,75 @@ def test_running_catalog_with_prepared_artifacts_is_rebuilt_after_precommit_inte
 def test_query_requires_an_existing_warehouse(tmp_path: Path) -> None:
     with pytest.raises(LakehouseError, match="does not exist"):
         query_file_profile(tmp_path, "missing")
+
+
+def test_spool_load_declares_quoting_beyond_the_sniffer_sample(tmp_path: Path) -> None:
+    """A quoted field appearing after the CSV sniffer's sample must still load.
+
+    The spool writer is ``csv.writer`` with minimal quoting, so a charge-level modifier list is
+    the rare quoted field. On the first real file where that field first appeared tens of
+    thousands of rows in (Stanford Health Care, 2026-08-14), DuckDB's sniffer had already locked
+    in "no quoting" from its sample and the load failed. The COPY now declares the dialect.
+    """
+    import csv
+
+    from mrf_honest.models import SCHEMA_SQL
+    from mrf_honest.normalize import SPOOL_COLUMNS
+
+    columns = SPOOL_COLUMNS["stg_charge_group"]
+    path = tmp_path / "stg_charge_group.tsv"
+    sample_rows = 20_481  # larger than the sniffer's default 20,480-row sample
+    with path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.writer(handle, delimiter="\t", lineterminator="\n")
+        writer.writerow(columns)
+        for ordinal in range(sample_rows):
+            writer.writerow(
+                [
+                    "run-1",
+                    "source-1",
+                    "example-health",
+                    "item-1",
+                    f"group-{ordinal}",
+                    ordinal,
+                    "10.0",
+                    "20.0",
+                    "30.0",
+                    "15.0",
+                    "outpatient",
+                    "facility",
+                    "[]",
+                    "__MRF_HONEST_NULL__",
+                ]
+            )
+        writer.writerow(
+            [
+                "run-1",
+                "source-1",
+                "example-health",
+                "item-1",
+                "group-last",
+                sample_rows,
+                "10.0",
+                "20.0",
+                "30.0",
+                "15.0",
+                "both",
+                "professional",
+                '["51"]',
+                "__MRF_HONEST_NULL__",
+            ]
+        )
+
+    with duckdb.connect(":memory:") as connection:
+        connection.execute(SCHEMA_SQL)
+        lakehouse._load_spools(
+            connection, "run-1", {"stg_charge_group": path}, tmp_path / "profiles"
+        )
+        total = connection.execute(
+            "SELECT count(*) FROM stg_charge_group WHERE run_id = 'run-1'"
+        ).fetchone()[0]
+        assert total == sample_rows + 1
+        modifier_json = connection.execute(
+            "SELECT modifier_codes_json FROM stg_charge_group WHERE charge_group_id = 'group-last'"
+        ).fetchone()[0]
+        assert json.loads(modifier_json) == ["51"]
