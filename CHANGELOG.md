@@ -9,6 +9,17 @@ no version tags yet; until the first dated release (phase 5 of
 
 ### Added
 
+- **Static scorecard site** (`mrf_honest.site`, `mrf-honest site`, `.github/workflows/pages.yml`):
+  one indexable page per graded file with the grade and its one-sentence reason, all five
+  dimension statuses, every finding with severity, occurrence count, method-page anchor, and
+  primary-source links, item/charge/rate counts, warehouse contract evidence (or its stated
+  absence), and verification provenance (requested URL, observation time, decoded size, content
+  SHA-256, record digest). Index with the honest coverage statement and recorded-but-not-graded
+  targets; a methods page stating what is and is not checked; sitemap, robots.txt, 404, and a
+  machine-readable `data/comparison.json`. Dependency-free HTML, `lang` attribute, skip link,
+  no JavaScript. The Pages workflow rebuilds only from committed data and fails closed if the
+  rendered numbers disagree with the comparison document; it deliberately contains no scheduled
+  collection.
 - **Cross-file comparison layer** (`mrf_honest.cohort`, `mrf-honest compare`): turns one attested
   collection run of persisted assessments into a published comparison with one deterministic
   presentation grade per file under a separate, versioned, fingerprinted policy

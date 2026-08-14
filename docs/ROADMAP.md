@@ -31,9 +31,13 @@ failures roll back model rows, and handled promotion failures clean the run's de
 artifacts. This is not a claim of full crash durability: concurrent writers, historical warehouse
 migrations, and a full SIGKILL/fsync matrix remain open.
 
-There is no hosted surface, scheduled refresh, alert destination, or availability objective. The
-phase-5 site/API and any scheduled collection must take a real service/job tier declaration before
-shipping; local manifests are not a substitute for deployed monitoring.
+The hosted surface is a static GitHub Pages site rebuilt exclusively from data committed to this
+repository by a SHA-pinned workflow (`.github/workflows/pages.yml`); the build fails closed if
+the rendered pages disagree with the committed comparison document. There is no scheduled
+refresh, no alert destination, and no declared availability objective — the site is a published
+artifact, not a service, and it never fetches anything at build time. Scheduled collection
+remains out of scope until the `robots.txt` policy, per-host pacing, and `Retry-After` work
+below; any future scheduled job must take a real service/job tier declaration before shipping.
 
 ## Metrics ledger
 

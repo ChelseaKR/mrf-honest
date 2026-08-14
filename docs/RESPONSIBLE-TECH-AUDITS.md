@@ -116,3 +116,14 @@ made that the observed grade distribution generalizes, and the published copy mu
 cohort's size and composition wherever grades appear. Re-run this review when the cohort grows
 past its current composition, and before any aggregate statistic about hospitals as a class is
 published.
+
+## Appendix, 2026-08-14: the static site brings accessibility into scope
+
+Section E declared accessibility N/A while no human-facing HTML existed. The comparison site ends
+that: every page now ships with `lang="en"`, a skip link that moves focus to `main`, semantic
+headings and lists, grade badges with text labels and `aria-label`s (never color alone), status
+chips whose information also appears as words, reduced-motion and print media rules, and no
+JavaScript at all. What is *not* yet true is also stated: there is no automated accessibility
+gate (no axe/pa11y/Lighthouse job) and no manual screen-reader pass has been performed. Those
+are open obligations under the portfolio accessibility standard, recorded here rather than
+implied as done, and they belong in CI before the site grows past its current handful of pages.
