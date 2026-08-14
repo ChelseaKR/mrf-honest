@@ -1,0 +1,70 @@
+name: publish
+
+# The site is rebuilt only from data already committed to this repository: the newest
+# data/cohorts/*.comparison.json, which `mrf-honest compare` generated from persisted,
+# integrity-verified assessment rows. There is deliberately no scheduled collection here —
+# broad scheduled retrieval remains blocked on the robots.txt/pacing/Retry-After work recorded
+# in docs/ROADMAP.md, and a publish workflow must not quietly become a crawler.
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false # this job only reads; it never pushes
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: python -m pip install -e .
+      - name: Render the site from the newest committed comparison
+        shell: bash
+        run: |
+          set -euo pipefail
+          comparison="$(ls data/cohorts/*.comparison.json | sort | tail -n 1)"
+          echo "rendering from ${comparison}"
+          python -m mrf_honest.cli site \
+            --comparison "${comparison}" \
+            --out site \
+            --origin "https://chelseakr.github.io/mrf-honest"
+      - name: Check the rendered site says what the data says
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f site/index.html
+          test -f site/how-we-grade/index.html
+          test -f site/sitemap.xml
+          test -f site/404.html
+          targeted="$(python -c "import glob,json;print(json.load(open(sorted(glob.glob('data/cohorts/*.comparison.json'))[-1]))['summary']['targeted'])")"
+          grep -Fq "<strong>${targeted}</strong> machine-readable files" site/index.html
+          grep -Fq 'Sitemap: https://chelseakr.github.io/mrf-honest/sitemap.xml' site/robots.txt
+      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4

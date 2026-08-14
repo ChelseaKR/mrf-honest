@@ -5,7 +5,10 @@
 local inspection. Both report five independent dimensions for one CMS hospital JSON v3 file. They
 deliberately do **not** calculate a composite score, rank, letter grade, pass/fail result, or CMS
 compliance label. The word “grade” in this document means only the deterministic assignment of a
-status and source-cited findings within each dimension.
+status and source-cited findings within each dimension. The separate comparison layer derives a
+versioned presentation letter per file from these records for publication; that policy, and what
+such a letter does and does not mean, is documented in [how-we-compare.md](how-we-compare.md)
+and [ADR 0005](adr/0005-presentation-grade-layer.md).
 
 The inspector streams `standard_charge_information` with bounded retained state. It records one
 finding per finding code, plus an `occurrences` value, instead of retaining an unbounded list of

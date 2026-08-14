@@ -88,3 +88,42 @@ omit local paths and contact values, remove URL query/fragment values while reta
 digests, and atomically replace a validated single-writer JSONL registry. The SHA-pinned CI
 workflow has observed green public branch and pull-request runs; SAST, secret scanning, and
 dependency-audit jobs remain open before publication.
+
+## Appendix, 2026-08-14: bias review before publishing file grades
+
+Section B recorded a debt: a review of the grading dimensions against publisher size and
+resources before any phase-3 grades are published. The comparison layer (ADR 0005) now publishes
+per-file letter grades, so this is that review, run against what the policy actually does rather
+than what it intends.
+
+**What the policy does to protect small publishers.** The grade counts *dimensions with
+structural errors*, not raw finding occurrences, so a small hospital with one systematic export
+defect is a `C`, not an `F`, regardless of how many rows the defect touches. `INFO` observations
+never lower a grade; warnings alone cap at `B` rather than failing anyone. Nothing in the policy
+rewards file size, publisher brand, or engineering budget directly.
+
+**Where the observed hazard actually fell.** In the first collected cohort the resource-shaped
+hazard hit a *large* publisher: the project's own decoded-size ceiling nearly excluded the
+cohort's biggest file (884 MB) before the ceiling was raised to the documented default. The
+policy's answer is structural: a project limit is `NOT_GRADED` with the reason stated, never an
+`F`, so a publisher is not penalized for the operator's budget. That rule protects small
+publishers on slow hosting for the same reason.
+
+**What this review cannot yet establish.** The first cohort is six files from four large,
+well-resourced health systems, selected because their `cms-hpt.txt` documents were discoverable
+from origins already recorded in phase 0. It contains no small or rural hospital, so no claim is
+made that the observed grade distribution generalizes, and the published copy must state the
+cohort's size and composition wherever grades appear. Re-run this review when the cohort grows
+past its current composition, and before any aggregate statistic about hospitals as a class is
+published.
+
+## Appendix, 2026-08-14: the static site brings accessibility into scope
+
+Section E declared accessibility N/A while no human-facing HTML existed. The comparison site ends
+that: every page now ships with `lang="en"`, a skip link that moves focus to `main`, semantic
+headings and lists, grade badges with text labels and `aria-label`s (never color alone), status
+chips whose information also appears as words, reduced-motion and print media rules, and no
+JavaScript at all. What is *not* yet true is also stated: there is no automated accessibility
+gate (no axe/pa11y/Lighthouse job) and no manual screen-reader pass has been performed. Those
+are open obligations under the portfolio accessibility standard, recorded here rather than
+implied as done, and they belong in CI before the site grows past its current handful of pages.
