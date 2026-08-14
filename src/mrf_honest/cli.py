@@ -24,6 +24,7 @@ from mrf_honest.scorecard import (
     URLProvenance,
     assess_hospital_url,
 )
+from mrf_honest.site import DEFAULT_ORIGIN, render_site
 from mrf_honest.types import PublisherRef
 
 _SUCCESS = 0
@@ -275,6 +276,17 @@ def _run_compare(args: argparse.Namespace) -> int:
     return _SUCCESS
 
 
+def _run_site(args: argparse.Namespace) -> int:
+    comparison = _load_json_object(cast(Path, args.comparison), "comparison")
+    written = render_site(
+        comparison,
+        cast(Path, args.out),
+        origin=cast(str, args.origin).rstrip("/"),
+    )
+    _emit_json({"files_written": len(written)})
+    return _SUCCESS
+
+
 def _run_explain(args: argparse.Namespace) -> int:
     code = cast(str, args.finding_code)
     try:
@@ -393,6 +405,14 @@ def _build_parser() -> argparse.ArgumentParser:
         "--format", dest="output_format", choices=("human", "json"), default="json"
     )
     compare_parser.set_defaults(handler=_run_compare)
+
+    site_parser = commands.add_parser(
+        "site", help="render the static site from a published comparison document"
+    )
+    site_parser.add_argument("--comparison", type=Path, required=True)
+    site_parser.add_argument("--out", type=Path, required=True)
+    site_parser.add_argument("--origin", default=DEFAULT_ORIGIN)
+    site_parser.set_defaults(handler=_run_site)
 
     explain_parser = commands.add_parser("explain", help="explain a quality finding code")
     explain_parser.add_argument("finding_code", metavar="FINDING_CODE")
