@@ -9,6 +9,17 @@ no version tags yet; until the first dated release (phase 5 of
 
 ### Added
 
+- **First written-up finding**
+  ([docs/findings/superseded-template-version-2026-08-14.md](docs/findings/superseded-template-version-2026-08-14.md)):
+  an 884 MB hospital MRF that still declares CMS template 2.0.0 as retrieved on 2026-08-14 —
+  more than seven months after CMS's documented v3.0 effective date — with the retrieval
+  evidence, the content digest, what cuts the other way (the envelope already carries the
+  v3-required fields; the file streams cleanly; its annual update window is intact), and a
+  correction path. Also records the cohort-wide RFC 8259 BOM pattern (four of six files) as the
+  tolerated INFO observation it is.
+- **README rewritten around what the tool found**: the first graded cohort leads (five A, one
+  C), followed by what a grade is and is not, with the honest scope statement, the quickstart,
+  and the standards table updated for the site's accessibility/i18n/CI scope.
 - **Static scorecard site** (`mrf_honest.site`, `mrf-honest site`, `.github/workflows/pages.yml`):
   one indexable page per graded file with the grade and its one-sentence reason, all five
   dimension statuses, every finding with severity, occurrence count, method-page anchor, and

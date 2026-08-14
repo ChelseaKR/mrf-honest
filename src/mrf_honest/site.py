@@ -346,7 +346,9 @@ def index_page(comparison: Mapping[str, object], origin: str) -> Page:
         "evidence about the hospital's publication.</p>"
         f"<ul class=\"exclusions\">{_exclusion_rows(comparison)}</ul>"
         '<p><a href="how-we-grade/">How grading works, and what it deliberately does not '
-        "claim</a> · <a href=\"data/comparison.json\">machine-readable comparison</a></p>"
+        "claim</a> · <a href=\"data/comparison.json\">machine-readable comparison</a> · "
+        '<a href="https://github.com/ChelseaKR/mrf-honest/tree/master/docs/findings">'
+        "written-up findings with evidence</a></p>"
         f'<p class="caveat">{_CAVEAT}</p>{jsonld}'
     )
     return Page(
