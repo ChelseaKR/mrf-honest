@@ -9,6 +9,11 @@ no version tags yet; until the first dated release (phase 5 of
 
 ### Added
 
+- **Hosted security scanning** (`.github/workflows/security.yml`, conventions from the sibling
+  fhir-scorecard workflow): CodeQL over both the Python code and the workflow YAML, plus a
+  checksum-verified, version-pinned gitleaks binary walking the full git history, on push, pull
+  request, weekly schedule, and manual dispatch. The verify workflow's checkout no longer
+  persists credentials it never uses.
 - **First written-up finding**
   ([docs/findings/superseded-template-version-2026-08-14.md](docs/findings/superseded-template-version-2026-08-14.md)):
   an 884 MB hospital MRF that still declares CMS template 2.0.0 as retrieved on 2026-08-14 —
