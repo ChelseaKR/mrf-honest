@@ -15,18 +15,26 @@ dependencies = []
 [project.scripts]
 mrf-honest = "mrf_honest.cli:main"
 
+# `lakehouse` stays an *extra* because it is an installable feature of the distribution: a
+# consumer who wants the DuckDB warehouse asks for `mrf-honest[lakehouse]`. The development
+# toolchain is not a feature of the distribution and nobody should be able to install it from
+# PyPI, so it lives in a PEP 735 dependency group that `uv sync` installs by default and a
+# wheel never carries (CQ-27).
 [project.optional-dependencies]
+lakehouse = [
+    "duckdb>=1.4,<2",
+]
+
+[dependency-groups]
 dev = [
     "pytest>=8",
     "pytest-cov>=5",
     "hypothesis>=6",
     "mypy>=1.18",
     "ruff>=0.15",
+    "pip-audit>=2.9",
     "duckdb>=1.4,<2",
     "pre-commit>=4,<5",
-]
-lakehouse = [
-    "duckdb>=1.4,<2",
 ]
 
 [tool.hatch.build.targets.wheel]

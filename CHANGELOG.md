@@ -9,6 +9,30 @@ no version tags yet; until the first dated release (phase 5 of
 
 ### Added
 
+- **`make verify` gained a format gate, a lockfile-drift gate, and a dependency audit**, taking
+  it from three checks to six: `ruff check`, `ruff format --check`, `mypy --strict`, pytest with
+  the branch-coverage floor, `uv lock --check`, and `pip-audit --strict` over the exported
+  lockfile with no ignore list. Each was verified to fail on a deliberately broken input rather
+  than merely to pass today. The dependency audit closes the gap the README's Security row had
+  been disclosing as tracked.
+
+### Changed
+
+- **Dev dependencies moved from `[project.optional-dependencies]` to a PEP 735
+  `[dependency-groups]` group** (CQ-27). `uv sync` now installs the toolchain by default and the
+  quickstart drops `--extra dev`; `lakehouse` stays an extra because it is a real installable
+  feature of the distribution rather than a build-time convenience.
+- **The lockfile-drift check is `uv lock --check`, and CI installs with `uv sync --locked`
+  instead of `uv sync --frozen`.** Measured on a deliberately drifted project under uv 0.12.1:
+  `uv lock --check` exits 1, `uv sync --locked` exits 1, and `uv sync --frozen` exits 0.
+  `--frozen` installs from the lockfile without consulting `pyproject.toml`, so it cannot see the
+  two disagree; CQ-09 names it as the drift check and it is not one. Related: a bare `uv run`
+  rewrites a stale lockfile in place, so a drift gate invoked that way repairs what it checks.
+- **The metrics ledger in `docs/ROADMAP.md` was brought current.** Its AUTO rows still read
+  89.78% and 226 tests from 2026-08-09 while the README read 90.73% and 262 from 2026-08-14; both
+  now read the re-measured 90.73% / 262 as of 2026-08-15, and the ledger states its own dating
+  convention so mixed dates are legible rather than ambiguous.
+
 - **Hosted security scanning** (`.github/workflows/security.yml`, conventions from the sibling
   fhir-scorecard workflow): CodeQL over both the Python code and the workflow YAML, plus a
   checksum-verified, version-pinned gitleaks binary walking the full git history, on push, pull

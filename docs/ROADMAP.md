@@ -44,11 +44,20 @@ below; any future scheduled job must take a real service/job tier declaration be
 Per the Quality & Metrics standard's ledger shape. Every value below was measured, not
 estimated; dates are when the number was last observed on this tree.
 
+The dates are not uniform on purpose. Every AUTO row is re-measured by a `make verify` run
+and carries the date of the last such run. The REVIEW rows carry the date of the
+instrumented acceptance run that produced their figures, and that run is not repeated to
+refresh a date; a REVIEW row moves when the thing it measures is re-measured. When the
+README quotes a ledger figure, this table is the source and the README follows it.
+
 | Metric | Target | Measured by | Gate | Last measured |
 |---|---|---|---|---|
-| Branch coverage | >= 85% | `pytest --cov` (branch mode, `fail_under = 85`) | AUTO (`make verify`) | 89.78%, 226 tests passing, 2026-08-09 |
-| Lint findings (ruff `E,F,I,B,S,C90,UP,RUF`, `max-complexity=10`) | 0 | `ruff check src tests` | AUTO (`make verify`) | 0, 2026-08-09 |
-| `mypy --strict` errors | 0 | `mypy` over `src` | AUTO (`make verify`) | 0, 2026-08-09 |
+| Branch coverage | >= 85% | `pytest --cov` (branch mode, `fail_under = 85`) | AUTO (`make verify`) | 90.73%, 262 tests passing, 2026-08-15 |
+| Lint findings (ruff `E,F,I,B,S,C90,UP,RUF`, `max-complexity=10`) | 0 | `ruff check src tests` | AUTO (`make verify`) | 0, 2026-08-15 |
+| Formatting findings | 0 | `ruff format --check src tests` | AUTO (`make verify`) | 0, 2026-08-15 |
+| `mypy --strict` errors | 0 | `mypy` over `src` | AUTO (`make verify`) | 0, 2026-08-15 |
+| Lockfile drift | none | `uv lock --check` (**not** `uv sync --frozen`, which cannot see drift) | AUTO (`make verify`, CI `uv sync --locked`) | in sync, 2026-08-15 |
+| Known vulnerabilities in the locked dependency set | 0, no ignore list | `pip-audit --strict --no-deps` over `uv export --all-extras` (116 pinned distributions) | AUTO (`make verify`) | 0, 2026-08-15 |
 | Streaming scan on the 64,828,148-byte reference file | RSS below file size; zero problems | `/usr/bin/time -l`, recorded in `PHASE-0-FINDINGS.md` | REVIEW (re-measure when `stream.py` changes) | 30,114 items, 0 problems, 9.25 s, 33,865,728-byte RSS (0.5224x), 26,231,240-byte peak footprint, 2026-08-09 |
 | End-to-end lakehouse process memory | measured and disclosed; no cap claim | `/usr/bin/time -l`, recorded in `PHASE-2-FINDINGS.md` | REVIEW (re-measure on model/load changes) | 534,790,144-byte max RSS; 575,865,768-byte peak footprint, 2026-08-09 |
 | Clean lakehouse wall time / verified warm reuse | measured and disclosed | instrumented CLI acceptance | REVIEW | 46.66 s / 0.34 s; reuse max RSS 63,668,224 bytes and peak footprint 34,980,368 bytes, 2026-08-09 |
@@ -56,7 +65,7 @@ estimated; dates are when the number was last observed on this tree.
 | Artifact integrity | every source and Parquet artifact | manifest SHA-256 + byte size, rechecked on reuse | AUTO (runtime + tests) | source archive + 13 of 13 Parquets verified; 117,287,726 bytes excluding manifest, 2026-08-09 |
 | Lakehouse persistent/transient storage | measured by artifact inventory and spool sizes | clean CLI acceptance | REVIEW | DB 117,977,088; 13 Parquets 52,459,578; archive 64,828,148; nine spools 251,678,531 bytes, 2026-08-09 |
 | Manifest body integrity and recovery | immutable body tampering rejected; prepared state recoverable after commit | deterministic integrity/transaction tests | AUTO (tests) | schema 4 digest passes; inspection/envelope/metrics tampering rejected; full SIGKILL/fsync matrix pending, 2026-08-09 |
-| Base runtime dependency count | 0 (DuckDB remains an optional lakehouse extra, ADRs 0002-0003) | `pyproject.toml` `[project] dependencies` | REVIEW | 0, 2026-08-09 |
+| Base runtime dependency count | 0 (DuckDB remains an optional lakehouse extra, ADRs 0002-0003) | `pyproject.toml` `[project] dependencies` | REVIEW | 0, 2026-08-15 |
 | Fabricated figures in docs | 0 | every published number traces to a run or a query | REVIEW (house rule, `docs/CONTEXT.md`) | 0 known, 2026-08-09 |
 
 Planned ledger rows that only become meaningful later: multi-publisher grade distribution and

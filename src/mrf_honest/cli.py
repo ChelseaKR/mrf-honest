@@ -257,8 +257,7 @@ def _run_compare(args: argparse.Namespace) -> int:
     registry = AssessmentRegistry(cast(Path, args.assessments))
     manifest = _load_json_object(cast(Path, args.manifest), "manifest")
     ingest_results = [
-        _load_json_object(path, "ingest result")
-        for path in cast(list[Path], args.ingest_results)
+        _load_json_object(path, "ingest result") for path in cast(list[Path], args.ingest_results)
     ]
     generated_at = cast(str | None, args.generated_at) or (
         datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")

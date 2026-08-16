@@ -367,9 +367,7 @@ def test_comparison_refuses_duplicate_subjects(tmp_path: Path) -> None:
 
 def test_comparison_refuses_as_of_outside_the_attested_run(tmp_path: Path) -> None:
     with pytest.raises(CohortError, match="utc_date"):
-        build_comparison(
-            _two_records(tmp_path), _manifest("2026-05-02"), generated_at=GENERATED_AT
-        )
+        build_comparison(_two_records(tmp_path), _manifest("2026-05-02"), generated_at=GENERATED_AT)
 
 
 def test_comparison_refuses_foreign_or_duplicate_ingest_evidence(tmp_path: Path) -> None:
@@ -381,9 +379,7 @@ def test_comparison_refuses_foreign_or_duplicate_ingest_evidence(tmp_path: Path)
         "status": "success",
     }
     with pytest.raises(CohortError, match="does not match any cohort assessment"):
-        build_comparison(
-            records, _manifest(), ingest_results=[foreign], generated_at=GENERATED_AT
-        )
+        build_comparison(records, _manifest(), ingest_results=[foreign], generated_at=GENERATED_AT)
     content = cast(dict[str, object], records[0]["retrieval"])["content_sha256"]
     duplicate = {
         "run_id": "r1",
@@ -490,8 +486,6 @@ def test_cli_compare_reports_refusals_without_a_traceback(
     unattested = json.loads(manifest.read_text(encoding="utf-8"))
     unattested["collection"]["operator_controlled_single_run"] = False
     manifest.write_text(json.dumps(unattested), encoding="utf-8")
-    status = main(
-        ["compare", "--assessments", str(assessments), "--manifest", str(manifest)]
-    )
+    status = main(["compare", "--assessments", str(assessments), "--manifest", str(manifest)])
     assert status == 1
     assert "operator-controlled collection run" in capsys.readouterr().err

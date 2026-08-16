@@ -59,9 +59,7 @@ def test_index_lists_every_file_with_generated_numbers(tmp_path: Path) -> None:
 def test_file_page_carries_grade_findings_and_provenance(tmp_path: Path) -> None:
     comparison = _comparison(tmp_path)
     out = _render(tmp_path, comparison)
-    page = (out / "hospital" / "beta-health" / "north" / "index.html").read_text(
-        encoding="utf-8"
-    )
+    page = (out / "hospital" / "beta-health" / "north" / "index.html").read_text(encoding="utf-8")
     assert ">B<" in page
     assert "FRESHNESS_ANNUAL_UPDATE_OVERDUE" in page
     assert "how-we-grade/#FRESHNESS_ANNUAL_UPDATE_OVERDUE" in page
@@ -76,9 +74,7 @@ def test_file_page_carries_grade_findings_and_provenance(tmp_path: Path) -> None
 
 def test_ingested_file_page_states_contract_evidence(tmp_path: Path) -> None:
     out = _render(tmp_path, _comparison(tmp_path))
-    page = (out / "hospital" / "alpha-health" / "main" / "index.html").read_text(
-        encoding="utf-8"
-    )
+    page = (out / "hospital" / "alpha-health" / "main" / "index.html").read_text(encoding="utf-8")
     assert "Warehouse contracts" in page
     assert "<code>success</code>" in page
     assert "<code>r1</code>" in page
@@ -86,9 +82,7 @@ def test_ingested_file_page_states_contract_evidence(tmp_path: Path) -> None:
 
 def test_observed_dimension_is_not_presented_as_a_certificate(tmp_path: Path) -> None:
     out = _render(tmp_path, _comparison(tmp_path))
-    page = (out / "hospital" / "alpha-health" / "main" / "index.html").read_text(
-        encoding="utf-8"
-    )
+    page = (out / "hospital" / "alpha-health" / "main" / "index.html").read_text(encoding="utf-8")
     assert "not a certificate that the data is valid" in page
 
 
@@ -101,9 +95,7 @@ def test_not_graded_target_stays_visible_with_its_reason(tmp_path: Path) -> None
     out = _render(tmp_path, comparison)
     index = (out / "index.html").read_text(encoding="utf-8")
     assert "Not graded" in index
-    page = (out / "hospital" / "gamma-health" / "main" / "index.html").read_text(
-        encoding="utf-8"
-    )
+    page = (out / "hospital" / "gamma-health" / "main" / "index.html").read_text(encoding="utf-8")
     assert "decoded-byte ceiling" in page
     assert "no item, charge, or rate counts exist" in page
 

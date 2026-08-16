@@ -30,8 +30,13 @@ jobs:
       - name: Install Python
         run: uv python install ${{ matrix.python-version }}
 
+      # `--locked` rather than `--frozen`. Both install exactly what uv.lock says; only
+      # `--locked` also asserts that the lockfile still agrees with pyproject.toml, which is
+      # what CQ-09 is actually asking for. Measured on a deliberately drifted project with
+      # uv 0.12.1: `uv lock --check` and `uv sync --locked` both exit 1, `uv sync --frozen`
+      # exits 0. `make verify` re-checks it too, so the gate exists locally as well.
       - name: Sync locked development environment
-        run: uv sync --frozen --extra dev --python ${{ matrix.python-version }}
+        run: uv sync --locked --all-extras --python ${{ matrix.python-version }}
 
       - name: Run repository gate
         run: make verify

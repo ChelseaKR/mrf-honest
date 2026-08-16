@@ -271,9 +271,7 @@ def _file_row(
         cast(Mapping[str, object], inspection) if isinstance(inspection, Mapping) else None
     )
     content_sha256 = retrieval.get("content_sha256")
-    lakehouse = (
-        ingest_evidence.get(content_sha256) if isinstance(content_sha256, str) else None
-    )
+    lakehouse = ingest_evidence.get(content_sha256) if isinstance(content_sha256, str) else None
     return {
         "slug": f"{publisher_id}/{location_id}",
         "publisher_id": publisher_id,
@@ -390,9 +388,7 @@ def build_comparison(
     digests: set[str] = set()
     for record in rows:
         if record.get("as_of") != expected_date:
-            raise CohortError(
-                "assessment as_of does not match the manifest collection utc_date"
-            )
+            raise CohortError("assessment as_of does not match the manifest collection utc_date")
         publisher_id, location_id, _, url_sha256, _ = _subject_fields(record)
         key = (publisher_id, location_id, url_sha256)
         if key in seen:

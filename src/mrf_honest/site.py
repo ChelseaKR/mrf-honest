@@ -142,7 +142,7 @@ def _dimension_section(name: str, dimension: Mapping[str, object]) -> str:
         f"<h3>{_e(_DIMENSION_TITLES.get(name, name))} "
         f'<span class="status status-{status.lower()}">{_e(status)}</span></h3>'
         f'<p class="status-word">{_e(_STATUS_WORDS.get(status, ""))}</p>'
-        f"{note_html}<ul class=\"findings\">{items}</ul></section>"
+        f'{note_html}<ul class="findings">{items}</ul></section>'
     )
 
 
@@ -249,7 +249,7 @@ def file_page(row: Mapping[str, object], comparison: Mapping[str, object], origi
     body = (
         f'<nav class="crumbs"><a href="../../../">All graded files</a></nav>'
         f'<header class="hero"><p class="eyebrow">Hospital price-transparency file</p>'
-        f"<h1>{_e(name)}</h1><p class=\"lede\">Location <code>{_e(location)}</code>, assessed "
+        f'<h1>{_e(name)}</h1><p class="lede">Location <code>{_e(location)}</code>, assessed '
         f"{_e(row.get('as_of'))}.</p>{_grade_badge(grade_value)}"
         f'<p class="grade-reason">{_e(grade["reason"])}.</p></header>'
         f"<h2>Dimensions and findings</h2>{sections}"
@@ -265,7 +265,7 @@ def file_page(row: Mapping[str, object], comparison: Mapping[str, object], origi
         title=title,
         description=f"{name} ({location}): {label} — {word}.",
         priority="0.8",
-    body=body,
+        body=body,
     )
 
 
@@ -344,9 +344,9 @@ def index_page(comparison: Mapping[str, object], origin: str) -> Page:
         "<p>Targets this cohort reviewed but did not grade stay visible, with how far the "
         "review went and what it found. An absent or unreachable TXT at one origin is not "
         "evidence about the hospital's publication.</p>"
-        f"<ul class=\"exclusions\">{_exclusion_rows(comparison)}</ul>"
+        f'<ul class="exclusions">{_exclusion_rows(comparison)}</ul>'
         '<p><a href="how-we-grade/">How grading works, and what it deliberately does not '
-        "claim</a> · <a href=\"data/comparison.json\">machine-readable comparison</a> · "
+        'claim</a> · <a href="data/comparison.json">machine-readable comparison</a> · '
         '<a href="https://github.com/ChelseaKR/mrf-honest/tree/master/docs/findings">'
         "written-up findings with evidence</a></p>"
         f'<p class="caveat">{_CAVEAT}</p>{jsonld}'
