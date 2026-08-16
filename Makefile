@@ -44,8 +44,14 @@ lock:
 # rather than a silence, and the project itself is excluded from the export (it is not on
 # PyPI, and under `--strict` an unauditable local package would otherwise fail the run for
 # the wrong reason).
+#
+# `mktemp` is called with a full template rather than `-t <prefix>`: BSD mktemp treats `-t`'s
+# argument as a prefix and appends the random part itself, while GNU coreutils treats it as a
+# template and rejects one with fewer than three X's. `mktemp -t mrf-honest-audit` therefore
+# works on macOS and fails on the Linux runner with "too few X's in template", which is how
+# this gate passed locally and failed in CI.
 audit:
-	@req="$$(mktemp -t mrf-honest-audit)"; \
+	@req="$$(mktemp "$${TMPDIR:-/tmp}/mrf-honest-audit.XXXXXX")"; \
 	trap 'rm -f "$$req"' EXIT; \
 	$(UV) export --frozen --no-emit-project --all-extras --no-hashes \
 		--format requirements-txt -o "$$req" -q && \
