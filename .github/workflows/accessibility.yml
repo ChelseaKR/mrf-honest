@@ -1,0 +1,136 @@
+name: accessibility
+
+# The site is public and a person can load it. Until 2026-08-15 nothing checked whether they
+# could use it: the portfolio registry recorded this repository as local-only with no HTML
+# surface, so ACCESSIBILITY-STANDARD scoped itself out and the AUTO-GATEs in its section 1
+# never ran. Two real defects shipped in that window and are fixed in the commit that adds
+# this workflow: a heading order that jumped h1 to h3 on the index, and a 4.28:1 finding chip
+# on every file page that recorded a warning.
+#
+# `make verify` proves what can be proved without a browser -- the design-token contrast
+# ratios and the heading order of every generated page -- and runs on every push. This job is
+# the half that needs a rendering engine.
+#
+# The page list is enumerated from the render, never typed into this file. Every HTML file
+# the site command produced gets audited, so a cohort that grows from seven file pages to
+# seventy grows the audit with it and a served page cannot escape it. The scoring step is
+# handed that same list and fails when it is empty, when it is short, or when any single
+# report is missing -- a gate that measured no pages must not be able to report success,
+# which is the specific way an accessibility job usually dies quietly.
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: accessibility-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lighthouse:
+    name: Lighthouse over every rendered page
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+
+      - name: Install
+        run: python -m pip install -e .
+
+      # The same command and the same committed data the publish workflow uses, so this job
+      # audits the bytes a visitor actually receives rather than a preview built differently.
+      - name: Render the site from the newest committed comparison
+        shell: bash
+        run: |
+          set -euo pipefail
+          comparison="$(ls data/cohorts/*.comparison.json | sort | tail -n 1)"
+          echo "rendering from ${comparison}"
+          python -m mrf_honest.cli site \
+            --comparison "${comparison}" --out site \
+            --origin "https://chelseakr.github.io/mrf-honest"
+
+      - name: Serve it
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m http.server 8000 --directory site >/tmp/http.log 2>&1 &
+          for _ in $(seq 1 30); do
+            curl -sf http://127.0.0.1:8000/ >/dev/null && break
+            sleep 1
+          done
+          if ! curl -sf http://127.0.0.1:8000/ >/dev/null; then
+            echo "::error title=Site never came up::the static server did not answer in 30s"
+            cat /tmp/http.log
+            exit 1
+          fi
+
+      - name: List the pages that were actually rendered
+        shell: bash
+        run: |
+          set -euo pipefail
+          find site -name '*.html' -type f | sort > /tmp/pages.txt
+          count="$(wc -l < /tmp/pages.txt | tr -d ' ')"
+          echo "rendered ${count} HTML pages:"
+          cat /tmp/pages.txt
+          if [ "${count}" -lt 4 ]; then
+            echo "::error title=Too few pages::${count} HTML pages rendered. The index, the methods page, at least one file page and 404.html are the minimum this site produces; a short list means the render failed, not that everything passed."
+            exit 1
+          fi
+
+      - name: Audit every page
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/lh
+          while read -r page; do
+            # site/index.html -> /, site/how-we-grade/index.html -> /how-we-grade/,
+            # site/404.html -> /404.html
+            route="${page#site}"
+            route="${route%index.html}"
+            slug="$(printf '%s' "${route}" | tr -c 'A-Za-z0-9' '_')"
+            echo "::group::${route}"
+            # The URL is the first argument on purpose: lighthouse takes it positionally and
+            # exits "Please provide a url" without auditing anything when it trails the flags.
+            # No --budget-path. It does not exist in Lighthouse 12 (measured on 12.8.2:
+            # `--help` lists no budget option, configSettings.budgets comes back null, no
+            # performance-budget audit is emitted) and the CLI accepts unknown flags in
+            # silence, so passing it would look like a budget and enforce nothing. The
+            # budget in perf/resource-budget.json is asserted by the scoring step instead,
+            # against the resource-summary audit the reports really do carry.
+            npx --yes lighthouse@12 "http://127.0.0.1:8000${route}" \
+              --output=json --output-path="/tmp/lh/${slug}.json" --quiet \
+              --chrome-flags="--headless" \
+              --only-categories=accessibility,best-practices,seo,performance
+            echo "::endgroup::"
+          done < /tmp/pages.txt
+
+      - name: Score them, and fail if any page went unaudited
+        shell: bash
+        run: |
+          set -euo pipefail
+          python perf/score_lighthouse.py \
+            --pages /tmp/pages.txt \
+            --reports /tmp/lh \
+            --baseline perf/baseline.json \
+            --budget perf/resource-budget.json
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: lighthouse-reports
+          path: /tmp/lh
+          retention-days: 14

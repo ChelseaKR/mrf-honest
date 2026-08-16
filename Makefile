@@ -6,10 +6,10 @@ UV ?= uv
 verify: lint format typecheck test lock audit
 
 lint:
-	$(PYTHON) -m ruff check src tests
+	$(PYTHON) -m ruff check src tests perf
 
 format:
-	$(PYTHON) -m ruff format --check src tests
+	$(PYTHON) -m ruff format --check src tests perf
 
 typecheck:
 	$(PYTHON) -m mypy

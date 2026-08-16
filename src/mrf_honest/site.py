@@ -25,6 +25,87 @@ from mrf_honest.scorecard import RETRIEVAL_FINDING_CATALOG
 
 DEFAULT_ORIGIN = "https://chelseakr.github.io/mrf-honest"
 
+# Every colour the stylesheet uses, in one place, so the contrast of each text-on-background
+# combination is asserted by a test instead of hoped for. `--c-ink` exists because the amber
+# that reads well as a badge background does not clear 4.5:1 as small bold text on the amber
+# wash: axe measured 4.28:1, and that is what shipped on every file page carrying a warning
+# finding until an audit was finally pointed at the site.
+PALETTE: dict[str, str] = {
+    "ink": "#1e242b",
+    "muted": "#55616e",
+    "paper": "#ffffff",
+    "wash": "#f4f6f8",
+    "line": "#d9dee3",
+    "accent": "#00666a",
+    "a": "#19734b",
+    "b": "#00666a",
+    "c": "#a35d00",
+    "c-ink": "#8a4f00",
+    "d": "#a43b2a",
+    "f": "#8f2430",
+    "ng": "#55616e",
+    "observed-wash": "#e2f0e9",
+    "findings-wash": "#f6ead8",
+    "error-wash": "#f3dcda",
+}
+
+# Border-only tokens carry no text and so have no contrast pair to declare. Naming them is
+# what lets the test insist every *other* token is accounted for: a colour added to PALETTE
+# and used nowhere in the table below fails the suite rather than shipping unchecked.
+NON_TEXT_TOKENS: frozenset[str] = frozenset({"line"})
+
+# (foreground token, background token, where it appears). SC 1.4.3 wants 4.5:1 for normal text
+# and 3:1 for large; nothing here claims the large-text exemption, because the smallest of
+# these is 0.65rem and arguing a badge into "large text" is how contrast bugs get argued
+# instead of fixed.
+TEXT_ON_BACKGROUND: tuple[tuple[str, str, str], ...] = (
+    ("ink", "paper", "body copy"),
+    ("ink", "wash", "code spans and .dist pills"),
+    ("muted", "paper", ".lede, .meta, .caveat, .eyebrow, footer, .facts dt"),
+    ("muted", "wash", ".status-not_assessed and the default .sev chip"),
+    ("accent", "paper", "links"),
+    ("accent", "wash", "links inside .coverage and .dist"),
+    ("paper", "ink", ".skip-link"),
+    ("paper", "a", ".grade-a badge"),
+    ("paper", "b", ".grade-b badge"),
+    ("paper", "c", ".grade-c badge"),
+    ("paper", "d", ".grade-d badge"),
+    ("paper", "f", ".grade-f badge"),
+    ("paper", "ng", ".grade-ng badge"),
+    ("a", "observed-wash", ".status-observed chip"),
+    ("c-ink", "findings-wash", ".status-findings chip and .sev-warning .sev"),
+    ("f", "error-wash", ".sev-error .sev"),
+)
+
+MIN_CONTRAST = 4.5
+
+
+def _channel(value: int) -> float:
+    fraction = value / 255
+    if fraction <= 0.04045:
+        return fraction / 12.92
+    return float(((fraction + 0.055) / 1.055) ** 2.4)
+
+
+def relative_luminance(color: str) -> float:
+    """WCAG 2.x relative luminance of a ``#rrggbb`` colour."""
+    digits = color.lstrip("#")
+    red, green, blue = (int(digits[index : index + 2], 16) for index in (0, 2, 4))
+    return 0.2126 * _channel(red) + 0.7152 * _channel(green) + 0.0722 * _channel(blue)
+
+
+def contrast_ratio(foreground: str, background: str) -> float:
+    """WCAG 2.x contrast ratio between two ``#rrggbb`` colours."""
+    first, second = relative_luminance(foreground), relative_luminance(background)
+    lighter, darker = max(first, second), min(first, second)
+    return (lighter + 0.05) / (darker + 0.05)
+
+
+def _root_block() -> str:
+    declarations = " ".join(f"--{token}: {value};" for token, value in PALETTE.items())
+    return f":root {{ {declarations} }}\n"
+
+
 _GRADE_WORDS = {
     "A": "no error or warning findings in any assessed dimension",
     "B": "no structural errors; warnings were recorded",
@@ -339,6 +420,10 @@ def index_page(comparison: Mapping[str, object], origin: str) -> Page:
         "rule or schema requirement it rests on.</p></header>"
         f'<p class="coverage">{coverage}</p>'
         f'<div class="dist-row">{dist_html}</div>'
+        # The cards carry <h3>. Without this <h2> the index goes straight from <h1> to <h3>,
+        # which axe reports as `heading-order` and which someone navigating by heading level
+        # hears as a section that is not there.
+        "<h2>Graded files</h2>"
         f'<ul class="cards">{cards}</ul>'
         "<h2>Checked and recorded, not graded</h2>"
         "<p>Targets this cohort reviewed but did not grade stay visible, with how far the "
@@ -498,6 +583,7 @@ def _shell(page: Page, origin: str, generated_at: str) -> str:
 <title>{_e(page.title)}</title>
 <meta name="description" content="{_e(page.description)}">
 <link rel="canonical" href="{_e(canonical)}">
+<link rel="icon" href="data:,">
 <style>{_STYLE}</style>
 </head>
 <body>
@@ -558,12 +644,7 @@ def render_site(
     return written
 
 
-_STYLE = """
-:root {
-  --ink: #1e242b; --muted: #55616e; --paper: #ffffff; --wash: #f4f6f8;
-  --line: #d9dee3; --accent: #00666a;
-  --a: #19734b; --b: #00666a; --c: #a35d00; --d: #a43b2a; --f: #8f2430; --ng: #55616e;
-}
+_RULES = """
 * { box-sizing: border-box; }
 body {
   margin: 0; color: var(--ink); background: var(--paper);
@@ -605,8 +686,8 @@ code { background: var(--wash); padding: .1em .3em; border-radius: 3px;
   padding: .8rem 1rem; margin: .8rem 0; }
 .status { font-size: .7rem; font-weight: 700; letter-spacing: .05em;
   padding: .15rem .5rem; border-radius: 999px; vertical-align: middle; }
-.status-observed { background: #e2f0e9; color: var(--a); }
-.status-findings { background: #f6ead8; color: var(--c); }
+.status-observed { background: var(--observed-wash); color: var(--a); }
+.status-findings { background: var(--findings-wash); color: var(--c-ink); }
 .status-not_assessed { background: var(--wash); color: var(--muted); }
 .status-word, .dim-note { color: var(--muted); font-size: .85rem; margin: .2rem 0; }
 .findings { list-style: none; padding: 0; margin: .4rem 0 0; }
@@ -615,8 +696,8 @@ code { background: var(--wash); padding: .1em .3em; border-radius: 3px;
 .finding.none { color: var(--muted); }
 .sev { font-size: .65rem; font-weight: 700; align-self: flex-start;
   padding: .1rem .4rem; border-radius: 3px; background: var(--wash); color: var(--muted); }
-.sev-error .sev { background: #f3dcda; color: var(--f); }
-.sev-warning .sev { background: #f6ead8; color: var(--c); }
+.sev-error .sev { background: var(--error-wash); color: var(--f); }
+.sev-warning .sev { background: var(--findings-wash); color: var(--c-ink); }
 .finding-copy { overflow-wrap: anywhere; }
 .facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
   gap: .5rem 1rem; margin: .6rem 0; }
@@ -633,3 +714,5 @@ code { background: var(--wash); padding: .1em .3em; border-radius: 3px;
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 @media print { footer, .skip-link { display: none; } }
 """
+
+_STYLE = _root_block() + _RULES

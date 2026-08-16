@@ -43,7 +43,7 @@ packages = ["src/mrf_honest"]
 [tool.mypy]
 strict = true
 python_version = "3.12"
-files = ["src"]
+files = ["src", "perf"]
 
 [tool.ruff]
 line-length = 100
@@ -61,6 +61,10 @@ max-complexity = 10
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--strict-markers"
+# perf/score_lighthouse.py is the accessibility gate's scorer. It lives outside the package
+# because it must never ship in the wheel, and it is on the test path because an unexercised
+# gate is the thing it exists to prevent.
+pythonpath = ["perf"]
 
 [tool.coverage.run]
 branch = true

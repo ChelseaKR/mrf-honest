@@ -15,7 +15,8 @@ re-run before phase 4 (published comparisons) and phase 5 (public site).
 - **B Bias:** applies (methodology-level, below)
 - **C Privacy:** applies (data inventory below)
 - **D Transparency:** applies (below)
-- **E Accessibility:** N/A today, no human-facing HTML; in scope at phase 5
+- **E Accessibility:** in scope as of the published site; WCAG 2.2 AA, gated in CI, with the
+  manual screen-reader pass still open (appendices 2026-08-14 and 2026-08-15)
 - **F Security:** applies (below)
 - **AI evaluation:** N/A, no LLM or model component; the grading and comparison path is
   deterministic by design (IMPLEMENTATION-PLAN, "Engineering standards, inherited")
@@ -127,3 +128,50 @@ JavaScript at all. What is *not* yet true is also stated: there is no automated 
 gate (no axe/pa11y/Lighthouse job) and no manual screen-reader pass has been performed. Those
 are open obligations under the portfolio accessibility standard, recorded here rather than
 implied as done, and they belong in CI before the site grows past its current handful of pages.
+
+## Appendix, 2026-08-15: the gate ran, and the site was not as accessible as the entry above says
+
+The 2026-08-14 appendix is a fair description of what was built and an unreliable description of
+what was true, and the difference is the point of this entry.
+
+The site had been public since 2026-08-09. The portfolio registry, `applicability.yml`, still
+carried this repository as `publication: restricted   # local-only: no GitHub remote exists`
+with `html: false` and `A11Y: { na: "no HTML surface; early-stage ingestion library only" }`.
+`ACCESSIBILITY-STANDARD` section 0 names that registry as its scoping authority, so the section 1
+AUTO-GATEs were switched off for a page anyone could load. The claim in the appendix above was
+made in good faith by reading the markup; nothing measured it.
+
+When Lighthouse 12.8.2 was finally pointed at the rendered pages on 2026-08-15, two WCAG 2.2 AA
+defects were on the live site:
+
+- **SC 1.3.1, `heading-order`.** The index went from `<h1>` straight to the `<h3>` of the first
+  file card, with no `<h2>` between. Someone navigating by heading level hears a section that is
+  not there. Index accessibility score: 0.98.
+- **SC 1.4.3, `color-contrast`.** The `FINDINGS` status chip rendered `#a35d00` on `#f6ead8` at
+  11.2px bold: 4.28:1 against a 4.5:1 requirement. It appeared on every file page that recorded
+  a warning finding, and the same pair was used by the `WARNING` severity chip. Affected pages
+  scored 0.95.
+
+Both are fixed. The contrast fix is a new `--c-ink` token at 5.53:1, because the amber that works
+as a badge background does not work as small text on the amber wash.
+
+What changed structurally is more important than either defect. The palette now lives in one
+`PALETTE` mapping with a declared table of every text-on-background pair, asserted at 4.5:1 by a
+test in `make verify`; a colour added without a declared pair fails the suite. Heading order is
+asserted on every generated page by the same suite. In CI, `accessibility.yml` renders the site
+from the committed comparison, enumerates every HTML file the render produced, audits each one,
+and fails when the page list is short, when a report is missing, or when a category score is
+absent — because the usual way an accessibility job stops being a gate is not a wrong threshold,
+it is a run that measured nothing and exited 0.
+
+Still open, and not implied as done: **the manual screen-reader pass**. Automated tooling catches
+roughly 30-57% of WCAG violations; the rest needs a person. That obligation is unchanged by
+anything above.
+
+One thing found while wiring this up, recorded because it affects any repository copying the
+pattern: **Lighthouse's `--budget-path` flag does not exist in Lighthouse 12.** On 12.8.2 the
+CLI's `--help` lists no budget option, `configSettings.budgets` comes back `null`, and no
+`performance-budget` audit is emitted — and the CLI accepts the unknown flag in silence and exits
+0, exactly as it does for `--this-flag-does-not-exist=42`. A workflow passing `--budget-path`
+looks like it has a resource budget and has none. The budget here is asserted in
+`perf/score_lighthouse.py` against the `resource-summary` audit instead.

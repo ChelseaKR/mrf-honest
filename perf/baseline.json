@@ -1,0 +1,45 @@
+{
+  "meta": {
+    "commit": "6bb2ce84156f7feaf3dbcf0c9357bcde2ad629d7",
+    "date": "2026-08-15",
+    "environment": "macOS 25.4.0 arm64, headless Chrome via lighthouse 12.8.2, site served by python -m http.server on loopback",
+    "tools": {
+      "lighthouse": "12.8.2",
+      "node": "26.6.0",
+      "python": "3.12"
+    },
+    "scope": "All 9 pages the 2026-08-14 cohort renders: the index, how-we-grade, seven file pages and 404.html. Every score below is the minimum observed across all 9, not an average and not the best page.",
+    "k6": "N/A. There is no server: the published artifact is static files on GitHub Pages, so there is no request-latency budget to measure. PERFORMANCE-STANDARD section 1's p95 rows are null below rather than silently absent."
+  },
+  "floors": {
+    "accessibility": 1.0,
+    "best-practices": 1.0,
+    "seo": 1.0,
+    "performance": 0.95
+  },
+  "metrics": {
+    "accessibility": 1.0,
+    "best-practices": 1.0,
+    "seo": 1.0,
+    "performance": 1.0,
+    "max_total_transfer_bytes": 12197,
+    "max_requests_per_page": 1,
+    "p95_ms": null,
+    "llm_first_token_ms": null,
+    "llm_full_response_ms": null,
+    "js_kb_gzip": 0
+  },
+  "direction": {
+    "accessibility": "higher_is_better",
+    "best-practices": "higher_is_better",
+    "seo": "higher_is_better",
+    "performance": "higher_is_better",
+    "max_total_transfer_bytes": "lower_is_better",
+    "max_requests_per_page": "lower_is_better",
+    "js_kb_gzip": "lower_is_better"
+  },
+  "notes": [
+    "The accessibility floor is 1.0, not the standard's 0.90. ACCESSIBILITY-STANDARD section 1 says a repository that declares a higher floor enforces the higher value. On a nine-page static site with no JavaScript there is no honest reason for a 0.99: every point below 100 is a specific element a specific person cannot use.",
+    "These were measured after two real defects were fixed. Before the fix the index scored 0.98 on accessibility (axe heading-order: the file cards' h3 followed h1 with no h2) and every file page carrying a warning finding scored 0.95 (axe color-contrast: the FINDINGS chip was 4.28:1 against its wash, below the 4.5:1 of SC 1.4.3). Both shipped publicly because the portfolio registry recorded this repository as having no HTML surface, so the accessibility gates were scoped out of a site that was already live."
+  ]
+}

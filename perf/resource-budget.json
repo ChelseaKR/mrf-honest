@@ -1,0 +1,33 @@
+{
+  "_why": [
+    "Lighthouse's own --budget-path flag does not exist in Lighthouse 12. Measured on 12.8.2:",
+    "`lighthouse --help` lists no budget option, configSettings.budgets comes back null, and no",
+    "performance-budget or timing-budget audit is emitted. The CLI silently accepts unknown",
+    "flags -- `--this-flag-does-not-exist=42` also exits 0 with a full report -- so passing",
+    "--budget-path looks exactly like a working budget and enforces nothing.",
+    "These numbers are therefore asserted by perf/score_lighthouse.py against the",
+    "resource-summary audit, which is present in every report and carries the real counts.",
+    "Every non-document resource type is budgeted at zero because the site genuinely has none:",
+    "no scripts, no external stylesheets, no fonts, no images, no third parties. The budget",
+    "exists so that adding one is a failed build rather than a change nobody noticed."
+  ],
+  "max_transfer_bytes": {
+    "document": 61440,
+    "script": 0,
+    "stylesheet": 0,
+    "font": 0,
+    "image": 0,
+    "media": 0,
+    "third-party": 0,
+    "total": 61440
+  },
+  "max_request_count": {
+    "script": 0,
+    "stylesheet": 0,
+    "font": 0,
+    "image": 0,
+    "media": 0,
+    "third-party": 0,
+    "total": 1
+  }
+}

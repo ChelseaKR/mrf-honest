@@ -9,6 +9,28 @@ no version tags yet; until the first dated release (phase 5 of
 
 ### Added
 
+- **An accessibility and performance gate for the page this repository actually serves**
+  (`.github/workflows/accessibility.yml`). Lighthouse 12 audits every HTML file the render
+  produced -- the page list is enumerated from the build, never typed into the workflow, so a
+  cohort that grows grows the audit -- and `perf/score_lighthouse.py` fails the run when the
+  page list is empty or short, when a report is missing, when a category score is absent or
+  null, or when the resource budget is exceeded. The floor is 1.0 on accessibility,
+  best-practices and SEO; `perf/baseline.json` carries the committed measurement and the 10%
+  ratchet.
+- **Contrast and heading-order assertions in `make verify`**, so the half of the gate that
+  needs no browser runs on every push: the palette is a single `PALETTE` mapping with a
+  declared table of every text-on-background pair, each asserted at 4.5:1, and a colour added
+  without a declared pair fails the suite.
+
+### Fixed
+
+- **Two WCAG 2.2 AA defects that were live on the published site.** SC 1.3.1: the index went
+  from `<h1>` straight to the file cards' `<h3>` (axe `heading-order`), scoring 0.98. SC 1.4.3:
+  the `FINDINGS` status chip and the `WARNING` severity chip rendered `#a35d00` on `#f6ead8` at
+  11.2px bold, measured 4.28:1 against a 4.5:1 requirement, on every file page that recorded a
+  warning; those pages scored 0.95. A new `--c-ink` token at 5.53:1 fixes the contrast without
+  changing the badge colours. All nine pages now score 1.0 on all four Lighthouse categories.
+
 - **`make verify` gained a format gate, a lockfile-drift gate, and a dependency audit**, taking
   it from three checks to six: `ruff check`, `ruff format --check`, `mypy --strict`, pytest with
   the branch-coverage floor, `uv lock --check`, and `pip-audit --strict` over the exported

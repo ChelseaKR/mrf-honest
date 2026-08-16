@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import itertools
 import json
+import re
 from pathlib import Path
 from typing import cast
 
@@ -18,7 +20,15 @@ from test_cohort import (
 
 from mrf_honest.cohort import build_comparison
 from mrf_honest.fetch import FetchStatus
-from mrf_honest.site import DEFAULT_ORIGIN, render_site
+from mrf_honest.site import (
+    DEFAULT_ORIGIN,
+    MIN_CONTRAST,
+    NON_TEXT_TOKENS,
+    PALETTE,
+    TEXT_ON_BACKGROUND,
+    contrast_ratio,
+    render_site,
+)
 
 
 def _comparison(tmp_path: Path) -> dict[str, object]:
@@ -164,3 +174,59 @@ def test_cli_site_renders_from_files(tmp_path: Path, capsys: pytest.CaptureFixtu
     assert payload["files_written"] > 0
     index = (out / "index.html").read_text(encoding="utf-8")
     assert '<link rel="canonical" href="https://example.test/mrf-honest/">' in index
+
+
+def test_every_palette_colour_is_covered_by_a_declared_contrast_pair() -> None:
+    """A new colour token must declare where it is read, or the gate is decorative.
+
+    Without this the contrast test would only ever check the pairs someone remembered to add,
+    which is the failure mode it exists to prevent.
+    """
+    declared = {token for pair in TEXT_ON_BACKGROUND for token in pair[:2]}
+    unaccounted = set(PALETTE) - declared - NON_TEXT_TOKENS
+    assert unaccounted == set(), (
+        f"palette tokens with no declared contrast pair and not marked non-text: {unaccounted}"
+    )
+    assert NON_TEXT_TOKENS <= set(PALETTE)
+
+
+@pytest.mark.parametrize(("foreground", "background", "where"), TEXT_ON_BACKGROUND)
+def test_declared_text_pairs_meet_wcag_aa(foreground: str, background: str, where: str) -> None:
+    ratio = contrast_ratio(PALETTE[foreground], PALETTE[background])
+    assert ratio >= MIN_CONTRAST, (
+        f"{where}: --{foreground} on --{background} is {ratio:.2f}:1, "
+        f"below the {MIN_CONTRAST}:1 floor of WCAG 2.2 SC 1.4.3"
+    )
+
+
+def test_contrast_ratio_matches_known_wcag_values() -> None:
+    """Anchor the maths, so a broken formula cannot quietly pass every pair above."""
+    assert contrast_ratio("#000000", "#ffffff") == pytest.approx(21.0)
+    assert contrast_ratio("#ffffff", "#ffffff") == pytest.approx(1.0)
+    # The exact combination that shipped: --c on the amber wash, measured by axe at 4.28.
+    assert contrast_ratio("#a35d00", "#f6ead8") == pytest.approx(4.29, abs=0.01)
+    assert contrast_ratio("#a35d00", "#f6ead8") < MIN_CONTRAST
+
+
+def test_stylesheet_is_generated_from_the_palette(tmp_path: Path) -> None:
+    """The audited page must embed the same colours the test above checks."""
+    out = _render(tmp_path, _comparison(tmp_path))
+    index = (out / "index.html").read_text(encoding="utf-8")
+    for token, value in PALETTE.items():
+        assert f"--{token}: {value};" in index
+    # and no colour is hard-coded past the token layer
+    hexes = set(re.findall(r"#[0-9a-fA-F]{6}", index.split("<style>")[1].split("</style>")[0]))
+    assert hexes <= set(PALETTE.values()), (
+        f"stylesheet hard-codes colours: {hexes - set(PALETTE.values())}"
+    )
+
+
+def test_index_headings_descend_without_skipping_a_level(tmp_path: Path) -> None:
+    """axe `heading-order`: the cards' <h3> used to follow <h1> with no <h2> between them."""
+    out = _render(tmp_path, _comparison(tmp_path))
+    for page in sorted(out.rglob("*.html")):
+        levels = [int(m) for m in re.findall(r"<h([1-6])[ >]", page.read_text(encoding="utf-8"))]
+        assert levels and levels[0] == 1, f"{page} does not start at h1: {levels}"
+        assert levels.count(1) == 1, f"{page} has {levels.count(1)} h1 elements"
+        for previous, current in itertools.pairwise(levels):
+            assert current <= previous + 1, f"{page} jumps from h{previous} to h{current}"
