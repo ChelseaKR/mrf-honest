@@ -6,11 +6,13 @@ evidence attached.**
 The first graded cohort is live: six machine-readable files across four health systems,
 discovered from CMS-conventional `cms-hpt.txt` documents, retrieved in one identified run,
 streamed without loading into memory, and graded fail-closed. Five files grade **A** under the
-published policy; one grades **C** — an 884 MB file that still declares the superseded 2.0.0
-template more than seven months after CMS's v3.0.0 effective date
+published policy; one grades **C** — an 884 MB file that declares the superseded 2.0.0 template
+seven months after CMS's v3.0.0 effective date, and whose own `last_updated_on` of 2025-11-26
+predates that date, so its annual update window has not yet come round
 ([the finding, with evidence](docs/findings/superseded-template-version-2026-08-14.md)). Four of
 the six files begin with a UTF-8 byte-order mark that RFC 8259 forbids and strict JSON parsers
-reject. Every grade, count, and finding on the
+reject; the catalog records it as a tolerated `INFO` observation, and all four grade **A**.
+Every grade, count, and finding on the
 [site](https://chelseakr.github.io/mrf-honest/) is generated from the committed
 [comparison document](data/cohorts/2026-08-14.comparison.json), never typed in, and each finding
 cites the CMS rule ([45 CFR § 180.50]) or
