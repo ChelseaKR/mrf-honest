@@ -12,6 +12,7 @@ import hashlib
 import json
 import math
 import os
+import ssl
 import tempfile
 import time
 import zlib
@@ -62,6 +63,7 @@ class FetchStatus(StrEnum):
     CACHE_MISS = "cache_miss"
     CACHE_ERROR = "cache_error"
     ROBOTS_DISALLOWED = "robots_disallowed"
+    TLS_VERIFICATION_FAILED = "tls_verification_failed"
 
 
 @dataclass(frozen=True)
@@ -575,6 +577,20 @@ def _error_outcome(
     )
 
 
+def _is_certificate_failure(reason: object) -> bool:
+    """Whether a transport error was the certificate rather than the connection.
+
+    Checked structurally first. The string fallback exists because some layers re-wrap the
+    original exception into a plain ``URLError`` whose reason is only a message, and losing
+    the distinction there would put the misattribution straight back.
+    """
+    if isinstance(reason, ssl.SSLCertVerificationError):
+        return True
+    if isinstance(reason, ssl.SSLError):
+        return "CERTIFICATE_VERIFY_FAILED" in " ".join(str(arg) for arg in reason.args)
+    return "CERTIFICATE_VERIFY_FAILED" in str(reason)
+
+
 def _should_retry(outcome: FetchOutcome) -> bool:
     if outcome.status is FetchStatus.NETWORK_ERROR:
         return True
@@ -992,13 +1008,30 @@ def fetch_url(  # noqa: C901 - each branch is a distinct structured terminal out
             )
         except (HTTPException, URLError, TimeoutError, OSError) as exc:
             reason = exc.reason if isinstance(exc, URLError) else exc
-            outcome = _error_outcome(
-                url,
-                FetchStatus.NETWORK_ERROR,
-                attempted_at,
-                attempt,
-                f"network error: {reason}",
-            )
+            # A certificate that will not verify is NOT a publisher failure, because from one
+            # attempt this client cannot tell the two causes apart: the server's chain may be
+            # broken, or this machine's trust store may be missing a root. Both were observed
+            # on 2026-08-15, when two hosts recorded as unreachable in the 2026-08-14 cohort
+            # turned out to serve HTTP 200 with a clean chain to curl on the same machine at
+            # the same minute -- the Python build was verifying against an OpenSSL bundle that
+            # lacked the roots. Calling that a publisher failure publishes an ERROR finding
+            # citing 45 CFR 180.50 against a hospital whose file is fine.
+            if _is_certificate_failure(reason):
+                outcome = _error_outcome(
+                    url,
+                    FetchStatus.TLS_VERIFICATION_FAILED,
+                    attempted_at,
+                    attempt,
+                    f"TLS certificate verification failed: {reason}",
+                )
+            else:
+                outcome = _error_outcome(
+                    url,
+                    FetchStatus.NETWORK_ERROR,
+                    attempted_at,
+                    attempt,
+                    f"network error: {reason}",
+                )
         finally:
             if response is not None:
                 response.close()

@@ -4,6 +4,7 @@ import gzip
 import hashlib
 import io
 import json
+import ssl
 from datetime import UTC, datetime
 from email.message import Message
 from pathlib import Path
@@ -547,3 +548,78 @@ def test_cache_metadata_io_failure_stops_before_network(
     assert outcome.status is FetchStatus.CACHE_ERROR
     assert outcome.attempts == 0
     assert not opener.requests
+
+
+def test_a_certificate_failure_is_not_recorded_as_a_publisher_failure(tmp_path: Path) -> None:
+    """The defect this status exists for.
+
+    On 2026-08-15 two hosts recorded as ``txt_fetch_failed`` in the 2026-08-14 cohort were
+    re-probed: both returned HTTP 200 with ``ssl_verify=0`` to curl on the same machine at the
+    same minute, while Python raised ``CERTIFICATE_VERIFY_FAILED`` because its OpenSSL bundle
+    lacked the roots. Classified as ``network_error`` that becomes an ERROR-severity
+    ``MRF_DIRECT_DOWNLOAD_FAILED`` citing 45 CFR 180.50 -- a published claim about a hospital,
+    caused by the operator's laptop.
+    """
+    real = ssl.SSLCertVerificationError(
+        1,
+        "[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed "
+        "certificate in certificate chain (_ssl.c:1081)",
+    )
+    outcome = fetch_url(
+        "https://example.test/prices.json",
+        tmp_path,
+        politeness=robots_fixtures.politeness(),
+        policy=policy(retries=0),
+        opener=FakeOpener(URLError(real)),
+        clock=clock,
+    )
+    assert outcome.status is FetchStatus.TLS_VERIFICATION_FAILED
+    assert outcome.status is not FetchStatus.NETWORK_ERROR
+    assert "certificate verification failed" in (outcome.error or "")
+
+
+def test_a_certificate_failure_is_not_retried(tmp_path: Path) -> None:
+    """Three attempts will not grow a missing root. Retrying is noise the host pays for."""
+    slept: list[float] = []
+    opener = FakeOpener(
+        URLError(ssl.SSLCertVerificationError(1, "[SSL: CERTIFICATE_VERIFY_FAILED] nope")),
+        FakeResponse(b'{"never":"reached"}'),
+    )
+    outcome = fetch_url(
+        "https://example.test/prices.json",
+        tmp_path,
+        politeness=robots_fixtures.politeness(),
+        policy=policy(retries=3),
+        opener=opener,
+        sleep=slept.append,
+        clock=clock,
+    )
+    assert outcome.status is FetchStatus.TLS_VERIFICATION_FAILED
+    assert outcome.attempts == 1
+    assert len(opener.requests) == 1
+    assert slept == []
+
+
+def test_an_ordinary_network_error_is_still_a_network_error(tmp_path: Path) -> None:
+    outcome = fetch_url(
+        "https://example.test/prices.json",
+        tmp_path,
+        politeness=robots_fixtures.politeness(),
+        policy=policy(retries=0),
+        opener=FakeOpener(URLError("dns failure")),
+        clock=clock,
+    )
+    assert outcome.status is FetchStatus.NETWORK_ERROR
+
+
+def test_a_rewrapped_certificate_error_is_still_recognised(tmp_path: Path) -> None:
+    """Some layers flatten the cause to a message; the distinction must survive that."""
+    outcome = fetch_url(
+        "https://example.test/prices.json",
+        tmp_path,
+        politeness=robots_fixtures.politeness(),
+        policy=policy(retries=0),
+        opener=FakeOpener(URLError("[SSL: CERTIFICATE_VERIFY_FAILED] unable to get issuer")),
+        clock=clock,
+    )
+    assert outcome.status is FetchStatus.TLS_VERIFICATION_FAILED

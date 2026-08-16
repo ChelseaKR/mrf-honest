@@ -7,6 +7,22 @@ no version tags yet; until the first dated release (phase 5 of
 
 ## [Unreleased]
 
+### Fixed
+
+- **A TLS certificate failure no longer publishes an ERROR finding against a hospital.**
+  Certificate-verification failures were classified as `network_error`, which the scorecard
+  maps to a publisher failure: an ERROR-severity `MRF_DIRECT_DOWNLOAD_FAILED` in
+  retrievability, citing 45 CFR 180.50, on a page carrying the hospital's name. Re-probing on
+  2026-08-15 the two hosts the 2026-08-14 cohort recorded as `txt_fetch_failed`
+  (`www.massgeneral.org`, `www.sutterhealth.org`) found both returning HTTP 200 with
+  `ssl_verify=0` to curl on the same machine at the same minute, while Python raised
+  `CERTIFICATE_VERIFY_FAILED` against an OpenSSL bundle that lacked the roots. The cause was
+  the collection client, and the consequence would have been a published claim about two
+  hospitals. There is now a distinct `FetchStatus.TLS_VERIFICATION_FAILED` mapped to **not
+  graded**, with a note that says plainly that one attempt cannot tell a broken server chain
+  from a missing local root, and it is not retried, because three attempts will not grow a
+  root and the host pays for the noise.
+
 ### Added
 
 - **Retrieval politeness in code** (`src/mrf_honest/politeness.py`), replacing the operator

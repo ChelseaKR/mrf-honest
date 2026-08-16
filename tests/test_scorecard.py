@@ -298,6 +298,9 @@ _STATUS_CASES = (
     # A robots.txt disallow is a fact about this crawler's permission, never about whether
     # the hospital published. NOT_ASSESSED, with the reason stated, and never an F.
     (FetchStatus.ROBOTS_DISALLOWED, "NOT_ASSESSED", None),
+    # A certificate that will not verify may be the server's chain or this machine's trust
+    # store, and one attempt cannot tell them apart. Ambiguity is not graded.
+    (FetchStatus.TLS_VERIFICATION_FAILED, "NOT_ASSESSED", None),
 )
 
 

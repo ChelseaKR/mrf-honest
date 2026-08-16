@@ -78,7 +78,10 @@ It never ranks hospitals, never prices care, and never determines compliance wit
 [45 CFR § 180.50] or any other law. The grade is fail-closed in both directions: a file the
 public cannot download is a stated **F** with the dated reason, and a target this project's own
 limits prevented assessing is **not graded** — stated, never silently dropped, and never
-conflated with a publisher failure. An **A** means the implemented checks emitted nothing; it is
+conflated with a publisher failure. That boundary is enforced by a status matrix rather than by
+care: a certificate that will not verify, a `robots.txt` that says no, and this project's own
+size ceiling are all **not graded**, because from one attempt none of them is distinguishable
+from a problem on this end. An **A** means the implemented checks emitted nothing; it is
 not the official CMS validator and not a certificate of validity.
 
 ## Why this shape

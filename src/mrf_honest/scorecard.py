@@ -260,6 +260,7 @@ _LOCAL_OR_POLICY_AMBIGUITY = frozenset(
         FetchStatus.CACHE_MISS,
         FetchStatus.CACHE_ERROR,
         FetchStatus.ROBOTS_DISALLOWED,
+        FetchStatus.TLS_VERIFICATION_FAILED,
     }
 )
 _SUCCESS_STATUSES = frozenset({FetchStatus.FETCHED, FetchStatus.NOT_MODIFIED})
@@ -708,6 +709,13 @@ def _retrievability(
         note = (
             "The configured decoded-byte ceiling stopped retrieval; this project policy does not "
             "establish publisher unavailability."
+        )
+    elif status is FetchStatus.TLS_VERIFICATION_FAILED:
+        note = (
+            "The certificate chain did not verify from this client on this date. From one "
+            "attempt that is not distinguishable from this machine's trust store missing a "
+            "root, so it is not attributed to the publisher. Confirm against a second client "
+            "and a current CA bundle before recording anything about the server's chain."
         )
     elif status is FetchStatus.ROBOTS_DISALLOWED:
         note = (
