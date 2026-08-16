@@ -91,7 +91,7 @@ no version tags yet; until the first dated release (phase 5 of
   rewrites a stale lockfile in place, so a drift gate invoked that way repairs what it checks.
 - **The metrics ledger in `docs/ROADMAP.md` was brought current.** Its AUTO rows still read
   89.78% and 226 tests from 2026-08-09 while the README read 90.73% and 262 from 2026-08-14; both
-  now read the re-measured 90.73% / 262 as of 2026-08-15, and the ledger states its own dating
+  now read the re-measured 90.88% / 324 as of 2026-08-15, and the ledger states its own dating
   convention so mixed dates are legible rather than ambiguous.
 
 - **Hosted security scanning** (`.github/workflows/security.yml`, conventions from the sibling
