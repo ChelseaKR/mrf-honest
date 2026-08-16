@@ -128,6 +128,14 @@ Built:
   content-addressed run identity ([docs/MODEL-DAG.md](docs/MODEL-DAG.md),
   [ADR 0003](docs/adr/0003-local-lakehouse-duckdb-parquet.md)). Five of the six cohort files are
   contracted through it; the sixth is a v2.0.0 file the v3-only pipeline correctly refuses.
+- `robots.txt`, per-host pacing and `Retry-After` enforced in the fetcher rather than by an
+  operator's habits (`src/mrf_honest/politeness.py`). robots is fetched before the first request
+  and obeyed with no override flag; an unreachable `robots.txt` is a complete disallow per
+  RFC 9309 section 2.3.1.4 and a 4xx means none exists per 2.3.1.3; a per-host minimum interval
+  is held across a whole run and a `Crawl-delay` can only lengthen it; `Retry-After` on 429 and
+  503 outranks this tool's own backoff. A robots disallow is **not graded**, never an F: it is a
+  fact about this crawler's permission, not about whether the hospital published. Measured by a
+  localhost-server suite in `tests/test_politeness.py`.
 - A comparison layer (`mrf-honest compare`) that turns one attested collection run into a
   published comparison under a versioned, fingerprinted grade policy, refusing mixed scopes,
   unattested runs, and duplicate subjects ([docs/how-we-compare.md](docs/how-we-compare.md)).
@@ -143,9 +151,8 @@ Still open:
   published anywhere**;
 - hospital CSV and payer-MRF adapters (there is no payer-MRF pipeline yet; a `.zip`/CSV
   publication in the current cohort is recorded and excluded rather than mis-graded);
-- `robots.txt` fetching policy, per-host pacing, and `Retry-After` handling before any broad or
-  scheduled retrieval — the current cohort was collected serially by an operator with robots.txt
-  checked per host;
+- a second, roster-sourced cohort. The first was purposive, which is right for a shakedown run
+  and wrong for a rate; retrieval politeness is now in code (below), so the prerequisite is met;
 - safe concurrent-writer coordination, supported warehouse migrations, and a full SIGKILL/fsync
   crash matrix; and
 - the phase-5 dataset export, API, MCP server, and release process.

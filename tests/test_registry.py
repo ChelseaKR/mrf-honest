@@ -6,6 +6,7 @@ from pathlib import Path
 from urllib.request import Request
 
 import pytest
+import robots_fixtures
 
 from mrf_honest.fetch import FetchPolicy, FetchStatus, ResponseLike
 from mrf_honest.registry import (
@@ -85,6 +86,7 @@ def test_discover_domain_composes_fetch_parser_and_append_only_log(tmp_path: Pat
         "hospital.test",
         registry=registry,
         cache_dir=tmp_path / "cache",
+        politeness=robots_fixtures.politeness(),
         policy=policy(),
         opener=opener,
         clock=clock,
@@ -126,6 +128,7 @@ def test_registry_round_trips_multiple_discovery_entries_and_extras(tmp_path: Pa
         "hospital.test",
         registry=registry,
         cache_dir=tmp_path / "cache",
+        politeness=robots_fixtures.politeness(),
         policy=policy(),
         opener=OneResponse(Response(text)),
         clock=clock,
@@ -147,6 +150,7 @@ def test_discovery_with_missing_required_contact_fields_is_not_ok(tmp_path: Path
         "hospital.test",
         registry=Registry(tmp_path / "registry.jsonl"),
         cache_dir=tmp_path / "cache",
+        politeness=robots_fixtures.politeness(),
         policy=policy(),
         opener=OneResponse(
             Response(
@@ -176,6 +180,7 @@ def test_registry_reads_legacy_v1_single_discovery_without_inventing_contacts(
         "hospital.test",
         registry=registry,
         cache_dir=tmp_path / "cache",
+        politeness=robots_fixtures.politeness(),
         policy=policy(),
         opener=OneResponse(
             Response(
@@ -228,6 +233,7 @@ def test_failed_fetch_is_still_dated_and_recorded(tmp_path: Path) -> None:
         "https://hospital.test/missing.json",
         registry=registry,
         cache_dir=tmp_path / "cache",
+        politeness=robots_fixtures.politeness(),
         policy=policy(),
         opener=OneResponse(
             Response(b"missing", status=404, url="https://hospital.test/missing.json")
@@ -247,6 +253,7 @@ def test_discovery_has_a_small_independent_download_ceiling(tmp_path: Path) -> N
         "hospital.test",
         registry=Registry(tmp_path / "registry.jsonl"),
         cache_dir=tmp_path / "cache",
+        politeness=robots_fixtures.politeness(),
         policy=policy(max_bytes=1 << 30),
         opener=OneResponse(response),
         clock=clock,
@@ -261,6 +268,7 @@ def test_invalid_utf8_discovery_is_recorded_as_a_parse_problem(tmp_path: Path) -
         "hospital.test",
         registry=Registry(tmp_path / "registry.jsonl"),
         cache_dir=tmp_path / "cache",
+        politeness=robots_fixtures.politeness(),
         policy=policy(),
         opener=OneResponse(Response(b"\xff\xfe")),
         clock=clock,
@@ -294,6 +302,7 @@ def test_registry_rejects_nested_identity_mismatch(tmp_path: Path) -> None:
         "https://hospital.test/prices.json",
         registry=registry,
         cache_dir=tmp_path / "cache",
+        politeness=robots_fixtures.politeness(),
         policy=policy(),
         opener=OneResponse(Response(b"{}", url="https://hospital.test/prices.json")),
         clock=clock,

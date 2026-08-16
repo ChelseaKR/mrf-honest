@@ -8,6 +8,7 @@ from pathlib import Path
 from urllib.request import Request
 
 import pytest
+import robots_fixtures
 
 from mrf_honest.cli import _emit_assessment_human
 from mrf_honest.fetch import FetchOutcome, FetchPolicy, FetchStatus, ResponseLike
@@ -240,6 +241,7 @@ def test_successful_200_with_matching_body_composes_remote_and_local_evidence(
     assessment = assess_hospital_url(
         subject,
         tmp_path / "cache",
+        politeness=robots_fixtures.politeness(),
         policy=_policy(),
         registry=registry,
         opener=OneResponse(Response(_body())),
@@ -267,6 +269,7 @@ def test_retrieval_and_malformed_json_conformance_are_independent(tmp_path: Path
     assessment = assess_hospital_url(
         _subject(),
         tmp_path / "cache",
+        politeness=robots_fixtures.politeness(),
         policy=_policy(),
         registry=registry,
         opener=OneResponse(Response(b"not-json")),
@@ -292,6 +295,9 @@ _STATUS_CASES = (
     (FetchStatus.CONTENT_ERROR, "FINDINGS", "MRF_DIRECT_DOWNLOAD_FAILED"),
     (FetchStatus.CACHE_MISS, "NOT_ASSESSED", None),
     (FetchStatus.CACHE_ERROR, "NOT_ASSESSED", None),
+    # A robots.txt disallow is a fact about this crawler's permission, never about whether
+    # the hospital published. NOT_ASSESSED, with the reason stated, and never an F.
+    (FetchStatus.ROBOTS_DISALLOWED, "NOT_ASSESSED", None),
 )
 
 
@@ -626,6 +632,7 @@ def test_failed_retrieval_is_exactly_one_durable_assessment_row(tmp_path: Path) 
     assessment = assess_hospital_url(
         _subject(),
         tmp_path / "cache",
+        politeness=robots_fixtures.politeness(),
         policy=_policy(),
         registry=registry,
         opener=OneResponse(response),
@@ -697,6 +704,7 @@ def test_success_scorecard_note_does_not_republish_url_query_token(tmp_path: Pat
     assessment = assess_hospital_url(
         _subject(url=url, provenance=URLProvenance.OPERATOR),
         tmp_path / "cache",
+        politeness=robots_fixtures.politeness(),
         policy=_policy(),
         registry=registry,
         opener=OneResponse(Response(_body(), url=url)),
@@ -890,6 +898,7 @@ def test_unexpected_inspection_error_still_writes_one_operational_record(
     assessment = assess_hospital_url(
         _subject(),
         tmp_path / "cache",
+        politeness=robots_fixtures.politeness(),
         policy=_policy(),
         registry=registry,
         opener=OneResponse(Response(_body())),
@@ -914,6 +923,7 @@ def test_post_inspection_rehash_detects_body_change(
     assessment = assess_hospital_url(
         _subject(),
         tmp_path / "cache",
+        politeness=robots_fixtures.politeness(),
         policy=_policy(),
         registry=registry,
         opener=OneResponse(Response(_body())),
@@ -984,6 +994,7 @@ def test_malformed_noncredential_url_is_a_durable_zero_attempt_row(tmp_path: Pat
     assessment = assess_hospital_url(
         _subject(url=url, provenance=URLProvenance.OPERATOR),
         tmp_path / "cache",
+        politeness=robots_fixtures.politeness(),
         policy=_policy(),
         registry=registry,
     )
@@ -1018,6 +1029,7 @@ def test_custom_opener_value_error_is_not_attributed_as_a_network_observation(
     assessment = assess_hospital_url(
         _subject(),
         tmp_path / "cache",
+        politeness=robots_fixtures.politeness(),
         policy=_policy(),
         registry=AssessmentRegistry(tmp_path / "assessments.jsonl"),
         opener=invalid_opener,

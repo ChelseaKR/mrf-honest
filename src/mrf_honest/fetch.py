@@ -21,10 +21,28 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from http.client import HTTPException, HTTPMessage, InvalidURL
 from pathlib import Path
-from typing import IO, Protocol, cast
+from typing import IO, cast
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
+
+from mrf_honest.politeness import Politeness
+from mrf_honest.types import Backoff, Clock, Opener, ResponseLike, Sleeper
+
+__all__ = [
+    "Backoff",
+    "CacheMetadata",
+    "Clock",
+    "FetchOutcome",
+    "FetchPolicy",
+    "FetchStatus",
+    "Opener",
+    "ResponseLike",
+    "Sleeper",
+    "cache_metadata_path",
+    "default_open",
+    "fetch_url",
+]
 
 _DEFAULT_CHUNK_SIZE = 64 * 1024
 _CACHE_VERSION = 1
@@ -43,6 +61,7 @@ class FetchStatus(StrEnum):
     CONTENT_ERROR = "content_error"
     CACHE_MISS = "cache_miss"
     CACHE_ERROR = "cache_error"
+    ROBOTS_DISALLOWED = "robots_disallowed"
 
 
 @dataclass(frozen=True)
@@ -217,30 +236,6 @@ class CacheMetadata:
         )
 
 
-class ResponseLike(Protocol):
-    """The small part of ``urllib`` responses used by the fetcher."""
-
-    status: int
-    headers: Mapping[str, str]
-
-    def read(self, amount: int = -1) -> bytes: ...
-
-    def geturl(self) -> str: ...
-
-    def close(self) -> None: ...
-
-
-class Opener(Protocol):
-    """Injectable network boundary; tests provide a deterministic implementation."""
-
-    def __call__(self, request: Request, *, timeout: float) -> ResponseLike: ...
-
-
-Sleeper = Callable[[float], None]
-Backoff = Callable[[int], float]
-Clock = Callable[[], datetime]
-
-
 class _TooLargeError(Exception):
     pass
 
@@ -331,7 +326,8 @@ def _optional_bool(data: Mapping[str, object], key: str, *, default: bool) -> bo
     return value
 
 
-def _default_open(request: Request, *, timeout: float) -> ResponseLike:
+def default_open(request: Request, *, timeout: float) -> ResponseLike:
+    """The project's standard opener: HTTPS-only, redirect targets validated."""
     opener = build_opener(_HTTPSOnlyRedirectHandler())
     return cast(ResponseLike, opener.open(request, timeout=timeout))
 
@@ -855,6 +851,7 @@ def fetch_url(  # noqa: C901 - each branch is a distinct structured terminal out
     cache_dir: str | Path,
     *,
     policy: FetchPolicy,
+    politeness: Politeness,
     opener: Opener | None = None,
     sleep: Sleeper = time.sleep,
     backoff: Backoff | None = None,
@@ -865,6 +862,11 @@ def fetch_url(  # noqa: C901 - each branch is a distinct structured terminal out
     Network, HTTP, cache, content, and size failures are normal return values. Invalid policy
     values remain exceptions because those are programmer errors rather than observations about a
     publisher.
+
+    ``politeness`` is required, not optional. robots.txt is consulted before the first request
+    and a disallow is terminal; there is no flag that skips it, because a flag to ignore
+    robots.txt is the whole of the harm. The same object holds the per-host interval and the
+    ``Retry-After`` state, so pacing applies across a whole run rather than per call.
     """
     active_clock = clock or _utc_now
     attempted_at = _timestamp(active_clock)
@@ -887,7 +889,20 @@ def fetch_url(  # noqa: C901 - each branch is a distinct structured terminal out
         # Never send validators for a body we cannot actually reuse. An unconditional 200 repairs
         # a missing or corrupt blob instead of ending in an avoidable 304 cache miss.
         metadata = None
-    active_opener = opener or _default_open
+    active_opener = opener or default_open
+
+    # robots.txt first, always, before any request for the target itself.
+    decision = politeness.clear_to_fetch(url)
+    if not decision.allowed:
+        return _error_outcome(
+            url,
+            FetchStatus.ROBOTS_DISALLOWED,
+            attempted_at,
+            0,
+            f"{decision.status.value}: {decision.reason} ({decision.robots_url})",
+            http_status=decision.http_status,
+        )
+
     headers = {
         "User-Agent": policy.identifying_user_agent,
         "Accept-Encoding": "gzip",
@@ -897,10 +912,13 @@ def fetch_url(  # noqa: C901 - each branch is a distinct structured terminal out
     last_outcome: FetchOutcome | None = None
     for attempt in range(1, policy.retries + 2):
         response: ResponseLike | None = None
+        retry_headers: Mapping[str, str] = {}
+        politeness.wait_turn(url, crawl_delay_seconds=decision.crawl_delay_seconds)
         try:
             # S310 is addressed by _url_problem immediately above; only HTTPS reaches this point.
             request = Request(url, headers=headers, method="GET")  # noqa: S310
             response = active_opener(request, timeout=policy.timeout_seconds)
+            retry_headers = response.headers
             final_problem = _url_problem(response.geturl())
             if final_problem is not None:
                 outcome = _error_outcome(
@@ -953,6 +971,7 @@ def fetch_url(  # noqa: C901 - each branch is a distinct structured terminal out
             )
         except HTTPError as exc:
             try:
+                retry_headers = cast(Mapping[str, str], exc.headers)
                 outcome = _http_error_outcome(
                     exc,
                     url=url,
@@ -987,6 +1006,13 @@ def fetch_url(  # noqa: C901 - each branch is a distinct structured terminal out
         last_outcome = outcome
         if not _should_retry(outcome) or attempt > policy.retries:
             return outcome
+        # A server's Retry-After outranks this tool's own backoff curve: backoff is a policy
+        # we picked, Retry-After is the instruction we were given. The deferral is recorded on
+        # the pacer so it also holds for any later request to the same host in this run.
+        asked = politeness.observe_retry_after(url, outcome.http_status or 0, retry_headers)
+        if asked is not None:
+            sleep(asked)
+            continue
         delay = (
             backoff(attempt) if backoff is not None else policy.backoff_seconds * 2 ** (attempt - 1)
         )

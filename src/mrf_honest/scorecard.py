@@ -44,6 +44,7 @@ from mrf_honest.inspect import (
     FindingDefinition,
     inspect_hospital_file,
 )
+from mrf_honest.politeness import Politeness
 from mrf_honest.types import PublisherRef
 
 CMS_HPT_POLICY_FAQ = "https://www.cms.gov/files/document/hpt-policy-faqs-june-2026.pdf"
@@ -249,8 +250,17 @@ RETRIEVAL_FINDING_CATALOG: Mapping[str, FindingDefinition] = MappingProxyType(
 _PUBLISHER_FAILURES = frozenset(
     {FetchStatus.HTTP_ERROR, FetchStatus.NETWORK_ERROR, FetchStatus.CONTENT_ERROR}
 )
+# ROBOTS_DISALLOWED belongs here and nowhere else. A host that asks not to be crawled has
+# not failed to publish, and grading it F for our compliance with its own robots.txt would
+# be a false statement about a hospital. It is NOT_ASSESSED with the reason stated, exactly
+# like this project's own size ceiling.
 _LOCAL_OR_POLICY_AMBIGUITY = frozenset(
-    {FetchStatus.TOO_LARGE, FetchStatus.CACHE_MISS, FetchStatus.CACHE_ERROR}
+    {
+        FetchStatus.TOO_LARGE,
+        FetchStatus.CACHE_MISS,
+        FetchStatus.CACHE_ERROR,
+        FetchStatus.ROBOTS_DISALLOWED,
+    }
 )
 _SUCCESS_STATUSES = frozenset({FetchStatus.FETCHED, FetchStatus.NOT_MODIFIED})
 _MAPPED_STATUSES = (
@@ -531,6 +541,7 @@ def assess_hospital_url(
     cache_dir: str | Path,
     *,
     policy: FetchPolicy,
+    politeness: Politeness,
     registry: AssessmentRegistry,
     opener: Opener | None = None,
     sleep: Sleeper = time.sleep,
@@ -544,6 +555,7 @@ def assess_hospital_url(
         subject.requested_url,
         cache_dir,
         policy=policy,
+        politeness=politeness,
         opener=opener,
         sleep=sleep,
         backoff=backoff,
@@ -696,6 +708,12 @@ def _retrievability(
         note = (
             "The configured decoded-byte ceiling stopped retrieval; this project policy does not "
             "establish publisher unavailability."
+        )
+    elif status is FetchStatus.ROBOTS_DISALLOWED:
+        note = (
+            "This host's robots.txt did not permit the retrieval, or could not be read at all, "
+            "so no request for the file was made. That is a statement about this crawler's "
+            "permission, never about whether the publisher published."
         )
     else:
         note = (

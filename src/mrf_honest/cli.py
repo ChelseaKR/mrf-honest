@@ -11,9 +11,10 @@ from pathlib import Path
 from typing import cast
 
 from mrf_honest.cohort import build_comparison
-from mrf_honest.fetch import FetchPolicy, fetch_url
+from mrf_honest.fetch import FetchPolicy, default_open, fetch_url
 from mrf_honest.inspect import FileInspection, explain_finding, inspect_hospital_file
 from mrf_honest.lakehouse import ingest_hospital_file, query_file_profile
+from mrf_honest.politeness import Politeness
 from mrf_honest.registry import Registry, discover_domain
 from mrf_honest.scorecard import (
     RETRIEVAL_FINDING_CATALOG,
@@ -162,6 +163,19 @@ def _run_profile(args: argparse.Namespace) -> int:
     return _SUCCESS
 
 
+def _politeness(policy: FetchPolicy) -> Politeness:
+    """One Politeness per command invocation, so the per-host interval holds across the run.
+
+    Building it here rather than inside each retrieval is the difference between a paced run
+    and a sequence of calls that each politely wait zero seconds.
+    """
+    return Politeness(
+        user_agent=policy.identifying_user_agent,
+        opener=default_open,
+        timeout_seconds=policy.timeout_seconds,
+    )
+
+
 def _run_fetch(args: argparse.Namespace) -> int:
     policy = FetchPolicy(
         contact=cast(str, args.contact),
@@ -171,6 +185,7 @@ def _run_fetch(args: argparse.Namespace) -> int:
         cast(str, args.url),
         cast(Path, args.cache_dir),
         policy=policy,
+        politeness=_politeness(policy),
     )
     _emit_json(outcome.to_dict())
     return _SUCCESS if outcome.ok else _FAILURE
@@ -180,6 +195,9 @@ def _run_discover(args: argparse.Namespace) -> int:
     registry = Registry(cast(Path, args.registry))
     cache_dir = cast(Path, args.cache_dir)
     policy = FetchPolicy(contact=cast(str, args.contact))
+    # One object for the whole loop: the per-host interval has to span the domains, not reset
+    # between them.
+    politeness = _politeness(policy)
     records: list[dict[str, object]] = []
     for domain in cast(list[str], args.domains):
         print(f"Discovering {domain} ...", file=sys.stderr)
@@ -188,6 +206,7 @@ def _run_discover(args: argparse.Namespace) -> int:
             registry=registry,
             cache_dir=cache_dir,
             policy=policy,
+            politeness=politeness,
         )
         records.append(record.to_dict())
     _emit_json(records)
@@ -224,6 +243,7 @@ def _run_scorecard(args: argparse.Namespace) -> int:
         subject,
         cast(Path, args.cache_dir),
         policy=policy,
+        politeness=_politeness(policy),
         registry=AssessmentRegistry(cast(Path, args.registry)),
     )
     if args.output_format == "json":

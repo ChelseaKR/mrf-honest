@@ -9,6 +9,29 @@ no version tags yet; until the first dated release (phase 5 of
 
 ### Added
 
+- **Retrieval politeness in code** (`src/mrf_honest/politeness.py`), replacing the operator
+  procedure that `docs/ROADMAP.md` recorded as a scope limit on any broad retrieval.
+  `robots.txt` is fetched before the first request and obeyed, with no flag that skips it: a
+  `Disallow` matching the `mrf-honest` product token is a hard stop, an unreachable `robots.txt`
+  is a complete disallow (RFC 9309 section 2.3.1.4), and a 4xx means none exists and the fetch
+  may proceed (section 2.3.1.3). A per-host minimum interval is held across a whole run and a
+  `Crawl-delay` can lengthen it but never shorten it. `Retry-After` on 429 and 503 is honoured
+  ahead of this tool's own backoff. Every decision and every wait is retained as JSON-safe
+  evidence for the registry.
+- **`FetchStatus.ROBOTS_DISALLOWED`**, mapped to **not graded** rather than F. A host that asks
+  not to be crawled has not failed to publish, and grading a hospital F for our own compliance
+  with its `robots.txt` would be a false statement about that hospital.
+- A localhost-server test suite (`tests/test_politeness.py`) that drives the real fetch path
+  through a real `http.server`, because "the request was not made" can only be testified to by
+  a server that would have noticed.
+
+### Changed
+
+- **`fetch_url` now requires a `politeness` argument.** It is required rather than optional
+  precisely so that no call site can retrieve anything without having made the decision; a
+  default would be a bypass, and a test asserts that no `ignore_robots`, `skip_robots` or
+  `force` parameter exists.
+
 - **An accessibility and performance gate for the page this repository actually serves**
   (`.github/workflows/accessibility.yml`). Lighthouse 12 audits every HTML file the render
   produced -- the page list is enumerated from the build, never typed into the workflow, so a

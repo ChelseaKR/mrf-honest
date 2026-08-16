@@ -207,8 +207,10 @@ def test_fetch_uses_a_bounded_identified_policy_without_real_network(
 ) -> None:
     observed: dict[str, object] = {}
 
-    def fake_fetch(url: str, cache_dir: Path, *, policy: object) -> FetchOutcome:
-        observed.update(url=url, cache_dir=cache_dir, policy=policy)
+    def fake_fetch(
+        url: str, cache_dir: Path, *, policy: object, politeness: object
+    ) -> FetchOutcome:
+        observed.update(url=url, cache_dir=cache_dir, policy=policy, politeness=politeness)
         return FetchOutcome(
             url=url,
             status=fetch_status,
@@ -253,6 +255,7 @@ def test_discover_records_each_domain_and_treats_findings_as_data(
         registry: object,
         cache_dir: Path,
         policy: object,
+        politeness: object,
     ) -> _Result:
         observed.append((domain, registry, cache_dir, policy))
         return _Result({"domain": domain, "problems": ["no mrf-url"]})
@@ -303,6 +306,7 @@ def test_scorecard_persists_explicit_subject_and_only_local_failures_are_nonzero
         cache_dir: Path,
         *,
         policy: object,
+        politeness: object,
         registry: object,
     ) -> _AssessmentResult:
         observed.update(

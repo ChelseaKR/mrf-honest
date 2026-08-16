@@ -63,6 +63,8 @@ README quotes a ledger figure, this table is the source and the README follows i
 | Page weight and request count | 0 bytes of script, stylesheet, font, image and third party; 1 request; <= 60 KB document | `perf/resource-budget.json` asserted against Lighthouse's `resource-summary` audit (**not** `--budget-path`, which does not exist in Lighthouse 12) | AUTO (`.github/workflows/accessibility.yml`) | heaviest page 12,197 bytes in 1 request, 2026-08-15 |
 | Design-token contrast, every declared text/background pair | >= 4.5:1 (WCAG 2.2 SC 1.4.3), no large-text exemptions claimed | `tests/test_site.py`, which also fails on a palette colour with no declared pair | AUTO (`make verify`) | 16 pairs, minimum 4.97:1, 2026-08-15 |
 | Heading order, every generated page | no skipped level, exactly one h1 | `tests/test_site.py` | AUTO (`make verify`) | 0 violations, 2026-08-15 |
+| robots.txt obeyed, no override path | a disallow or an unreadable robots.txt stops the fetch before any request for the file | `tests/test_politeness.py` against a real `http.server` on loopback, plus a signature assertion that no `ignore_robots`/`force` parameter exists | AUTO (`make verify`) | 22 cases, 0 failures, 2026-08-15 |
+| Per-host interval and `Retry-After` | interval held across a run; `Crawl-delay` lengthens only; 429/503 `Retry-After` outranks local backoff | same suite | AUTO (`make verify`) | default floor 2.0 s; measured 3.0 s waited on a `Retry-After: 3` against a 100 s configured backoff, 2026-08-15 |
 | Manual screen-reader pass | one dated walkthrough of the index and one file page | a person, recorded in `RESPONSIBLE-TECH-AUDITS.md` | REVIEW | **not performed**; the open obligation, stated rather than implied |
 | Streaming scan on the 64,828,148-byte reference file | RSS below file size; zero problems | `/usr/bin/time -l`, recorded in `PHASE-0-FINDINGS.md` | REVIEW (re-measure when `stream.py` changes) | 30,114 items, 0 problems, 9.25 s, 33,865,728-byte RSS (0.5224x), 26,231,240-byte peak footprint, 2026-08-09 |
 | End-to-end lakehouse process memory | measured and disclosed; no cap claim | `/usr/bin/time -l`, recorded in `PHASE-2-FINDINGS.md` | REVIEW (re-measure on model/load changes) | 534,790,144-byte max RSS; 575,865,768-byte peak footprint, 2026-08-09 |
@@ -78,5 +80,10 @@ Planned ledger rows that only become meaningful later: multi-publisher grade dis
 denominator-honesty checks (phases 3-4), suppression/uncertainty coverage (phase 4), and scheduled
 job plus site availability (phase 5).
 
-Before scheduled collection, retrieval also needs a `robots.txt` policy, per-host pacing, and
-`Retry-After` handling. These are explicit scope limits, not untracked enhancements.
+Retrieval politeness is no longer an operator procedure. `src/mrf_honest/politeness.py` fetches
+and obeys `robots.txt` before the first request with no override flag, holds a per-host minimum
+interval across a whole run that a `Crawl-delay` can only lengthen, and honours `Retry-After` on
+429 and 503 ahead of this tool's own backoff. Every decision and every wait is retained as
+JSON-safe evidence. What that unblocks is a roster-sourced second cohort; what it does not by
+itself authorise is a *scheduled* job, which still needs a service/job tier declaration before
+it ships.

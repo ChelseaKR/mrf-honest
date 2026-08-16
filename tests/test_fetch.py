@@ -11,6 +11,7 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request
 
 import pytest
+import robots_fixtures
 
 from mrf_honest import fetch as fetch_module
 from mrf_honest.fetch import (
@@ -109,6 +110,7 @@ def test_fetch_streams_to_content_addressed_cache_with_identifying_headers(
     outcome = fetch_url(
         "https://example.test/prices.json",
         tmp_path,
+        politeness=robots_fixtures.politeness(),
         policy=policy(),
         opener=opener,
         clock=clock,
@@ -135,6 +137,7 @@ def test_conditional_get_reuses_a_verified_cached_body(tmp_path: Path) -> None:
     first = fetch_url(
         url,
         tmp_path,
+        politeness=robots_fixtures.politeness(),
         policy=policy(),
         opener=FakeOpener(
             FakeResponse(
@@ -149,6 +152,7 @@ def test_conditional_get_reuses_a_verified_cached_body(tmp_path: Path) -> None:
     second = fetch_url(
         url,
         tmp_path,
+        politeness=robots_fixtures.politeness(),
         policy=policy(),
         opener=second_opener,
         clock=clock,
@@ -171,7 +175,14 @@ def test_conditional_get_reuses_a_verified_cached_body(tmp_path: Path) -> None:
 )
 def test_only_safe_https_urls_are_attempted(tmp_path: Path, url: str) -> None:
     opener = FakeOpener(FakeResponse())
-    outcome = fetch_url(url, tmp_path, policy=policy(), opener=opener, clock=clock)
+    outcome = fetch_url(
+        url,
+        tmp_path,
+        politeness=robots_fixtures.politeness(),
+        policy=policy(),
+        opener=opener,
+        clock=clock,
+    )
     assert outcome.status is FetchStatus.INVALID_URL
     assert outcome.attempts == 0
     assert not opener.requests
@@ -182,6 +193,7 @@ def test_https_redirect_to_plaintext_is_refused(tmp_path: Path) -> None:
     outcome = fetch_url(
         "https://example.test/prices.json",
         tmp_path,
+        politeness=robots_fixtures.politeness(),
         policy=policy(),
         opener=FakeOpener(response),
         clock=clock,
@@ -196,6 +208,7 @@ def test_declared_and_streamed_size_overruns_are_named(tmp_path: Path) -> None:
     declared_outcome = fetch_url(
         "https://example.test/declared.json",
         tmp_path,
+        politeness=robots_fixtures.politeness(),
         policy=policy(max_bytes=10),
         opener=FakeOpener(declared),
         clock=clock,
@@ -203,6 +216,7 @@ def test_declared_and_streamed_size_overruns_are_named(tmp_path: Path) -> None:
     streamed_outcome = fetch_url(
         "https://example.test/streamed.json",
         tmp_path,
+        politeness=robots_fixtures.politeness(),
         policy=policy(max_bytes=5),
         opener=FakeOpener(FakeResponse(b"123456")),
         clock=clock,
@@ -219,6 +233,7 @@ def test_gzip_is_decoded_incrementally_and_bounded_after_decoding(tmp_path: Path
     outcome = fetch_url(
         "https://example.test/prices.json.gz",
         tmp_path,
+        politeness=robots_fixtures.politeness(),
         policy=policy(max_bytes=100),
         opener=FakeOpener(FakeResponse(encoded, final_url="https://example.test/prices.json.gz")),
         clock=clock,
@@ -226,6 +241,7 @@ def test_gzip_is_decoded_incrementally_and_bounded_after_decoding(tmp_path: Path
     too_large = fetch_url(
         "https://example.test/large.json.gz",
         tmp_path,
+        politeness=robots_fixtures.politeness(),
         policy=policy(max_bytes=9),
         opener=FakeOpener(FakeResponse(encoded, final_url="https://example.test/large.json.gz")),
         clock=clock,
@@ -240,6 +256,7 @@ def test_concatenated_gzip_members_work_and_trailing_junk_does_not(tmp_path: Pat
     good = fetch_url(
         "https://example.test/joined.json.gz",
         tmp_path,
+        politeness=robots_fixtures.politeness(),
         policy=policy(max_bytes=100),
         opener=FakeOpener(FakeResponse(joined, final_url="https://example.test/joined.json.gz")),
         clock=clock,
@@ -247,6 +264,7 @@ def test_concatenated_gzip_members_work_and_trailing_junk_does_not(tmp_path: Pat
     bad = fetch_url(
         "https://example.test/junk.json.gz",
         tmp_path,
+        politeness=robots_fixtures.politeness(),
         policy=policy(max_bytes=100),
         opener=FakeOpener(
             FakeResponse(
@@ -258,6 +276,7 @@ def test_concatenated_gzip_members_work_and_trailing_junk_does_not(tmp_path: Pat
     truncated = fetch_url(
         "https://example.test/truncated.json.gz",
         tmp_path,
+        politeness=robots_fixtures.politeness(),
         policy=policy(max_bytes=100),
         opener=FakeOpener(
             FakeResponse(
@@ -277,6 +296,7 @@ def test_network_and_retryable_http_errors_have_injectable_backoff(tmp_path: Pat
     outcome = fetch_url(
         "https://example.test/prices.json",
         tmp_path,
+        politeness=robots_fixtures.politeness(),
         policy=policy(retries=1),
         opener=opener,
         sleep=delays.append,
@@ -286,6 +306,7 @@ def test_network_and_retryable_http_errors_have_injectable_backoff(tmp_path: Pat
     http = fetch_url(
         "https://example.test/missing.json",
         tmp_path,
+        politeness=robots_fixtures.politeness(),
         policy=policy(),
         opener=FakeOpener(FakeResponse(status=404)),
         clock=clock,
@@ -303,6 +324,7 @@ def test_only_complete_200_responses_are_cached(tmp_path: Path, status: int) -> 
     outcome = fetch_url(
         "https://example.test/prices.json",
         tmp_path,
+        politeness=robots_fixtures.politeness(),
         policy=policy(),
         opener=FakeOpener(response),
         clock=clock,
@@ -319,6 +341,7 @@ def test_body_read_error_and_retryable_status_use_named_retry_path(tmp_path: Pat
     read_failure = fetch_url(
         "https://example.test/read.json",
         tmp_path,
+        politeness=robots_fixtures.politeness(),
         policy=policy(),
         opener=FakeOpener(BrokenResponse()),
         clock=clock,
@@ -326,6 +349,7 @@ def test_body_read_error_and_retryable_status_use_named_retry_path(tmp_path: Pat
     retried = fetch_url(
         "https://example.test/retry.json",
         tmp_path,
+        politeness=robots_fixtures.politeness(),
         policy=policy(retries=1, backoff_seconds=0.25),
         opener=FakeOpener(FakeResponse(status=503), FakeResponse(b"recovered")),
         sleep=delays.append,
@@ -343,6 +367,7 @@ def test_http_error_objects_and_bare_304_are_structured(tmp_path: Path) -> None:
     errored = fetch_url(
         url,
         tmp_path,
+        politeness=robots_fixtures.politeness(),
         policy=policy(),
         opener=FakeOpener(http_error),
         clock=clock,
@@ -350,6 +375,7 @@ def test_http_error_objects_and_bare_304_are_structured(tmp_path: Path) -> None:
     no_cache = fetch_url(
         "https://example.test/no-cache.json",
         tmp_path,
+        politeness=robots_fixtures.politeness(),
         policy=policy(),
         opener=FakeOpener(FakeResponse(status=304)),
         clock=clock,
@@ -370,6 +396,7 @@ def test_http_error_at_an_unsafe_final_url_is_rejected(tmp_path: Path) -> None:
     outcome = fetch_url(
         "https://example.test/prices.json",
         tmp_path,
+        politeness=robots_fixtures.politeness(),
         policy=policy(),
         opener=FakeOpener(unsafe),
         clock=clock,
@@ -384,6 +411,7 @@ def test_corrupt_cache_is_repaired_with_an_unconditional_request(tmp_path: Path)
     first = fetch_url(
         url,
         tmp_path,
+        politeness=robots_fixtures.politeness(),
         policy=policy(),
         opener=FakeOpener(FakeResponse(b"original", headers={"ETag": '"old"'})),
         clock=clock,
@@ -394,6 +422,7 @@ def test_corrupt_cache_is_repaired_with_an_unconditional_request(tmp_path: Path)
     repaired = fetch_url(
         url,
         tmp_path,
+        politeness=robots_fixtures.politeness(),
         policy=policy(),
         opener=repair_opener,
         clock=clock,
@@ -430,6 +459,7 @@ def test_fetch_outcome_round_trips_for_registry_storage(tmp_path: Path) -> None:
     outcome = fetch_url(
         "https://example.test/prices.json",
         tmp_path,
+        politeness=robots_fixtures.politeness(),
         policy=policy(),
         opener=FakeOpener(FakeResponse(b"ok")),
         clock=clock,
@@ -474,7 +504,14 @@ def test_policy_rejects_invalid_limits(changes: dict[str, object]) -> None:
     ],
 )
 def test_malformed_https_urls_are_structured(tmp_path: Path, url: str) -> None:
-    outcome = fetch_url(url, tmp_path, policy=policy(), opener=FakeOpener(), clock=clock)
+    outcome = fetch_url(
+        url,
+        tmp_path,
+        politeness=robots_fixtures.politeness(),
+        policy=policy(),
+        opener=FakeOpener(),
+        clock=clock,
+    )
     assert outcome.status is FetchStatus.INVALID_URL
     assert outcome.attempts == 0
 
@@ -501,6 +538,7 @@ def test_cache_metadata_io_failure_stops_before_network(
     outcome = fetch_url(
         "https://example.test/prices.json",
         tmp_path,
+        politeness=robots_fixtures.politeness(),
         policy=policy(),
         opener=opener,
         clock=clock,

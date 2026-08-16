@@ -13,6 +13,7 @@ from typing import cast
 
 from mrf_honest.discover import Discovery, DiscoveryEntry, cms_hpt_url, parse_cms_hpt
 from mrf_honest.fetch import Backoff, Clock, FetchOutcome, FetchPolicy, Opener, Sleeper, fetch_url
+from mrf_honest.politeness import Politeness
 
 _REGISTRY_VERSION = 2
 _READABLE_REGISTRY_VERSIONS = frozenset({1, _REGISTRY_VERSION})
@@ -251,6 +252,7 @@ def fetch_and_record(
     registry: Registry,
     cache_dir: str | Path,
     policy: FetchPolicy,
+    politeness: Politeness,
     opener: Opener | None = None,
     sleep: Sleeper = time.sleep,
     backoff: Backoff | None = None,
@@ -261,6 +263,7 @@ def fetch_and_record(
         url,
         cache_dir,
         policy=policy,
+        politeness=politeness,
         opener=opener,
         sleep=sleep,
         backoff=backoff,
@@ -283,6 +286,7 @@ def discover_domain(
     registry: Registry,
     cache_dir: str | Path,
     policy: FetchPolicy,
+    politeness: Politeness,
     opener: Opener | None = None,
     sleep: Sleeper = time.sleep,
     backoff: Backoff | None = None,
@@ -295,6 +299,7 @@ def discover_domain(
         url,
         cache_dir,
         policy=discovery_policy,
+        politeness=politeness,
         opener=opener,
         sleep=sleep,
         backoff=backoff,
