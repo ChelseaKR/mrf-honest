@@ -33,6 +33,10 @@ if TYPE_CHECKING:
 
 PIPELINE_VERSION = "hospital-json-v2"
 MANIFEST_SCHEMA_VERSION = 4
+#: The one CMS hospital JSON template version this warehouse implements. Everything else is
+#: refused, and the refusal is a limit of this project, not a finding about a publisher.
+SUPPORTED_TEMPLATE_VERSION = "3.0.0"
+_TEMPLATE_SCOPE = "CMS hospital JSON template version "
 _MANIFEST_DIGEST_FIELD = "manifest_body_sha256"
 _EXPORT_MODELS = (
     "raw_hospital_items",
@@ -83,6 +87,45 @@ _OPTIONAL_ENVELOPE_FIELDS = ("financial_aid_policy",)
 
 class LakehouseError(RuntimeError):
     """The build could not complete without weakening provenance or a contract."""
+
+
+class LakehouseScopeRefusal(LakehouseError):
+    """The warehouse declined a file that its implemented scope does not cover.
+
+    This is a limit of *this project's* warehouse, never a finding about the publisher's file,
+    and ``docs/how-we-compare.md`` requires the difference to be stated rather than left as a
+    silent absence. A refusal that only ever existed as a process exit code cannot be stated:
+    the comparison layer has nothing to publish, and a reader sees a file with no contract
+    evidence and no reason, which reads like a defect nobody will name.
+
+    So the refusal carries its own evidence. ``to_dict`` produces the same shape
+    ``IngestResult.to_dict`` produces for a load that happened, discriminated by ``status``,
+    so one ingest attempt yields one evidence document either way.
+    """
+
+    def __init__(
+        self,
+        reason: str,
+        *,
+        implemented_scope: str,
+        observed_scope: str,
+        source_file_id: str,
+    ) -> None:
+        super().__init__(reason)
+        self.reason = reason
+        self.implemented_scope = implemented_scope
+        self.observed_scope = observed_scope
+        self.source_file_id = source_file_id
+
+    def to_dict(self, *, publisher_id: str) -> dict[str, object]:
+        return {
+            "status": "refused",
+            "source_file_id": self.source_file_id,
+            "publisher_id": publisher_id,
+            "reason": self.reason,
+            "implemented_scope": self.implemented_scope,
+            "observed_scope": self.observed_scope,
+        }
 
 
 class LakehouseUnavailable(LakehouseError):
@@ -199,8 +242,15 @@ def _require_envelope(
         raise LakehouseError(
             "hospital_name, last_updated_on, and version must be non-empty strings"
         )
-    if cast(str, version) != "3.0.0":
-        raise LakehouseError(f"unsupported hospital JSON template version: {version!r}")
+    if cast(str, version) != SUPPORTED_TEMPLATE_VERSION:
+        # The message is unchanged from when this was a bare LakehouseError; it is the sentence
+        # the published comparison now quotes, so it stays exactly what the code says.
+        raise LakehouseScopeRefusal(
+            f"unsupported hospital JSON template version: {version!r}",
+            implemented_scope=f"{_TEMPLATE_SCOPE}{SUPPORTED_TEMPLATE_VERSION}",
+            observed_scope=f"{_TEMPLATE_SCOPE}{version}",
+            source_file_id=inspection.source_sha256,
+        )
     try:
         period = date.fromisoformat(cast(str, updated))
     except ValueError as exc:

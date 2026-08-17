@@ -7,8 +7,8 @@ The first graded cohort is live: six machine-readable files across four health s
 discovered from CMS-conventional `cms-hpt.txt` documents, retrieved in one identified run,
 streamed without loading into memory, and graded fail-closed. Five files grade **A** under the
 published policy; one grades **C** — an 884 MB file that declares the superseded 2.0.0 template
-seven months after CMS's v3.0.0 effective date, and whose own `last_updated_on` of 2025-11-26
-predates that date, so its annual update window has not yet come round
+seven months after CMS's v3.0.0 effective date, while carrying, element for element, the
+v3.0.0 envelope that version string says it does not have. The label is stale, not the content
 ([the finding, with evidence](docs/findings/superseded-template-version-2026-08-14.md)). Four of
 the six files begin with a UTF-8 byte-order mark that RFC 8259 forbids and strict JSON parsers
 reject; the catalog records it as a tolerated `INFO` observation, and all four grade **A**.
@@ -61,11 +61,19 @@ uv run mrf-honest scorecard https://files.example.org/standardcharges.json \
   --format json
 
 # Turn one attested collection run into the published comparison, then render the site.
+# Every ingest attempt contributes one evidence document, whether the warehouse loaded the file
+# or refused it; a refusal carries the reason, which the file page publishes.
 uv run mrf-honest compare \
   --assessments data/cohorts/2026-08-14.assessments.jsonl \
-  --manifest data/cohorts/2026-08-14.json > comparison.json
+  --manifest data/cohorts/2026-08-14.json \
+  $(for e in data/cohorts/2026-08-14.ingest/*.json; do printf ' --ingest-result %s' "$e"; done) \
+  > comparison.json
 uv run mrf-honest site --comparison comparison.json --out site
 ```
+
+Re-running that command over the committed inputs reproduces
+[the committed comparison](data/cohorts/2026-08-14.comparison.json) byte for byte, and both
+`make verify` and the publish workflow check exactly that before anything is rendered from it.
 
 The CLI also provides `discover`, `fetch`, `profile`, and `explain`; `grade` is an alias for
 `scorecard`. Retrieval requires an identifying contact string, caches decoded content by
@@ -132,7 +140,10 @@ Built:
   at every layer boundary, exact raw text retention, `DECIMAL(38,10)` numerics, and idempotent
   content-addressed run identity ([docs/MODEL-DAG.md](docs/MODEL-DAG.md),
   [ADR 0003](docs/adr/0003-local-lakehouse-duckdb-parquet.md)). Five of the six cohort files are
-  contracted through it; the sixth is a v2.0.0 file the v3-only pipeline correctly refuses.
+  contracted through it; the sixth declares template `2.0.0` and the v3-only pipeline refuses
+  it. That refusal is recorded as evidence with its reason and published on the file's page,
+  because a limit of this project rendered as a bare absence reads like an unnamed defect in a
+  named hospital's file.
 - `robots.txt`, per-host pacing and `Retry-After` enforced in the fetcher rather than by an
   operator's habits (`src/mrf_honest/politeness.py`). robots is fetched before the first request
   and obeyed with no override flag; an unreachable `robots.txt` is a complete disallow per
@@ -186,16 +197,16 @@ ADR in [docs/adr/](docs/adr/). No blank rows, no silent skips.
 
 | Standard | State |
 |---|---|
-| Code Quality | Applies: `make verify` runs six gates — `ruff check` (security `S` rules, `max-complexity=10`), `ruff format --check`, `mypy --strict`, pytest with a branch-coverage floor of 85, `uv lock --check`, and `pip-audit --strict` over the exported lockfile. Current: 324 tests, 90.88% branch coverage, zero lint/format/type findings, lockfile in sync, zero known vulnerabilities (2026-08-15). Floors: Python >= 3.12 (`.python-version` pins 3.14), ruff >= 0.15, mypy >= 1.18, locked in `uv.lock`. Dev tooling is a PEP 735 `[dependency-groups]` group, so `uv sync` installs it and a published wheel never carries it. |
+| Code Quality | Applies: `make verify` runs six gates — `ruff check` (security `S` rules, `max-complexity=10`), `ruff format --check`, `mypy --strict`, pytest with a branch-coverage floor of 85, `uv lock --check`, and `pip-audit --strict` over the exported lockfile. Current: 337 tests, 91.07% branch coverage, zero lint/format/type findings, lockfile in sync, zero known vulnerabilities (2026-08-16). Floors: Python >= 3.12 (`.python-version` pins 3.14), ruff >= 0.15, mypy >= 1.18, locked in `uv.lock`. Dev tooling is a PEP 735 `[dependency-groups]` group, so `uv sync` installs it and a published wheel never carries it. |
 | Security & Supply-Chain | Applies: the streaming, inspection, discovery, fetch, registry, comparison, and site path is standard-library-only; DuckDB is an optional lakehouse dependency ([ADRs 0002-0003](docs/adr/)). The lockfile, ruff `S` gate, HTTPS/redirect validation, bounded downloads, and SHA-pinned CI actions reduce the current surface. Hosted CodeQL (Python and Actions) and a checksum-pinned full-history gitleaks scan run on push, PR, and weekly schedule (`.github/workflows/security.yml`). `make verify` runs `pip-audit --strict` against the whole exported lockfile — every extra and the dev group — with no ignore list, so the audit runs on a laptop and in CI rather than only in CI. The lockfile-drift gate is `uv lock --check`, not `uv sync --frozen`: measured on a deliberately drifted project under uv 0.12.1, `uv lock --check` and `uv sync --locked` exit 1 and `uv sync --frozen` exits 0, because `--frozen` installs from the lockfile without reading `pyproject.toml` and so cannot see the two disagree. |
-| CI/CD | Applies: SHA-pinned workflows mirror `make verify` on Python 3.12 and 3.14, build distributions, and publish the site from committed data only, with a fail-closed render check. |
+| CI/CD | Applies: SHA-pinned workflows mirror `make verify` on Python 3.12 and 3.14, build distributions, and publish the site from committed data only. The publish job first re-derives the newest comparison from its committed assessments, manifest, and ingest evidence and requires a byte-for-byte match, then requires one rendered page per row in it; a generator that no longer reproduces its own published artifact cannot deploy. `make verify` runs the same derivation, but that is a separate workflow whose failure would not by itself stop a deploy, which is why the check is on both paths. |
 | Observability | Applies to the local batch shape plus a static published artifact: finalized run manifests and DuckDB `model_metric` rows retain counts, bytes, and wall time; the site is rebuilt from committed data with no availability objective declared. See [docs/ROADMAP.md](docs/ROADMAP.md). |
 | Accessibility | Applies as of the site, and now gated. `.github/workflows/accessibility.yml` runs Lighthouse over **every** page the render produced — enumerated from the build, not typed into the workflow — and requires 1.0 on accessibility, best-practices and SEO, a declared floor above the standard's 0.90. `make verify` runs the parts that need no browser: a contrast assertion over every declared text/background pair in the design tokens, and a heading-order check on every generated page. Two real defects were found and fixed when the gate was first pointed at the live site (`heading-order` on the index; a 4.28:1 finding chip on every file page with a warning). The remaining open obligation is the manual screen-reader pass, stated in [docs/RESPONSIBLE-TECH-AUDITS.md](docs/RESPONSIBLE-TECH-AUDITS.md). |
 | Internationalization | Applies: the site and CLI are English-only by a recorded decision with its limits stated: [docs/I18N.md](docs/I18N.md). |
 | AI Evaluation | N/A (no LLM or model component; the grading and comparison path is deterministic by design, a written engineering standard in [docs/IMPLEMENTATION-PLAN.md](docs/IMPLEMENTATION-PLAN.md)). |
 | Quality & Metrics | Applies: metrics ledger in [docs/ROADMAP.md](docs/ROADMAP.md); every published number is measured or generated from committed data, never estimated. |
 | Documentation | Applies: README, `CHANGELOG.md`, `CONTRIBUTING.md`, `SECURITY.md`, `CITATION.cff`, ADR log ([docs/adr/](docs/adr/)), findings log ([docs/findings/](docs/findings/)). |
-| Responsible-Tech Framework | Applies: [docs/RESPONSIBLE-TECH-AUDITS.md](docs/RESPONSIBLE-TECH-AUDITS.md) (grades files, never organizations or care; dated appendices for the grade-bias review and the site's accessibility scope). |
+| Responsible-Tech Framework | Applies: [docs/RESPONSIBLE-TECH-AUDITS.md](docs/RESPONSIBLE-TECH-AUDITS.md) (grades files, never organizations or care; dated appendices for the grade-bias review, the site's accessibility scope, and a 2026-08-16 sweep that found three declarations the later work had made false and left published). |
 | Performance | Applies as of the site. The same Lighthouse job asserts a performance floor and a resource budget in which every non-document resource type is zero: no scripts, no external stylesheets, no fonts, no images, no third parties. Measured 2026-08-15 across all nine pages: 1.0 performance, 12,197 bytes and one request on the heaviest page ([perf/baseline.json](perf/baseline.json)). The k6 latency rows of the performance standard are N/A with a reason recorded in the baseline: there is no server, only static files. |
 | Release & Versioning | N/A (pre-publication as a package: no tags, no downstream consumers; the site is a continuously rebuilt artifact). [docs/adr/0001-release-versioning-na.md](docs/adr/0001-release-versioning-na.md). |
 

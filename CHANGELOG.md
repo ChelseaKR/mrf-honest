@@ -9,6 +9,49 @@ no version tags yet; until the first dated release (phase 5 of
 
 ### Fixed
 
+- **A published file page stated an absence of contract evidence without its reason.**
+  Cedars-Sinai's page said the file "was not loaded into the contracted warehouse for this
+  cohort, so no contract evidence exists for it" and stopped there. The cause was this
+  project's own lakehouse, which implements CMS hospital JSON v3.0.0 only and refused a file
+  declaring template `2.0.0` (`unsupported hospital JSON template version: '2.0.0'`).
+  `docs/how-we-compare.md` is explicit that a project limit is not a publisher failure and that
+  the reason is always stated; on a page carrying a named hospital, an unexplained absence
+  reads like an unnamed defect in their file. The reason could not be stated because it never
+  survived: a refused ingest raised, printed to stderr, and produced no evidence document, so
+  the comparison row recorded `"lakehouse": null` and the renderer had nothing to say. There is
+  now a `LakehouseScopeRefusal` carrying the reason and the scopes on both sides, `mrf-honest
+  ingest` emits it as an evidence document on stdout (still exiting non-zero: no snapshot was
+  produced), `build_comparison` records it as a discriminated `status: "refused"` row, and the
+  file page publishes it. `comparison_version` moves 1 -> 2 for the schema change. The grade
+  policy fingerprint deliberately does not move: warehouse evidence is not a grading input, the
+  rule table is untouched, and every grade in the regenerated cohort is unchanged.
+- **Two published figures that no gate could check, one of which was never true.**
+  `docs/ROADMAP.md` claimed the dependency audit covered "116 pinned distributions"; the
+  exported set has 51, and `uv.lock` is byte-identical to the commit that made the claim, so it
+  was wrong on the day it was written rather than stale. `perf/baseline.json` described the
+  audited surface as "the index, how-we-grade, seven file pages and 404.html" for a six-file
+  cohort, i.e. nine pages described as ten. Both are corrected, and both are now re-derived by
+  `tests/test_published_claims.py` instead of being dated by hand.
+- **Three responsible-tech declarations that later work had made false**, still published in
+  `docs/RESPONSIBLE-TECH-AUDITS.md`: that the project has no deployed surface (the site has been
+  public since 2026-08-09, as an appendix in the same file says), that the fetcher does not
+  retrieve or enforce `robots.txt` (`politeness.py` does, with no override flag), and that SAST,
+  secret scanning and dependency auditing remain open (all three ship). The file is append-only,
+  so each stale line is marked in place and a dated 2026-08-16 appendix carries the current
+  statement, along with what remains genuinely open. `CITATION.cff` said published comparisons
+  were "planned, not implemented" while one was live, and now says what exists.
+- The finding write-up
+  ([docs/findings/superseded-template-version-2026-08-14.md](docs/findings/superseded-template-version-2026-08-14.md))
+  is amended, with the correction dated in the document. Checked element by element against
+  CMS's V2.0.0 and V3.0.0 schemas, the Cedars-Sinai file carries the v3.0.0 envelope and none of
+  the v2 element names it replaced -- `location_name`, `type_2_npi` and the full
+  `attestation`/`attester_name`/`confirm_attestation` object are present, `hospital_location`
+  and `affirmation`/`confirm_affirmation` appear nowhere in the 884 MB body, and the attestation
+  string is byte-identical to the V3.0.0 schema's constant, which is not the V2.0.0 constant.
+  The finding and the **C** are unchanged; what changed is that the document now says this is a
+  stale version label on migrated content, not an unadopted rule. The README lead said the
+  broader thing and now says the narrower one.
+
 - **A TLS certificate failure no longer publishes an ERROR finding against a hospital.**
   Certificate-verification failures were classified as `network_error`, which the scorecard
   maps to a publisher failure: an ERROR-severity `MRF_DIRECT_DOWNLOAD_FAILED` in
@@ -25,6 +68,21 @@ no version tags yet; until the first dated release (phase 5 of
 
 ### Added
 
+- **A gate on the published artifact itself, not only on the code that generates it.**
+  `tests/test_published_claims.py` re-runs `build_comparison` over the committed assessments,
+  manifest and ingest evidence and requires the committed `*.comparison.json` back byte for
+  byte. Nothing checked this before: the site renders a committed document, so a change to the
+  comparison layer, the grade policy or the finding catalog could ship green while the artifact
+  on disk -- and therefore every number on the site -- still described the old behaviour. The
+  same derivation runs on the deploy path in `.github/workflows/pages.yml`, because `verify` is
+  a separate workflow and a red run there does not by itself stop a publish.
+- **The ingest evidence documents themselves**, under `data/cohorts/<date>.ingest/`. Until now
+  the only copy of each ingest result lived inside the derived comparison, so the derivation had
+  no inputs to be re-run against and could not be checked at all.
+- **A page-per-row check in the publish workflow.** It previously asserted one number from the
+  comparison and the sitemap line in `robots.txt`, both of which a render that emitted no file
+  pages would still satisfy. Every row in the comparison must now have its own rendered page
+  that the index links to.
 - **Retrieval politeness in code** (`src/mrf_honest/politeness.py`), replacing the operator
   procedure that `docs/ROADMAP.md` recorded as a scope limit on any broad retrieval.
   `robots.txt` is fetched before the first request and obeyed, with no flag that skips it: a

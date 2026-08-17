@@ -12,8 +12,8 @@ name: accessibility
 # the half that needs a rendering engine.
 #
 # The page list is enumerated from the render, never typed into this file. Every HTML file
-# the site command produced gets audited, so a cohort that grows from seven file pages to
-# seventy grows the audit with it and a served page cannot escape it. The scoring step is
+# the site command produced gets audited, so a cohort that grows from six file pages to
+# sixty grows the audit with it and a served page cannot escape it. The scoring step is
 # handed that same list and fails when it is empty, when it is short, or when any single
 # report is missing -- a gate that measured no pages must not be able to report success,
 # which is the specific way an accessibility job usually dies quietly.

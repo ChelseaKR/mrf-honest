@@ -32,8 +32,11 @@ artifacts. This is not a claim of full crash durability: concurrent writers, his
 migrations, and a full SIGKILL/fsync matrix remain open.
 
 The hosted surface is a static GitHub Pages site rebuilt exclusively from data committed to this
-repository by a SHA-pinned workflow (`.github/workflows/pages.yml`); the build fails closed if
-the rendered pages disagree with the committed comparison document. There is no scheduled
+repository by a SHA-pinned workflow (`.github/workflows/pages.yml`). The build fails closed
+twice: first if the committed comparison document is not byte-for-byte what `mrf-honest compare`
+re-derives from the committed assessments, manifest, and ingest evidence, and then if the
+rendered pages disagree with that document — the coverage sentence must carry its `targeted`
+count, and every row must have its own rendered page that the index links to. There is no scheduled
 refresh, no alert destination, and no declared availability objective — the site is a published
 artifact, not a service, and it never fetches anything at build time. Scheduled collection
 remains out of scope until the `robots.txt` policy, per-host pacing, and `Retry-After` work
@@ -52,12 +55,12 @@ README quotes a ledger figure, this table is the source and the README follows i
 
 | Metric | Target | Measured by | Gate | Last measured |
 |---|---|---|---|---|
-| Branch coverage | >= 85% | `pytest --cov` (branch mode, `fail_under = 85`) | AUTO (`make verify`) | 90.88%, 324 tests passing, 2026-08-15 |
-| Lint findings (ruff `E,F,I,B,S,C90,UP,RUF`, `max-complexity=10`) | 0 | `ruff check src tests` | AUTO (`make verify`) | 0, 2026-08-15 |
-| Formatting findings | 0 | `ruff format --check src tests` | AUTO (`make verify`) | 0, 2026-08-15 |
-| `mypy --strict` errors | 0 | `mypy` over `src` | AUTO (`make verify`) | 0, 2026-08-15 |
-| Lockfile drift | none | `uv lock --check` (**not** `uv sync --frozen`, which cannot see drift) | AUTO (`make verify`, CI `uv sync --locked`) | in sync, 2026-08-15 |
-| Known vulnerabilities in the locked dependency set | 0, no ignore list | `pip-audit --strict --no-deps` over `uv export --all-extras` (116 pinned distributions) | AUTO (`make verify`) | 0, 2026-08-15 |
+| Branch coverage | >= 85% | `pytest --cov` (branch mode, `fail_under = 85`) | AUTO (`make verify`) | 91.07%, 337 tests passing, 2026-08-16 |
+| Lint findings (ruff `E,F,I,B,S,C90,UP,RUF`, `max-complexity=10`) | 0 | `ruff check src tests perf` | AUTO (`make verify`) | 0, 2026-08-16 |
+| Formatting findings | 0 | `ruff format --check src tests perf` | AUTO (`make verify`) | 0, 2026-08-16 |
+| `mypy --strict` errors | 0 | `mypy` over `src` and `perf` | AUTO (`make verify`) | 0, 2026-08-16 |
+| Lockfile drift | none | `uv lock --check` (**not** `uv sync --frozen`, which cannot see drift) | AUTO (`make verify`, CI `uv sync --locked`) | in sync, 2026-08-16 |
+| Known vulnerabilities in the locked dependency set | 0, no ignore list | `pip-audit --strict --no-deps` over `uv export --all-extras` (51 pinned distributions; `uv.lock` resolves 52 packages and `--no-emit-project` drops this one) | AUTO (`make verify`) | 0, 2026-08-16 |
 | Lighthouse accessibility, best-practices and SEO, every rendered page | 1.0 (a declared floor above the standard's 0.90) | `perf/score_lighthouse.py` over Lighthouse 12 reports for every HTML file the render produced | AUTO (`.github/workflows/accessibility.yml`) | 1.0 / 1.0 / 1.0 on all 9 pages, 2026-08-15 |
 | Lighthouse performance, every rendered page | >= 0.95 absolute, and no worse than 10% off `perf/baseline.json` | same job | AUTO (`.github/workflows/accessibility.yml`) | 1.0 on all 9 pages, 2026-08-15 |
 | Page weight and request count | 0 bytes of script, stylesheet, font, image and third party; 1 request; <= 60 KB document | `perf/resource-budget.json` asserted against Lighthouse's `resource-summary` audit (**not** `--budget-path`, which does not exist in Lighthouse 12) | AUTO (`.github/workflows/accessibility.yml`) | heaviest page 12,197 bytes in 1 request, 2026-08-15 |
@@ -66,6 +69,8 @@ README quotes a ledger figure, this table is the source and the README follows i
 | robots.txt obeyed, no override path | a disallow or an unreadable robots.txt stops the fetch before any request for the file | `tests/test_politeness.py` against a real `http.server` on loopback, plus a signature assertion that no `ignore_robots`/`force` parameter exists | AUTO (`make verify`) | 22 cases, 0 failures, 2026-08-15 |
 | Per-host interval and `Retry-After` | interval held across a run; `Crawl-delay` lengthens only; 429/503 `Retry-After` outranks local backoff | same suite | AUTO (`make verify`) | default floor 2.0 s; measured 3.0 s waited on a `Retry-After: 3` against a 100 s configured backoff, 2026-08-15 |
 | Retrieval failures attributed to a publisher | only causes that are actually the publisher's; every local or ambiguous cause is not graded | `tests/test_scorecard.py` status matrix, which fails when a new `FetchStatus` is added without an explicit mapping | AUTO (`make verify`) | 11 of 11 statuses mapped; TLS verification moved from publisher failure to not graded, 2026-08-15 |
+| Published comparison reproducible from its committed inputs | byte-for-byte | `tests/test_published_claims.py` re-runs `build_comparison` over the committed assessments, manifest and ingest evidence | AUTO (`make verify`, and again on the deploy path in `.github/workflows/pages.yml`) | 1 of 1 cohorts reproduce exactly, 2026-08-16 |
+| Published figures re-derived rather than dated | every number a gate can recompute | `tests/test_published_claims.py` (page counts against the render, audited dependency count against `uv.lock`) | AUTO (`make verify`) | 3 claims checked; 2 were wrong when the gate was added, 2026-08-16 |
 | Manual screen-reader pass | one dated walkthrough of the index and one file page | a person, recorded in `RESPONSIBLE-TECH-AUDITS.md` | REVIEW | **not performed**; the open obligation, stated rather than implied |
 | Streaming scan on the 64,828,148-byte reference file | RSS below file size; zero problems | `/usr/bin/time -l`, recorded in `PHASE-0-FINDINGS.md` | REVIEW (re-measure when `stream.py` changes) | 30,114 items, 0 problems, 9.25 s, 33,865,728-byte RSS (0.5224x), 26,231,240-byte peak footprint, 2026-08-09 |
 | End-to-end lakehouse process memory | measured and disclosed; no cap claim | `/usr/bin/time -l`, recorded in `PHASE-2-FINDINGS.md` | REVIEW (re-measure on model/load changes) | 534,790,144-byte max RSS; 575,865,768-byte peak footprint, 2026-08-09 |
@@ -75,7 +80,7 @@ README quotes a ledger figure, this table is the source and the README follows i
 | Lakehouse persistent/transient storage | measured by artifact inventory and spool sizes | clean CLI acceptance | REVIEW | DB 117,977,088; 13 Parquets 52,459,578; archive 64,828,148; nine spools 251,678,531 bytes, 2026-08-09 |
 | Manifest body integrity and recovery | immutable body tampering rejected; prepared state recoverable after commit | deterministic integrity/transaction tests | AUTO (tests) | schema 4 digest passes; inspection/envelope/metrics tampering rejected; full SIGKILL/fsync matrix pending, 2026-08-09 |
 | Base runtime dependency count | 0 (DuckDB remains an optional lakehouse extra, ADRs 0002-0003) | `pyproject.toml` `[project] dependencies` | REVIEW | 0, 2026-08-15 |
-| Fabricated figures in docs | 0 | every published number traces to a run or a query | REVIEW (house rule, `docs/CONTEXT.md`) | 0 known, 2026-08-09 |
+| Fabricated figures in docs | 0 | every published number traces to a run or a query | REVIEW (house rule, `docs/CONTEXT.md`), now partly AUTO via `tests/test_published_claims.py` | **2 found and corrected on 2026-08-16**: this row's own "116 pinned distributions" (the export has always carried 51), and `perf/baseline.json` describing a nine-page audit as ten. Both are now re-derived by a test rather than dated. 0 known otherwise |
 
 Planned ledger rows that only become meaningful later: multi-publisher grade distribution and
 denominator-honesty checks (phases 3-4), suppression/uncertainty coverage (phase 4), and scheduled

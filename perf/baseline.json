@@ -8,7 +8,9 @@
       "node": "26.6.0",
       "python": "3.12"
     },
-    "scope": "All 9 pages the 2026-08-14 cohort renders: the index, how-we-grade, seven file pages and 404.html. Every score below is the minimum observed across all 9, not an average and not the best page.",
+    "scope": "Every page the 2026-08-14 cohort renders: the index, how-we-grade, one page per graded file, and 404.html. Every score below is the minimum observed across all of them, not an average and not the best page.",
+    "pages_audited": 9,
+    "file_pages": 6,
     "k6": "N/A. There is no server: the published artifact is static files on GitHub Pages, so there is no request-latency budget to measure. PERFORMANCE-STANDARD section 1's p95 rows are null below rather than silently absent."
   },
   "floors": {

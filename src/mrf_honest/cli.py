@@ -13,7 +13,7 @@ from typing import cast
 from mrf_honest.cohort import build_comparison
 from mrf_honest.fetch import FetchPolicy, default_open, fetch_url
 from mrf_honest.inspect import FileInspection, explain_finding, inspect_hospital_file
-from mrf_honest.lakehouse import ingest_hospital_file, query_file_profile
+from mrf_honest.lakehouse import LakehouseScopeRefusal, ingest_hospital_file, query_file_profile
 from mrf_honest.politeness import Politeness
 from mrf_honest.registry import Registry, discover_domain
 from mrf_honest.scorecard import (
@@ -141,14 +141,27 @@ def _run_ingest(args: argparse.Namespace) -> int:
     )
     if args.output_format == "human":
         print(f"Ingesting {args.file} ...", file=sys.stderr)
-    result = ingest_hospital_file(
-        cast(Path, args.file),
-        cast(Path, args.warehouse),
-        publisher=publisher,
-        memory_limit=cast(str, args.memory_limit),
-        threads=cast(int, args.threads),
-        as_of=cast(date | None, args.as_of),
-    )
+    try:
+        result = ingest_hospital_file(
+            cast(Path, args.file),
+            cast(Path, args.warehouse),
+            publisher=publisher,
+            memory_limit=cast(str, args.memory_limit),
+            threads=cast(int, args.threads),
+            as_of=cast(date | None, args.as_of),
+        )
+    except LakehouseScopeRefusal as refusal:
+        # A scope refusal is evidence with a reason, not a traceback. It goes to stdout in the
+        # same document shape a successful load produces, so `compare --ingest-result` can
+        # publish the reason beside the file it applies to instead of the site showing an
+        # unexplained absence. The command still fails: no snapshot was produced.
+        payload = refusal.to_dict(publisher_id=publisher.identifier)
+        if args.output_format == "json":
+            _emit_json(payload)
+        else:
+            _emit_mapping_human(payload)
+            print(f"refused: {refusal.reason}", file=sys.stderr)
+        return _FAILURE
     payload = result.to_dict()
     if args.output_format == "json":
         _emit_json(payload)

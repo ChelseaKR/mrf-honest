@@ -30,6 +30,45 @@ jobs:
           python-version: "3.12"
       - name: Install
         run: python -m pip install -e .
+      # The published artifact is checked against the code that claims to generate it, before
+      # anything is rendered from it. `make verify` runs the same derivation
+      # (tests/test_published_cohort.py), but `verify` is a separate workflow and a red run
+      # there does not stop this one from deploying. A publish job that renders a comparison
+      # nobody re-derived can ship numbers the code no longer produces, so the check lives on
+      # the deploy path too.
+      - name: Re-derive the newest comparison and require a byte-for-byte match
+        shell: bash
+        run: |
+          set -euo pipefail
+          comparison="$(ls data/cohorts/*.comparison.json | sort | tail -n 1)"
+          prefix="${comparison%.comparison.json}"
+          for input in "${prefix}.assessments.jsonl" "${prefix}.json" "${prefix}.ingest"; do
+            if [ ! -e "${input}" ]; then
+              echo "::error title=Cohort input missing::${comparison} cannot be re-derived: ${input} is not committed."
+              exit 1
+            fi
+          done
+          args=()
+          for evidence in "${prefix}.ingest"/*.json; do
+            args+=(--ingest-result "${evidence}")
+          done
+          if [ "${#args[@]}" -eq 0 ]; then
+            echo "::error title=No ingest evidence::${prefix}.ingest/ holds no evidence documents; the warehouse column of the comparison cannot be re-derived."
+            exit 1
+          fi
+          generated_at="$(python -c "import json,sys;print(json.load(open(sys.argv[1]))['generated_at'])" "${comparison}")"
+          python -m mrf_honest.cli compare \
+            --assessments "${prefix}.assessments.jsonl" \
+            --manifest "${prefix}.json" \
+            "${args[@]}" \
+            --generated-at "${generated_at}" \
+            --format json > /tmp/rederived.json
+          if ! cmp -s "${comparison}" /tmp/rederived.json; then
+            echo "::error title=Comparison is stale::${comparison} is not what mrf-honest compare derives from its committed inputs. The site would publish numbers the code no longer produces. Regenerate the comparison and commit it."
+            exit 1
+          fi
+          echo "re-derived ${comparison} byte-for-byte"
+
       - name: Render the site from the newest committed comparison
         shell: bash
         run: |
@@ -48,9 +87,28 @@ jobs:
           test -f site/how-we-grade/index.html
           test -f site/sitemap.xml
           test -f site/404.html
-          targeted="$(python -c "import glob,json;print(json.load(open(sorted(glob.glob('data/cohorts/*.comparison.json'))[-1]))['summary']['targeted'])")"
+          comparison="$(ls data/cohorts/*.comparison.json | sort | tail -n 1)"
+          targeted="$(python -c "import json,sys;print(json.load(open(sys.argv[1]))['summary']['targeted'])" "${comparison}")"
           grep -Fq "<strong>${targeted}</strong> machine-readable files" site/index.html
           grep -Fq 'Sitemap: https://chelseakr.github.io/mrf-honest/sitemap.xml' site/robots.txt
+          # Every graded file gets its own page, or the index links somewhere that 404s. The
+          # count check above passes on a render that emitted no file pages at all.
+          python -c "import json,sys;print('\n'.join(row['slug'] for row in json.load(open(sys.argv[1]))['files']))" \
+            "${comparison}" > /tmp/slugs.txt
+          rendered=0
+          while read -r slug; do
+            [ -n "${slug}" ] || continue
+            if [ ! -f "site/hospital/${slug}/index.html" ]; then
+              echo "::error title=Missing file page::${slug} is a row in ${comparison} but site/hospital/${slug}/index.html was not rendered."
+              exit 1
+            fi
+            grep -Fq "hospital/${slug}/" site/index.html
+            rendered=$((rendered + 1))
+          done < /tmp/slugs.txt
+          if [ "${rendered}" -ne "${targeted}" ]; then
+            echo "::error title=Page count disagrees with the data::${rendered} file pages checked against ${targeted} targeted rows."
+            exit 1
+          fi
       - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:

@@ -9,6 +9,7 @@ license: Apache-2.0
 abstract: >-
   Local retrieval, bounded inspection, and contracted DuckDB/Parquet ingestion of
   CMS hospital price-transparency JSON v3 files, with source-cited findings and
-  methodology-safe rate representations. Payer adapters and published comparisons
-  are planned, not implemented. Pre-release: version and date-released will be added
-  with the first dated release.
+  methodology-safe rate representations. One published cohort comparison exists,
+  deriving a versioned per-file presentation grade from persisted assessments;
+  payer adapters and any published rate comparison are planned, not implemented.
+  Pre-release: version and date-released will be added with the first dated release.

@@ -7,6 +7,7 @@ import pytest
 
 import mrf_honest.cli as cli
 from mrf_honest.fetch import FetchOutcome, FetchStatus
+from mrf_honest.lakehouse import LakehouseScopeRefusal
 
 
 class _Result:
@@ -178,6 +179,85 @@ def test_ingest_human_progress_does_not_pollute_stdout(
     captured = capsys.readouterr()
     assert captured.out == 'status: success\ncounts: {"items": 2}\n'
     assert captured.err == "Ingesting prices.json ...\n"
+
+
+def test_ingest_scope_refusal_is_emitted_as_evidence_and_still_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    """A refused ingest must leave a document behind, not just a non-zero exit.
+
+    ``compare --ingest-result`` is the only channel that carries warehouse evidence into the
+    published comparison. If a refusal produces nothing on stdout, the reason cannot reach the
+    site, and the file page states an absence of contract evidence with no reason for it.
+    """
+
+    def refuse(*args: object, **kwargs: object) -> object:
+        raise LakehouseScopeRefusal(
+            "unsupported hospital JSON template version: '2.0.0'",
+            implemented_scope="CMS hospital JSON template version 3.0.0",
+            observed_scope="CMS hospital JSON template version 2.0.0",
+            source_file_id="a" * 64,
+        )
+
+    monkeypatch.setattr(cli, "ingest_hospital_file", refuse)
+    status = cli.main(
+        [
+            "ingest",
+            "prices.json",
+            "--publisher-id",
+            "example-health",
+            "--warehouse",
+            str(tmp_path / "warehouse"),
+            "--format",
+            "json",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert status == 1  # no snapshot was produced; the command still fails
+    assert json.loads(captured.out) == {
+        "status": "refused",
+        "source_file_id": "a" * 64,
+        "publisher_id": "example-health",
+        "reason": "unsupported hospital JSON template version: '2.0.0'",
+        "implemented_scope": "CMS hospital JSON template version 3.0.0",
+        "observed_scope": "CMS hospital JSON template version 2.0.0",
+    }
+    assert captured.err == ""  # json mode keeps stdout parsable and stderr quiet
+
+
+def test_ingest_scope_refusal_human_format_names_the_reason(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    def refuse(*args: object, **kwargs: object) -> object:
+        raise LakehouseScopeRefusal(
+            "unsupported hospital JSON template version: '2.0.0'",
+            implemented_scope="CMS hospital JSON template version 3.0.0",
+            observed_scope="CMS hospital JSON template version 2.0.0",
+            source_file_id="a" * 64,
+        )
+
+    monkeypatch.setattr(cli, "ingest_hospital_file", refuse)
+    status = cli.main(
+        [
+            "ingest",
+            "prices.json",
+            "--publisher-id",
+            "example-health",
+            "--warehouse",
+            str(tmp_path / "warehouse"),
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert status == 1
+    assert "status: refused" in captured.out
+    assert "unsupported hospital JSON template version" in captured.out
+    assert "refused: unsupported hospital JSON template version" in captured.err
 
 
 def test_profile_outputs_the_order_returned_by_the_lakehouse(
