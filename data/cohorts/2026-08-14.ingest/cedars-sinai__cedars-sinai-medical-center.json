@@ -1,0 +1,8 @@
+{
+  "implemented_scope": "CMS hospital JSON template version 3.0.0",
+  "observed_scope": "CMS hospital JSON template version 2.0.0",
+  "publisher_id": "cedars-sinai",
+  "reason": "unsupported hospital JSON template version: '2.0.0'",
+  "source_file_id": "8c188ab3b02967785256d5867cf760778581e5e849f0fd1141955c2a2dcd2dbf",
+  "status": "refused"
+}

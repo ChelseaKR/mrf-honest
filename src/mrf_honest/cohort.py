@@ -21,6 +21,12 @@ Fail-closed rules, in one place:
 - an incomplete charge-array stream is an ``F``: what could not be read is failed, not passed;
 - a local dimension without evidence counts against the grade exactly like a dimension with
   structural errors; absence of a check is stated, never implied as a pass.
+
+The same rule governs the warehouse evidence a row carries. A file the contracted warehouse
+refused is not a file nobody tried to load, and the two must not render identically: the
+refusal is recorded with the reason the warehouse gave, because a project limit presented as a
+bare absence is the conflation ``docs/how-we-compare.md`` forbids. Warehouse evidence never
+touches the grade in either direction.
 """
 
 from __future__ import annotations
@@ -34,6 +40,20 @@ from typing import cast
 from mrf_honest.scorecard import require_comparable
 
 GRADE_POLICY_VERSION = "cms-hospital-json-v3-file-grade-v1"
+
+#: Schema version of the published comparison document, bumped whenever the shape of the
+#: document changes. Version 2 added the refused branch of ``files[].lakehouse``: warehouse
+#: evidence became a discriminated record instead of "an object or ``null``", so a consumer
+#: reading version 1 cannot assume a present object means a completed load.
+#:
+#: This is deliberately *not* ``GRADE_POLICY_VERSION``. Warehouse evidence is not a grading
+#: input, the rule table below is byte-identical, and every grade in a re-derived cohort is
+#: unchanged; moving the grade fingerprint would announce a regrade that did not happen and
+#: would make old and new cohorts falsely incomparable (ADR 0005).
+COMPARISON_VERSION = 2
+
+#: ``status`` of an ingest attempt the warehouse declined for scope reasons.
+INGEST_REFUSED = "refused"
 
 #: The four dimensions the local inspector can evidence; retrievability is handled separately.
 LOCAL_DIMENSIONS = ("conformance", "completeness", "interpretability", "freshness")
@@ -203,12 +223,25 @@ def _subject_fields(record: Mapping[str, object]) -> tuple[str, str, str, str, s
 
 
 def _sanitized_ingest(raw: Mapping[str, object]) -> dict[str, object]:
+    status = _required_str(raw, "status")
+    if status == INGEST_REFUSED:
+        # Every field is required. A refusal record without its reason would publish the same
+        # unexplained absence as no record at all, which is the whole defect this branch fixes,
+        # so an incomplete one is refused rather than accepted and half-rendered.
+        return {
+            "status": status,
+            "source_file_id": _required_str(raw, "source_file_id"),
+            "publisher_id": _required_str(raw, "publisher_id"),
+            "reason": _required_str(raw, "reason"),
+            "implemented_scope": _required_str(raw, "implemented_scope"),
+            "observed_scope": _required_str(raw, "observed_scope"),
+        }
     counts = raw.get("counts")
     return {
         "run_id": _required_str(raw, "run_id"),
         "source_file_id": _required_str(raw, "source_file_id"),
         "publisher_id": _required_str(raw, "publisher_id"),
-        "status": _required_str(raw, "status"),
+        "status": status,
         "reused": bool(raw.get("reused")),
         "counts": dict(cast(Mapping[str, object], counts)) if isinstance(counts, Mapping) else None,
     }
@@ -406,7 +439,7 @@ def build_comparison(
         key=lambda row: cast(str, row["slug"]),
     )
     return {
-        "comparison_version": 1,
+        "comparison_version": COMPARISON_VERSION,
         "generated_at": generated_at,
         "policy": manifest.get("policy"),
         "cohort": _cohort_header(rows, manifest),

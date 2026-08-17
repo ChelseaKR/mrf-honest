@@ -1,0 +1,18 @@
+{
+  "counts": {
+    "charge_groups": 48795,
+    "charge_modifiers": 1301,
+    "codes": 71622,
+    "had_bom": true,
+    "items": 34790,
+    "modifier_payer_mappings": 444,
+    "modifiers": 6,
+    "payer_rates": 369101,
+    "source_bytes_read": 112814066
+  },
+  "publisher_id": "uc-davis-health",
+  "reused": false,
+  "run_id": "10766351b39b772abd69f78f4db8339544486a81c9890491212deb48259bd98c",
+  "source_file_id": "6f693c35288c54aba1d9538a8471c9b61eff8f8339ddbea64890076a3617fb6e",
+  "status": "success"
+}

@@ -640,6 +640,41 @@ def test_refuses_missing_v3_envelope_before_creating_a_snapshot(tmp_path: Path) 
         )
 
 
+def test_out_of_scope_template_version_refuses_with_publishable_evidence(tmp_path: Path) -> None:
+    """The reason a v3-only warehouse gave has to survive as evidence, not just as an exit code.
+
+    A refusal that exists only as a raised message leaves the comparison layer with nothing to
+    publish, and the file page then shows an absence of contract evidence with no reason for
+    it -- which reads as an unnamed defect in someone's file. ``docs/how-we-compare.md`` calls
+    that conflation a false accusation, so the refusal carries its own structured evidence.
+    """
+    document = _document()
+    document["version"] = "2.0.0"
+    source = _write(tmp_path / "hospital.json", document)
+
+    with pytest.raises(lakehouse.LakehouseScopeRefusal) as raised:
+        ingest_hospital_file(
+            source,
+            tmp_path / "warehouse",
+            publisher=PublisherRef("example-health"),
+        )
+
+    refusal = raised.value
+    assert isinstance(refusal, LakehouseError)  # still fail-closed for every existing caller
+    assert refusal.reason == "unsupported hospital JSON template version: '2.0.0'"
+    assert refusal.implemented_scope == "CMS hospital JSON template version 3.0.0"
+    assert refusal.observed_scope == "CMS hospital JSON template version 2.0.0"
+    assert refusal.source_file_id == hashlib.sha256(source.read_bytes()).hexdigest()
+    assert refusal.to_dict(publisher_id="example-health") == {
+        "status": "refused",
+        "source_file_id": refusal.source_file_id,
+        "publisher_id": "example-health",
+        "reason": refusal.reason,
+        "implemented_scope": refusal.implemented_scope,
+        "observed_scope": refusal.observed_scope,
+    }
+
+
 def test_partial_parquet_promotion_is_cleaned_if_an_atomic_move_fails(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

@@ -1,0 +1,18 @@
+{
+  "counts": {
+    "charge_groups": 89328,
+    "charge_modifiers": 3768,
+    "codes": 202904,
+    "had_bom": true,
+    "items": 75208,
+    "modifier_payer_mappings": 108,
+    "modifiers": 6,
+    "payer_rates": 198795,
+    "source_bytes_read": 154579203
+  },
+  "publisher_id": "stanford-health-care",
+  "reused": false,
+  "run_id": "09c6db7c485ec473bcdaba5100f8310c90c002da3dc793bbcf0b22d6ab4d9317",
+  "source_file_id": "d21ae2b92615b8496cc7124d3456b9761dbf439d0f231919e4195a86bac68259",
+  "status": "success"
+}

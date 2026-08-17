@@ -90,6 +90,42 @@ def test_ingested_file_page_states_contract_evidence(tmp_path: Path) -> None:
     assert "<code>r1</code>" in page
 
 
+def test_refused_ingest_page_states_the_reason_not_a_bare_absence(tmp_path: Path) -> None:
+    """The published page has to say *why* no contract evidence exists.
+
+    Cedars-Sinai's page shipped the bare-absence sentence for a file this project's own v3-only
+    warehouse had refused. docs/how-we-compare.md: "A project limit or operator problem is not a
+    publisher failure ... The reason is always stated." It was not stated, and a reader had no
+    way to tell a project limit from an unnamed defect in the hospital's file.
+    """
+    records = _two_records(tmp_path / "bodies")
+    content = cast(dict[str, object], records[1]["retrieval"])["content_sha256"]
+    comparison = build_comparison(
+        records,
+        _manifest(),
+        ingest_results=[
+            {
+                "status": "refused",
+                "source_file_id": content,
+                "publisher_id": "beta-health",
+                "reason": "unsupported hospital JSON template version: '2.0.0'",
+                "implemented_scope": "CMS hospital JSON template version 3.0.0",
+                "observed_scope": "CMS hospital JSON template version 2.0.0",
+            }
+        ],
+        generated_at=GENERATED_AT,
+    )
+    out = _render(tmp_path, comparison)
+    page = (out / "hospital" / "beta-health" / "north" / "index.html").read_text(encoding="utf-8")
+    assert "unsupported hospital JSON template version: &#x27;2.0.0&#x27;" in page
+    assert "CMS hospital JSON template version 3.0.0" in page
+    assert "CMS hospital JSON template version 2.0.0" in page
+    assert "limit of what this project implements, not a finding about the file" in page
+    assert "does not affect the grade above" in page
+    # and it must not fall back to the sentence used when nothing was ever attempted
+    assert "No warehouse ingest was recorded" not in page
+
+
 def test_observed_dimension_is_not_presented_as_a_certificate(tmp_path: Path) -> None:
     out = _render(tmp_path, _comparison(tmp_path))
     page = (out / "hospital" / "alpha-health" / "main" / "index.html").read_text(encoding="utf-8")

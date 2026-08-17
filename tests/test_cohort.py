@@ -15,6 +15,7 @@ from typing import cast
 import pytest
 
 from mrf_honest.cohort import (
+    COMPARISON_VERSION,
     GRADE_POLICY_FINGERPRINT,
     NOT_GRADED,
     CohortError,
@@ -394,6 +395,95 @@ def test_comparison_refuses_foreign_or_duplicate_ingest_evidence(tmp_path: Path)
             ingest_results=[duplicate, duplicate],
             generated_at=GENERATED_AT,
         )
+
+
+def _refusal(content: object, publisher_id: str = "beta-health") -> dict[str, object]:
+    return {
+        "status": "refused",
+        "source_file_id": content,
+        "publisher_id": publisher_id,
+        "reason": "unsupported hospital JSON template version: '2.0.0'",
+        "implemented_scope": "CMS hospital JSON template version 3.0.0",
+        "observed_scope": "CMS hospital JSON template version 2.0.0",
+    }
+
+
+def test_a_refused_ingest_carries_its_reason_into_the_row(tmp_path: Path) -> None:
+    """A refused load and a load nobody attempted must not produce the same row.
+
+    Both used to serialize as ``"lakehouse": null``, so the site could only say that no
+    contract evidence existed and could not say why. docs/how-we-compare.md requires the reason
+    for a project limit to be stated; dropping it here is what made stating it impossible.
+    """
+    records = _two_records(tmp_path)
+    content = cast(dict[str, object], records[1]["retrieval"])["content_sha256"]
+    comparison = build_comparison(
+        records,
+        _manifest(),
+        ingest_results=[_refusal(content)],
+        generated_at=GENERATED_AT,
+    )
+    files = cast(list[dict[str, object]], comparison["files"])
+    assert files[0]["lakehouse"] is None  # nothing was recorded for this one, and it says so
+    refused = cast(dict[str, object], files[1]["lakehouse"])
+    assert refused["status"] == "refused"
+    assert refused["reason"] == "unsupported hospital JSON template version: '2.0.0'"
+    assert refused["implemented_scope"] == "CMS hospital JSON template version 3.0.0"
+    assert refused["observed_scope"] == "CMS hospital JSON template version 2.0.0"
+    # Warehouse evidence is not a grading input, in either direction.
+    assert cast(dict[str, object], files[1]["grade"])["grade"] == "B"
+    assert cast(dict[str, object], files[1]["grade"])["policy_fingerprint"] == (
+        GRADE_POLICY_FINGERPRINT
+    )
+
+
+def test_a_refusal_without_its_reason_is_itself_refused(tmp_path: Path) -> None:
+    """Half a refusal record would publish the same unexplained absence it exists to remove."""
+    records = _two_records(tmp_path)
+    content = cast(dict[str, object], records[1]["retrieval"])["content_sha256"]
+    for omitted in ("reason", "implemented_scope", "observed_scope", "publisher_id"):
+        incomplete = _refusal(content)
+        del incomplete[omitted]
+        with pytest.raises(CohortError, match=omitted):
+            build_comparison(
+                records,
+                _manifest(),
+                ingest_results=[incomplete],
+                generated_at=GENERATED_AT,
+            )
+
+
+def test_refusal_evidence_obeys_the_same_cohort_binding(tmp_path: Path) -> None:
+    records = _two_records(tmp_path)
+    with pytest.raises(CohortError, match="does not match any cohort assessment"):
+        build_comparison(
+            records,
+            _manifest(),
+            ingest_results=[_refusal("0" * 64)],
+            generated_at=GENERATED_AT,
+        )
+    content = cast(dict[str, object], records[1]["retrieval"])["content_sha256"]
+    with pytest.raises(CohortError, match="duplicate ingest evidence"):
+        build_comparison(
+            records,
+            _manifest(),
+            ingest_results=[_refusal(content), _refusal(content)],
+            generated_at=GENERATED_AT,
+        )
+
+
+def test_comparison_version_announces_the_document_shape(tmp_path: Path) -> None:
+    """The refused branch changed what ``files[].lakehouse`` can be, so the schema moved.
+
+    The grade policy did not: the rule table is untouched and every grade is unchanged, so the
+    fingerprint must stay put rather than announce a regrade that did not happen (ADR 0005).
+    """
+    comparison = build_comparison(_two_records(tmp_path), _manifest(), generated_at=GENERATED_AT)
+    assert comparison["comparison_version"] == COMPARISON_VERSION == 2
+    cohort = cast(dict[str, object], comparison["cohort"])
+    policy = cast(dict[str, object], cohort["grade_policy"])
+    assert policy["fingerprint"] == GRADE_POLICY_FINGERPRINT
+    assert policy["version"] == "cms-hospital-json-v3-file-grade-v1"
 
 
 def test_comparison_propagates_the_scope_boundary(tmp_path: Path) -> None:

@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import cast
 
-from mrf_honest.cohort import LOCAL_DIMENSIONS, NOT_GRADED
+from mrf_honest.cohort import INGEST_REFUSED, LOCAL_DIMENSIONS, NOT_GRADED
 from mrf_honest.inspect import FINDING_CATALOG
 from mrf_honest.scorecard import RETRIEVAL_FINDING_CATALOG
 
@@ -255,9 +255,28 @@ def _lakehouse_section(row: Mapping[str, object]) -> str:
     lakehouse = row.get("lakehouse")
     if not isinstance(lakehouse, Mapping):
         return (
-            "<h2>Warehouse contracts</h2><p>This file was not loaded into the contracted "
-            "warehouse for this cohort, so no contract evidence exists for it. Absence of that "
-            "check is stated here rather than implied as a pass.</p>"
+            "<h2>Warehouse contracts</h2><p>No warehouse ingest was recorded for this file in "
+            "this cohort, so no contract evidence exists for it. Absence of that check is "
+            "stated here rather than implied as a pass.</p>"
+        )
+    if lakehouse.get("status") == INGEST_REFUSED:
+        # The reason is the whole point of this branch. A refusal rendered as a bare absence
+        # is a project limit that reads like an unnamed defect in the file, which is exactly
+        # what docs/how-we-compare.md refuses to publish.
+        return (
+            "<h2>Warehouse contracts</h2>"
+            "<p>This project's local warehouse declined to load the verified body, so no "
+            "contract evidence exists for this file. The refusal is a limit of what this "
+            "project implements, not a finding about the file, and it does not affect the "
+            "grade above: warehouse evidence is never a grading input. It is stated here with "
+            "the reason the warehouse gave rather than left as a silent absence.</p>"
+            '<dl class="facts">'
+            f"<div><dt>Warehouse refusal</dt><dd><code>{_e(lakehouse.get('reason'))}</code>"
+            "</dd></div>"
+            f"<div><dt>Warehouse implements</dt>"
+            f"<dd>{_e(lakehouse.get('implemented_scope'))}</dd></div>"
+            f"<div><dt>This file declares</dt>"
+            f"<dd>{_e(lakehouse.get('observed_scope'))}</dd></div></dl>"
         )
     counts = lakehouse.get("counts")
     counts_html = ""

@@ -45,17 +45,49 @@ Two consequences follow mechanically, and both are recorded rather than inferred
 
 1. The v3-only lakehouse **refuses** the file (`unsupported hospital JSON template version:
    '2.0.0'`), so unlike the other five cohort files it carries no executable-contract evidence.
-   Its scorecard page states that absence instead of implying a pass.
-2. Every downstream consumer that implements the current CMS schema faces the same fork: reject
-   the file, or maintain a legacy v2 path CMS's own timeline has retired.
+   That refusal is a limit of this project's warehouse, not a finding about the file, and the
+   scorecard page states it with that reason attached rather than as a bare absence.
+2. A downstream consumer that dispatches on the declared `version` string — which is what the
+   field is for, and what CMS's own versioned schemas invite — reaches the same fork: reject the
+   file, or keep a legacy v2 path alive. That is a claim about the label, not about the payload,
+   and the next section is why the distinction matters here.
+
+## What the file actually contains: v3.0.0 structure under a 2.0.0 label
+
+The version string is stale in a specific and checkable way. Comparing the retrieved body
+against CMS's own published schemas — the current
+[V3.0.0 schema](https://github.com/CMSgov/hospital-price-transparency/blob/master/documentation/JSON/schemas/V3.0.0_Hospital_price_transparency_schema.json)
+and the archived V2.0.0 schema at the commit before CMS moved the v2 documents to `archive/`
+([`33833d4`](https://github.com/CMSgov/hospital-price-transparency/commit/33833d4c89), "Add v3
+documents, move v2 documents to archive") — the envelope is v3, not v2:
+
+| Envelope element | Required by V2.0.0 | Required by V3.0.0 | In this file |
+|---|---|---|---|
+| `hospital_location` | yes | — | **absent** (0 occurrences) |
+| `affirmation` / `confirm_affirmation` | yes | — | **absent** (0 occurrences) |
+| `location_name` | — | yes | present |
+| `type_2_npi` | — | yes | present |
+| `attestation` / `confirm_attestation` / `attester_name` | — | yes | present |
+
+The two schemas also fix the attestation text as a `const`, and the two constants differ. This
+file's attestation string is byte-identical to the **V3.0.0** constant, all 927 characters of
+it, and is therefore not valid against the V2.0.0 schema it claims to follow. Every element the
+v3 schema requires at the top level is present and usable, which is why the inspector emits no
+`CMS_V3_ENVELOPE_*_MISSING` finding against it.
+
+The honest reading is that this publisher migrated its content to v3.0.0 and did not update the
+`version` field. That does not make the finding go away — the file as retrieved still declares a
+version its own contents contradict, and a consumer keying on the declared version still cannot
+use it as v3 — but it does bound what the finding says. This is a mislabelled file, and this
+document should not be read as evidence that the hospital failed to adopt the CY 2026 data
+elements. On the evidence above, it adopted them.
 
 ## What cuts the other way
 
 Neutrality requires stating what the file gets right, and it is a lot:
 
-- The envelope carries every field the v3 inspector requires — attestation with attester name,
-  `type_2_npi`, license information, hospital name and address — so the *content* is closer to
-  v3 expectations than the version string suggests.
+- The envelope is v3.0.0 in structure and content, as the section above establishes against
+  CMS's own schemas; only the version string is not.
 - The 884 MB body streams to completion with zero JSON problems: no BOM, no malformed items.
 - `last_updated_on` (2025-11-26) is inside the required annual window relative to the
   observation date, and it *predates* the v3 effective date. A plausible benign reading is that
@@ -71,6 +103,9 @@ rest of the file is valid.
 - [CMS hospital price-transparency JSON documentation](https://github.com/CMSgov/hospital-price-transparency/blob/master/documentation/JSON/README.md)
   (v3.0 effective and enforcement dates)
 - [V3.0.0 JSON schema](https://github.com/CMSgov/hospital-price-transparency/blob/master/documentation/JSON/schemas/V3.0.0_Hospital_price_transparency_schema.json)
+- [V2.0.0 JSON schema](https://github.com/CMSgov/hospital-price-transparency/blob/33833d4c89~1/documentation/JSON/schemas/V2.0.0_Hospital_price_transparency_schema.json),
+  read at the commit before CMS moved the v2 documents to `archive/`, for the element-name and
+  attestation-constant comparison above
 - [45 CFR § 180.50](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-E/part-180/subpart-B/section-180.50)
 
 ## A related pattern worth one paragraph
@@ -85,6 +120,15 @@ observation (`JSON_UTF8_BOM_PRESENT`) that does not lower any grade; it is noted
 consumer with a strict parser will hit it before they hit anything else.
 
 ## Corrections
+
+**2026-08-16.** Amended, without changing the finding or the grade. The original text said the
+warehouse refusal left the file with no contract evidence but did not say on the published page
+*why*, and it framed the consequence for downstream consumers more broadly than the evidence
+supports. Both are corrected above: the refusal is now published with its reason, and the
+element-by-element comparison against CMS's V2.0.0 and V3.0.0 schemas is stated, because it
+shows this is a stale label on migrated content rather than an unadopted rule. The observed
+facts — declared `version` of `2.0.0`, one ERROR-severity `CMS_V3_VERSION_UNEXPECTED`, grade
+**C** — are unchanged.
 
 If any evidence above is wrong, the correction path is a GitHub issue on this repository; the
 registry entry, the assessment row, and this document will be corrected and the correction

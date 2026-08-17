@@ -64,12 +64,38 @@ One JSON document per cohort, fully derived from persisted inputs:
 - a summary with honest denominators: targeted, network-attempted, verified-body, completed-scan,
   graded, and not-graded counts are all reported separately;
 - one row per file: grade with its one-sentence reason, five dimension statuses and notes, every
-  finding, coverage flags, content SHA-256, byte size, observation timestamp, and (when the file
-  was ingested) the lakehouse run identity and contracted model counts;
+  finding, coverage flags, content SHA-256, byte size, observation timestamp, and the outcome of
+  the warehouse ingest attempt (below);
 - a finding matrix: every emitted finding code and exactly which files emitted it.
 
 A code absent from the matrix was not emitted by any graded file. For files whose scan completed,
 that means the implemented check found nothing; it is not a claim that the data is valid.
+
+The document carries a `comparison_version`, which is the schema of the document and not the
+grade policy. It moves when the shape changes; the grade policy fingerprint moves only when a
+grading rule changes, so a schema change never implies that anything was regraded.
+
+## Warehouse evidence, and why a refusal is stated
+
+Each row's `lakehouse` field is the recorded outcome of this project's contracted DuckDB +
+Parquet ingest for that file, and it is never a grading input in either direction:
+
+| `lakehouse` | Means |
+|---|---|
+| an object with `status: "success"` | the verified body was loaded; the run identity and contracted model counts are published with it |
+| an object with `status: "refused"` | the warehouse declined the file, with `reason`, the scope it implements, and the scope the file presented |
+| `null` | no ingest attempt was recorded for this file in this cohort |
+
+The refused branch exists because the first published cohort proved the alternative is a false
+implication. This project's warehouse implements CMS hospital JSON v3.0.0 only, so it refused
+one file that declares template `2.0.0`. That refusal reached the published page as an absence
+with no reason attached, which is precisely the conflation the `NOT_GRADED` row of the table
+above forbids: a reader could not tell a limit of this project from an unnamed defect in a named
+hospital's file. A project limit is stated with its reason, wherever it appears.
+
+Evidence for a refusal is bound to the cohort exactly like evidence for a load: it must match a
+cohort file by content SHA-256, only one document per file is accepted, and a refusal record
+missing its reason or its scopes is refused rather than published half-stated.
 
 ## What this comparison refuses to do
 

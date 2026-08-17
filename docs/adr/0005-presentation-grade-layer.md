@@ -56,6 +56,15 @@ There is a written non-goal to protect: this project grades files, never organiz
   from B). Anything finer would imply precision the five-dimension evidence does not carry.
 - A change to the local finding catalog changes inspection fingerprints and therefore comparison
   scopes; cohorts graded under older semantics stay readable but are never silently merged.
+- The comparison document carries derived presentation material that is *not* under
+  `file-grade-v1`, and the separation is deliberate. Warehouse ingest evidence, including a
+  refusal by this project's v3-only lakehouse, is recorded per row and rendered on the file page,
+  but it is not a grading input and changing how it is recorded regrades nothing. That kind of
+  change moves `comparison_version`, the document schema; moving the grade fingerprint instead
+  would announce a regrade that did not happen and make cohorts falsely incomparable. The
+  boundary is the same one this ADR draws between an assessment and a presentation: whatever
+  decides a letter is fingerprinted, whatever merely reports context around it is versioned with
+  the document.
 
 ## Sources
 

@@ -1,0 +1,18 @@
+{
+  "counts": {
+    "charge_groups": 34648,
+    "charge_modifiers": 536,
+    "codes": 65673,
+    "had_bom": true,
+    "items": 29717,
+    "modifier_payer_mappings": 671,
+    "modifiers": 11,
+    "payer_rates": 225565,
+    "source_bytes_read": 57815884
+  },
+  "publisher_id": "uc-health",
+  "reused": false,
+  "run_id": "e0cc2696773aaa5a279b2efee8162e5426201746c25567d39e4bacad95bdf78a",
+  "source_file_id": "d1e59ade9a4217e8e2fbddb67367f993fec6378cbb40f4ba2cc423a7d19c7bce",
+  "status": "success"
+}
