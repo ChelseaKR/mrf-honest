@@ -32,6 +32,14 @@ no version tags yet; until the first dated release (phase 5 of
   audited surface as "the index, how-we-grade, seven file pages and 404.html" for a six-file
   cohort, i.e. nine pages described as ten. Both are corrected, and both are now re-derived by
   `tests/test_published_claims.py` instead of being dated by hand.
+- **Three responsible-tech declarations that later work had made false**, still published in
+  `docs/RESPONSIBLE-TECH-AUDITS.md`: that the project has no deployed surface (the site has been
+  public since 2026-08-09, as an appendix in the same file says), that the fetcher does not
+  retrieve or enforce `robots.txt` (`politeness.py` does, with no override flag), and that SAST,
+  secret scanning and dependency auditing remain open (all three ship). The file is append-only,
+  so each stale line is marked in place and a dated 2026-08-16 appendix carries the current
+  statement, along with what remains genuinely open. `CITATION.cff` said published comparisons
+  were "planned, not implemented" while one was live, and now says what exists.
 - The finding write-up
   ([docs/findings/superseded-template-version-2026-08-14.md](docs/findings/superseded-template-version-2026-08-14.md))
   is amended, with the correction dated in the document. Checked element by element against

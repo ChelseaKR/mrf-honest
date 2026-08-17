@@ -9,6 +9,13 @@ publication pass.** Every line below is accurate as of 2026-08-09. The project h
 surface, no users other than the maintainer, and no model component; the same sections must be
 re-run before phase 4 (published comparisons) and phase 5 (public site).
 
+> **Superseded in part, 2026-08-16.** Three statements dated 2026-08-09 stopped being true and
+> were still being published. The sentence above about no deployed surface is one of them: the
+> site has been public since 2026-08-09, as the 2026-08-15 appendix records. See
+> [the 2026-08-16 appendix](#appendix-2026-08-16-three-declarations-that-outlived-what-they-described)
+> for the other two and for what replaced them. This file is append-only, so the original
+> wording stays; the appendix is the current statement.
+
 ## Applicability
 
 - **A Ethics:** applies (declarations below)
@@ -34,6 +41,7 @@ Fetching is bounded and identified: the client requires a contact, uses conditio
 retry backoff, validates HTTPS redirects, limits decoded bytes, and caches content by digest. The
 current fetcher does **not** autonomously retrieve or enforce `robots.txt`; broad scheduled
 collection must not launch until that gap is resolved or documented by a superseding decision.
+[Resolved 2026-08-15; see the 2026-08-16 appendix.]
 Files are fetched only from publisher-provided or CMS-conventional locations, never guessed MRF
 paths.
 
@@ -88,7 +96,8 @@ decoded size, verifies cached blob digests, and writes metadata atomically. Scor
 omit local paths and contact values, remove URL query/fragment values while retaining exact-URL
 digests, and atomically replace a validated single-writer JSONL registry. The SHA-pinned CI
 workflow has observed green public branch and pull-request runs; SAST, secret scanning, and
-dependency-audit jobs remain open before publication.
+dependency-audit jobs remain open before publication. [All three shipped; see the 2026-08-16
+appendix.]
 
 ## Appendix, 2026-08-14: bias review before publishing file grades
 
@@ -175,3 +184,50 @@ CLI's `--help` lists no budget option, `configSettings.budgets` comes back `null
 0, exactly as it does for `--this-flag-does-not-exist=42`. A workflow passing `--budget-path`
 looks like it has a resource budget and has none. The budget here is asserted in
 `perf/score_lighthouse.py` against the `resource-summary` audit instead.
+
+## Appendix, 2026-08-16: three declarations that outlived what they described
+
+The 2026-08-15 appendix above is about a gate that was scoped out of a live site. This one is
+about the same failure in prose: declarations dated 2026-08-09 that later work made false, in a
+document nothing re-reads. A responsible-tech declaration that describes a project's controls
+incorrectly is worse than no declaration, because it is the artifact a reader trusts instead of
+checking. All three were contradicted by this repository's own README and CHANGELOG on the day
+they were found.
+
+1. **"The project has no deployed surface, no users other than the maintainer."** The site has
+   been public since 2026-08-09 — the 2026-08-15 appendix says so three screens further down the
+   same file. Corrected: there is a public, static, unauthenticated site with no accounts, no
+   telemetry, and no analytics of any kind; "no users other than the maintainer" was never a
+   privacy control and is not claimed as one.
+2. **"The current fetcher does not autonomously retrieve or enforce `robots.txt`."** False since
+   `src/mrf_honest/politeness.py` landed. `robots.txt` is fetched before the first request and
+   obeyed with no override flag, an unreachable `robots.txt` is a complete disallow (RFC 9309
+   section 2.3.1.4), a per-host minimum interval is held across a whole run and a `Crawl-delay`
+   can only lengthen it, and `Retry-After` on 429 and 503 outranks this tool's own backoff. The
+   attached condition — broad scheduled collection must not launch until the gap is resolved —
+   is discharged as to robots and pacing. It is **not** discharged as to scheduling: a scheduled
+   job still needs a service/job tier declaration (`docs/ROADMAP.md`), and none exists.
+3. **"SAST, secret scanning, and dependency-audit jobs remain open before publication."** All
+   three ship: hosted CodeQL for Python and Actions and a checksum-pinned full-history gitleaks
+   scan on push, PR and a weekly schedule (`.github/workflows/security.yml`), and
+   `pip-audit --strict` with no ignore list over the exported lockfile in `make verify`.
+
+Two accuracy defects found in the same sweep, both now re-derived by
+`tests/test_published_claims.py` rather than dated by hand: the metrics ledger claimed the audit
+covered 116 pinned distributions when the export has always carried 51, and `perf/baseline.json`
+described a nine-page audit as ten. The first was wrong on the day it was written, not stale;
+`uv.lock` is byte-identical to that commit.
+
+**Section A, restated for the published grade.** One more thing belongs here because it is an
+ethics defect and not only a rendering one. A published file page carrying a hospital's name
+stated that no warehouse contract evidence existed for its file and gave no reason, when the
+reason was this project's own v3-only lakehouse refusing a file that declares template `2.0.0`.
+`docs/how-we-compare.md` already required the reason for a project limit to be stated; the
+pipeline discarded it before the renderer could. Refusals now carry their reason into the
+comparison and onto the page. The general rule this makes explicit: **wherever a page shows the
+absence of a check next to an organization's name, the absence needs a stated cause, because a
+reader will otherwise supply one.**
+
+**What is still open, unchanged by any of the above:** the manual screen-reader pass, the phase-4
+retention period for discovery contact evidence, the bias review re-run when the cohort grows
+past four large health systems, and the phase-5 "what this project got wrong" write-up.
