@@ -1,0 +1,33 @@
+version: 2
+# Upgradability and vulnerability management. `make verify` already runs
+# `pip-audit --strict` over the exported lockfile on every laptop and in CI,
+# which catches a dependency that is *already* known-vulnerable. This config
+# covers the other half: keeping the pinned set and the SHA-pinned action set
+# current, at a weekly PR volume one maintainer can actually review.
+updates:
+  - package-ecosystem: uv
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    labels: ["dependencies"]
+    commit-message:
+      prefix: "build"
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    labels: ["dependencies", "ci"]
+    commit-message:
+      prefix: "ci"
+    # One PR for the whole CodeQL action set: init, analyze, autobuild and
+    # upload-sarif must always run the same version. Since CodeQL Action
+    # 3.30.4 the non-init steps hard-error when they load a configuration
+    # file written by a different version, so a half-applied bump breaks the
+    # scan rather than merely warning.
+    groups:
+      codeql-action:
+        patterns:
+          - github/codeql-action*
