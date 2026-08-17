@@ -68,6 +68,21 @@ no version tags yet; until the first dated release (phase 5 of
 
 ### Added
 
+- **`.github/dependabot.yml`: a rail for keeping the pinned set current.**
+  `make verify` already runs `pip-audit --strict` over the whole exported
+  lockfile with no ignore list, which catches a dependency that is already
+  known-vulnerable. It does nothing about the window between a fix landing
+  upstream and landing here. Weekly `uv` and `github-actions` updates now cover
+  that, with the CodeQL action set grouped into one PR: init, analyze, autobuild
+  and upload-sarif must run the same version, and since CodeQL Action 3.30.4 the
+  non-init steps hard-error on a configuration file written by a different one.
+- **Three standards the README conformance table had left out**: AI Development
+  Measurement, Incident Response, and Data Governance. Each is declared with what
+  exists and what does not, rather than with a posture the repo has not built.
+  The Performance row's N/A for the k6 latency rows also had its reason moved to
+  sit directly after the N/A, where it reads as a reason rather than as an
+  afterthought; the claim itself is unchanged.
+
 - **A gate on the published artifact itself, not only on the code that generates it.**
   `tests/test_published_claims.py` re-runs `build_comparison` over the committed assessments,
   manifest and ingest evidence and requires the committed `*.comparison.json` back byte for
