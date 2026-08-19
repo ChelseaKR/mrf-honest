@@ -138,6 +138,7 @@ def _failure_record(
     *,
     http_status: int | None = None,
     subject: AssessmentSubject | None = None,
+    error: str | None = None,
 ) -> dict[str, object]:
     subject = subject or _subject()
     fetch = FetchOutcome(
@@ -147,7 +148,7 @@ def _failure_record(
         attempts=0 if status is FetchStatus.INVALID_URL else 1,
         http_status=http_status,
         final_url=subject.requested_url,
-        error=f"fixture {status.value}",
+        error=error or f"fixture {status.value}",
     )
     assessment = compose_file_assessment(
         subject,
@@ -227,6 +228,33 @@ def test_incomplete_stream_is_f_not_a_pass(tmp_path: Path) -> None:
     grade = grade_assessment(_success_record(tmp_path, raw=truncated))
     assert grade.grade == "F"
     assert "could not be streamed to completion" in grade.reason
+
+
+def test_a_download_that_stopped_early_and_a_malformed_file_read_differently(
+    tmp_path: Path,
+) -> None:
+    """Both are F. They must not be the same F, because they say different things.
+
+    One says a hospital published a document that cannot be read; the other says this project
+    did not finish downloading it. Both grades are published beside the hospital's name, so the
+    sentences have to stay distinguishable.
+    """
+    malformed = grade_assessment(
+        _success_record(tmp_path, raw=b'{"standard_charge_information": [ {"description": "x"')
+    )
+    stopped_early = grade_assessment(
+        _failure_record(
+            FetchStatus.NETWORK_ERROR,
+            http_status=200,
+            error="the response body ended after 41 of the 883973507 bytes the server declared "
+            "in Content-Length",
+        )
+    )
+    assert malformed.grade == stopped_early.grade == "F"
+    assert "could not be streamed to completion" in malformed.reason
+    assert "could not be streamed to completion" not in stopped_early.reason
+    assert "did not produce a verified file" in stopped_early.reason
+    assert "883973507 bytes the server declared" in stopped_early.reason
 
 
 def test_failed_download_is_a_stated_f() -> None:

@@ -243,11 +243,23 @@ class _TooLargeError(Exception):
 
 
 class _ContentError(Exception):
-    pass
+    """A body that could not be decoded, carrying how many wire bytes had arrived.
+
+    The count is what lets a caller ask whether the decoding failed because the transfer was
+    cut short, which is a different statement about a publisher than an invalid encoding.
+    """
+
+    def __init__(self, message: str, *, wire_size: int = 0) -> None:
+        super().__init__(message)
+        self.wire_size = wire_size
 
 
 class _NetworkReadError(Exception):
     pass
+
+
+class _IncompleteTransferError(Exception):
+    """The body that arrived disagrees with the length the server declared for it."""
 
 
 class _CacheMetadataError(Exception):
@@ -466,6 +478,47 @@ def _content_length(headers: Mapping[str, str]) -> int | None:
     return value if value >= 0 else None
 
 
+def _declared_wire_size(headers: Mapping[str, str]) -> int | None:
+    """The wire length the server declared, when the message framing makes it mean anything.
+
+    Per RFC 9112 section 6.1 a ``Transfer-Encoding`` header overrides ``Content-Length``, and
+    ``http.client`` discards the declared length outright in that case. A declared length that
+    arrives beside one therefore says nothing about the body, and must not be used either to
+    refuse a file as oversized before reading it or to judge the body that arrives.
+    """
+    if _header(headers, "Transfer-Encoding") is not None:
+        return None
+    return _content_length(headers)
+
+
+def _short_transfer_reason(declared_size: int | None, wire_size: int) -> str | None:
+    """Say how a delivered body disagrees with the length its server declared, or ``None``.
+
+    CPython's ``http.client`` does not raise ``IncompleteRead`` when a length-delimited response
+    ends early: ``HTTPResponse.read(amt)`` returns ``b""`` and closes the connection, with a
+    source comment saying that raising there "might break compatibility". A file cut off
+    mid-transfer therefore arrives looking exactly like a complete, smaller file, and at the size
+    these files run to, the connection dropping is the likeliest failure there is. The only
+    surviving evidence of the truncation is the ``Content-Length`` the server already sent, and
+    checking it is the difference between a dated statement that this download did not finish and
+    a published claim that a named hospital's document could not be read.
+
+    ``Content-Length`` counts the bytes on the wire, so a gzip-encoded body is compared before it
+    is decoded.
+    """
+    if declared_size is None or wire_size == declared_size:
+        return None
+    if wire_size < declared_size:
+        return (
+            f"the response body ended after {wire_size} of the {declared_size} bytes the server "
+            f"declared in Content-Length"
+        )
+    return (
+        f"the response body carried {wire_size} bytes against the {declared_size} the server "
+        f"declared in Content-Length"
+    )
+
+
 def _is_gzip(headers: Mapping[str, str], final_url: str) -> bool:
     encoding = (_header(headers, "Content-Encoding") or "").lower()
     path = urlsplit(final_url).path.lower()
@@ -540,12 +593,34 @@ def _stream_body(  # noqa: C901 - bounds, gzip members, and network causes share
                 max_bytes=max_bytes,
             )
             if not decoder.eof:
-                raise _ContentError("gzip response ended before its trailer")
+                raise _ContentError("gzip response ended before its trailer", wire_size=wire_size)
     except (HTTPException, OSError, URLError) as exc:
         raise _NetworkReadError(str(exc)) from exc
     except zlib.error as exc:
-        raise _ContentError(f"invalid gzip body: {exc}") from exc
+        raise _ContentError(f"invalid gzip body: {exc}", wire_size=wire_size) from exc
     return digest.hexdigest(), decoded_size, wire_size
+
+
+def _body_failure(exc: Exception, declared_size: int | None) -> tuple[FetchStatus, str]:
+    """Name the cause of a body that could not be stored, and therefore who it is about.
+
+    A decoding failure is re-examined against the declared length before it is reported. A gzip
+    stream that stops before its trailer is the same event as any other transfer that ended
+    early, and calling it an encoding fault would make it a ``content_error``: permanent, never
+    retried, and published as a claim that a publisher's file is corrupt.
+    """
+    if isinstance(exc, _TooLargeError):
+        return FetchStatus.TOO_LARGE, str(exc)
+    if isinstance(exc, _IncompleteTransferError):
+        return FetchStatus.NETWORK_ERROR, str(exc)
+    if isinstance(exc, _ContentError):
+        short = _short_transfer_reason(declared_size, exc.wire_size)
+        if short is not None:
+            return FetchStatus.NETWORK_ERROR, short
+        return FetchStatus.CONTENT_ERROR, str(exc)
+    if isinstance(exc, _NetworkReadError):
+        return FetchStatus.NETWORK_ERROR, f"network error while reading body: {exc}"
+    return FetchStatus.CACHE_ERROR, f"could not write cache: {exc}"
 
 
 def _install_blob(cache_dir: Path, tmp: Path, sha256: str) -> Path:
@@ -709,7 +784,7 @@ def _consume_response(
             http_status=status,
             final_url=final_url,
         )
-    declared_size = _content_length(response.headers)
+    declared_size = _declared_wire_size(response.headers)
     if declared_size is not None and declared_size > policy.max_bytes:
         return _error_outcome(
             url,
@@ -744,6 +819,9 @@ def _consume_response(
                 chunk_size=policy.chunk_size,
                 decode_gzip=decoded_gzip,
             )
+            short = _short_transfer_reason(declared_size, wire_size)
+            if short is not None:
+                raise _IncompleteTransferError(short)
             output.flush()
             os.fsync(output.fileno())
         path = _install_blob(cache_dir, tmp, sha256)
@@ -760,47 +838,24 @@ def _consume_response(
             decoded_gzip=decoded_gzip,
         )
         _atomic_json(cache_metadata_path(cache_dir, url), metadata.to_dict())
-    except _TooLargeError as exc:
+    except (
+        _TooLargeError,
+        _ContentError,
+        _NetworkReadError,
+        _IncompleteTransferError,
+        OSError,
+    ) as exc:
+        # Nothing partial survives this branch. A truncated body installed in the cache would
+        # carry the server's validators with it, so the next conditional request would 304 and
+        # revalidate the truncation rather than re-fetch the file.
         tmp.unlink(missing_ok=True)
+        failure, message = _body_failure(exc, declared_size)
         return _error_outcome(
             url,
-            FetchStatus.TOO_LARGE,
+            failure,
             attempted_at,
             attempts,
-            str(exc),
-            http_status=status,
-            final_url=final_url,
-        )
-    except _ContentError as exc:
-        tmp.unlink(missing_ok=True)
-        return _error_outcome(
-            url,
-            FetchStatus.CONTENT_ERROR,
-            attempted_at,
-            attempts,
-            str(exc),
-            http_status=status,
-            final_url=final_url,
-        )
-    except _NetworkReadError as exc:
-        tmp.unlink(missing_ok=True)
-        return _error_outcome(
-            url,
-            FetchStatus.NETWORK_ERROR,
-            attempted_at,
-            attempts,
-            f"network error while reading body: {exc}",
-            http_status=status,
-            final_url=final_url,
-        )
-    except OSError as exc:
-        tmp.unlink(missing_ok=True)
-        return _error_outcome(
-            url,
-            FetchStatus.CACHE_ERROR,
-            attempted_at,
-            attempts,
-            f"could not write cache: {exc}",
+            message,
             http_status=status,
             final_url=final_url,
         )

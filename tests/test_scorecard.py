@@ -285,6 +285,61 @@ def test_retrieval_and_malformed_json_conformance_are_independent(tmp_path: Path
     }
 
 
+class ShortResponse(Response):
+    """A length-delimited response that stops early without raising, as http.client does."""
+
+    def __init__(self, body: bytes, *, delivered: int) -> None:
+        super().__init__(body, headers={"Content-Length": str(len(body))})
+        self.delivered = delivered
+
+    def read(self, amount: int = -1) -> bytes:
+        if amount < 0:
+            amount = self.delivered - self.position
+        chunk = self.body[self.position : min(self.position + amount, self.delivered)]
+        self.position += len(chunk)
+        return chunk
+
+
+def test_a_truncated_transfer_is_a_retrieval_finding_not_a_conformance_one(
+    tmp_path: Path,
+) -> None:
+    """The bytes that never arrived must not be described as a defect in the file.
+
+    A partial body parses exactly like a malformed one, so before the declared length was
+    checked this produced ``FETCHED`` with an ``OBSERVED`` retrieval and a published
+    ``JSON_STREAM_INCOMPLETE`` conformance error -- a dated, spec-cited, and false statement
+    about a named hospital's document, written from a download that did not finish.
+    """
+    body = _body()
+    registry = AssessmentRegistry(tmp_path / "assessments.jsonl")
+
+    assessment = assess_hospital_url(
+        _subject(),
+        tmp_path / "cache",
+        politeness=robots_fixtures.politeness(),
+        policy=_policy(),
+        registry=registry,
+        opener=OneResponse(ShortResponse(body, delivered=len(body) // 2)),
+        clock=_clock,
+    )
+
+    assert assessment.fetch.status is FetchStatus.NETWORK_ERROR
+    assert assessment.inspection is None
+    assert assessment.operational_problems == ()
+    assert assessment.scorecard.retrievability.status == "FINDINGS"
+    for dimension in (
+        assessment.scorecard.conformance,
+        assessment.scorecard.completeness,
+        assessment.scorecard.interpretability,
+        assessment.scorecard.freshness,
+    ):
+        assert dimension.status == "NOT_ASSESSED"
+    (finding,) = assessment.scorecard.retrievability.findings
+    assert finding.code == "MRF_DIRECT_DOWNLOAD_FAILED"
+    assert f"ended after {len(body) // 2} of the {len(body)} bytes" in finding.message
+    assert len(registry.records()) == 1
+
+
 _STATUS_CASES = (
     (FetchStatus.FETCHED, "OBSERVED", None),
     (FetchStatus.NOT_MODIFIED, "OBSERVED", None),
