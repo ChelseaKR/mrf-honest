@@ -58,6 +58,14 @@ The scorecard maps every terminal fetch status explicitly:
 | HTTP, network, or decoded-content failure | `FINDINGS`, retaining status, HTTP status when available, attempt count, time, final URL, and bounded cause |
 | A 200 whose body is shorter or longer than the `Content-Length` the server declared | `network_error`, so `FINDINGS` naming both byte counts — never a body. `http.client` does not raise on a length-delimited response that ends early, so an unchecked truncation would be inspected as though it were the whole document and published as a conformance error against the publisher. The check is skipped when a `Transfer-Encoding` header makes the declared length meaningless (RFC 9112 § 6.1), and a gzip stream that stops before its trailer is reported this way rather than as an encoding fault when the declared length shows the transfer was cut short |
 | Invalid or unsafe redirect target observed after a request began | `FINDINGS` |
+
+The `Content-Type` a server declares is recorded verbatim in retrieval evidence on every path
+that has response headers, and is **never** a retrieval or grading input. A conforming MRF served
+as `text/html` is a conforming MRF, and refusing a body — or lowering a grade — on a header would
+fail a publisher for something this tool cannot judge. The declaration is read at exactly one
+point: when a document has already failed to stream, where it is the difference between "this
+hospital's file could not be read" and "this URL served a web page rather than the file". See
+[the 2026-08-19 finding](findings/wrong-document-attribution-2026-08-19.md).
 | Malformed, non-credential URL reported as `invalid_url` before a network attempt | `NOT_ASSESSED`; caller provenance alone cannot attribute invalid input to the publisher |
 | Configured decoded-size limit (`too_large`) | `NOT_ASSESSED`; a project limit is not a publisher availability finding |
 | Local cache error or cache miss | `NOT_ASSESSED`; local infrastructure is not attributed to the publisher |

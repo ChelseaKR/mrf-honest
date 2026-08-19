@@ -47,6 +47,7 @@ __all__ = [
 
 _DEFAULT_CHUNK_SIZE = 64 * 1024
 _CACHE_VERSION = 1
+_CONTENT_TYPE_TEXT_LIMIT = 200
 _RETRYABLE_HTTP_STATUSES = frozenset({408, 425, 429, 500, 502, 503, 504})
 
 
@@ -132,6 +133,16 @@ class FetchOutcome:
     final_url: str | None = None
     error: str | None = None
     decoded_gzip: bool = False
+    content_type: str | None = None
+    """The ``Content-Type`` the server declared, verbatim, or ``None`` if it declared none.
+
+    This is recorded and never acted on here. A fetch that succeeded is not evidence that the
+    requested document arrived, and this header is the only thing the server ever said about
+    *what* it was sending -- so a later stage can distinguish "this URL served a web page" from
+    "this file could not be read" instead of publishing the second sentence for both. It is
+    deliberately not a retrieval gate: a conforming MRF served as ``text/html`` is a conforming
+    MRF, and refusing it on a header would fail a publisher for something this tool cannot judge.
+    """
 
     @property
     def ok(self) -> bool:
@@ -159,6 +170,7 @@ class FetchOutcome:
             "final_url": self.final_url,
             "error": self.error,
             "decoded_gzip": self.decoded_gzip,
+            "content_type": self.content_type,
         }
 
     @classmethod
@@ -180,6 +192,10 @@ class FetchOutcome:
             final_url=_optional_str(data, "final_url"),
             error=_optional_str(data, "error"),
             decoded_gzip=_optional_bool(data, "decoded_gzip", default=False),
+            # Absent in records written before this was recorded. An unrecorded declaration and
+            # a server that declared nothing are both ``None`` here, and neither may be read as
+            # a statement about what the server served.
+            content_type=_optional_str(data, "content_type"),
         )
 
 
@@ -197,6 +213,7 @@ class CacheMetadata:
     validated_at: str
     final_url: str
     decoded_gzip: bool
+    content_type: str | None = None
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -211,6 +228,7 @@ class CacheMetadata:
             "validated_at": self.validated_at,
             "final_url": self.final_url,
             "decoded_gzip": self.decoded_gzip,
+            "content_type": self.content_type,
         }
 
     @classmethod
@@ -235,6 +253,7 @@ class CacheMetadata:
             validated_at=_required_str(data, "validated_at"),
             final_url=_required_str(data, "final_url"),
             decoded_gzip=_optional_bool(data, "decoded_gzip", default=False),
+            content_type=_optional_str(data, "content_type"),
         )
 
 
@@ -478,6 +497,21 @@ def _content_length(headers: Mapping[str, str]) -> int | None:
     return value if value >= 0 else None
 
 
+def _declared_content_type(headers: Mapping[str, str]) -> str | None:
+    """The server's ``Content-Type`` declaration, verbatim, bounded and on one line.
+
+    Kept exactly as sent, parameters and all, because this is evidence about a response rather
+    than a value this module interprets. Normalizing to a bare media type here would quietly
+    discard the ``charset`` a later reader may need, and deciding what the declaration *means*
+    is a question for the stage that also knows whether the document parsed.
+    """
+    raw = _header(headers, "Content-Type")
+    if raw is None:
+        return None
+    single_line = " ".join(raw.splitlines()).strip()
+    return single_line[:_CONTENT_TYPE_TEXT_LIMIT] or None
+
+
 def _declared_wire_size(headers: Mapping[str, str]) -> int | None:
     """The wire length the server declared, when the message framing makes it mean anything.
 
@@ -640,6 +674,7 @@ def _error_outcome(
     *,
     http_status: int | None = None,
     final_url: str | None = None,
+    content_type: str | None = None,
 ) -> FetchOutcome:
     return FetchOutcome(
         url=url,
@@ -649,6 +684,7 @@ def _error_outcome(
         http_status=http_status,
         final_url=final_url,
         error=error,
+        content_type=content_type,
     )
 
 
@@ -722,6 +758,10 @@ def _not_modified(
         validated_at=attempted_at,
         final_url=metadata.final_url,
         decoded_gzip=metadata.decoded_gzip,
+        # A 304 carries no body and commonly no Content-Type. The declaration that describes
+        # the bytes actually being revalidated is the one made when they were downloaded, so a
+        # 304 that repeats it may refresh it and a 304 that omits it must not erase it.
+        content_type=_declared_content_type(headers) or metadata.content_type,
     )
     try:
         _atomic_json(cache_metadata_path(cache_dir, url), refreshed.to_dict())
@@ -749,6 +789,7 @@ def _not_modified(
         http_status=304,
         final_url=refreshed.final_url,
         decoded_gzip=refreshed.decoded_gzip,
+        content_type=refreshed.content_type,
     )
 
 
@@ -763,6 +804,9 @@ def _consume_response(
 ) -> FetchOutcome:
     status = response.status
     final_url = response.geturl()
+    # Read before any branch returns: the declaration is evidence about the response, and it is
+    # most needed on exactly the paths where no usable body survives.
+    content_type = _declared_content_type(response.headers)
     problem = _url_problem(final_url)
     if problem is not None:
         return _error_outcome(
@@ -773,6 +817,7 @@ def _consume_response(
             f"unsafe redirect target: {problem}",
             http_status=status,
             final_url=final_url,
+            content_type=content_type,
         )
     if status != 200:
         return _error_outcome(
@@ -783,6 +828,7 @@ def _consume_response(
             f"unexpected HTTP {status}; expected 200",
             http_status=status,
             final_url=final_url,
+            content_type=content_type,
         )
     declared_size = _declared_wire_size(response.headers)
     if declared_size is not None and declared_size > policy.max_bytes:
@@ -794,6 +840,7 @@ def _consume_response(
             f"Content-Length {declared_size} exceeds limit {policy.max_bytes}",
             http_status=status,
             final_url=final_url,
+            content_type=content_type,
         )
 
     try:
@@ -807,6 +854,7 @@ def _consume_response(
             f"could not create cache temporary file: {exc}",
             http_status=status,
             final_url=final_url,
+            content_type=content_type,
         )
     tmp = Path(raw_tmp)
     decoded_gzip = _is_gzip(response.headers, final_url)
@@ -836,6 +884,7 @@ def _consume_response(
             validated_at=attempted_at,
             final_url=final_url,
             decoded_gzip=decoded_gzip,
+            content_type=content_type,
         )
         _atomic_json(cache_metadata_path(cache_dir, url), metadata.to_dict())
     except (
@@ -858,6 +907,7 @@ def _consume_response(
             message,
             http_status=status,
             final_url=final_url,
+            content_type=content_type,
         )
     return FetchOutcome(
         url=url,
@@ -873,6 +923,7 @@ def _consume_response(
         http_status=status,
         final_url=final_url,
         decoded_gzip=decoded_gzip,
+        content_type=content_type,
     )
 
 
@@ -886,6 +937,8 @@ def _http_error_outcome(
     attempts: int,
 ) -> FetchOutcome:
     final_url = exc.geturl()
+    headers = cast(Mapping[str, str], exc.headers)
+    content_type = _declared_content_type(headers)
     problem = _url_problem(final_url)
     if problem is not None:
         return _error_outcome(
@@ -896,13 +949,14 @@ def _http_error_outcome(
             f"unsafe redirect target: {problem}",
             http_status=exc.code,
             final_url=final_url,
+            content_type=content_type,
         )
     if exc.code == 304:
         return _not_modified(
             url=url,
             cache_dir=cache_dir,
             metadata=metadata,
-            headers=cast(Mapping[str, str], exc.headers),
+            headers=headers,
             attempted_at=attempted_at,
             attempts=attempts,
         )
@@ -914,6 +968,7 @@ def _http_error_outcome(
         f"HTTP {exc.code}: {exc.reason}",
         http_status=exc.code,
         final_url=final_url,
+        content_type=content_type,
     )
 
 
@@ -1000,6 +1055,7 @@ def fetch_url(  # noqa: C901 - each branch is a distinct structured terminal out
                     f"unsafe redirect target: {final_problem}",
                     http_status=response.status,
                     final_url=response.geturl(),
+                    content_type=_declared_content_type(response.headers),
                 )
             elif response.status == 304:
                 outcome = _not_modified(

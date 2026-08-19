@@ -9,6 +9,35 @@ no version tags yet; until the first dated release (phase 5 of
 
 ### Fixed
 
+- **A web page served where a file was requested was published as a hospital's unreadable
+  file.** An HTTP 200 that returns an HTML landing page instead of the document was described by
+  exactly the sentence a genuinely malformed JSON file earns — measured on the composition path
+  on 2026-08-19, the two grade reasons were byte-identical strings: "the
+  standard_charge_information array could not be streamed to completion; content that could not
+  be read is treated as failed, not passed". Both events are `F` and both are the publisher's,
+  so no grade was wrong; what was wrong is that the published sentence asserted something the
+  tool had not observed. It said the array could not be read *from the document*, when in the
+  landing-page case there was no document. `Content-Type` — the one thing a server ever says
+  about what it is sending — was read nowhere and stored nowhere, so the tool had no way to say
+  "this URL served a web page". It is now recorded verbatim on `FetchOutcome` and in the cache
+  metadata, on every path that has response headers, including the unstorable-body and HTTP-error
+  paths where it matters most; a 304 carries forward the declaration made when the bytes were
+  downloaded rather than erasing it. Where a document did not stream *and* the server declared a
+  media type meant to be rendered for a person, the reason now reads "the server declared
+  Content-Type 'text/html' — a web page, not the requested file — and the
+  standard_charge_information array could not be streamed to completion; …"; where some other
+  media type was declared it is named without inference, because a server may serve HTML under
+  any label. **`Content-Type` is deliberately not a grading input and this change does not make
+  it one**: a conforming MRF served as `text/html` graded `A` before and still does, the header
+  is consulted only *after* a document has already failed to stream, the grade rule table is
+  byte-identical, and `GRADE_POLICY_FINGERPRINT` is unchanged, so no grade in any cohort moves.
+  Where no declaration was recorded — as in all six assessments of the 2026-08-14 cohort, which
+  predate the recording — the historical sentence is reproduced exactly, because an unrecorded
+  header and a server that declared nothing are different facts and neither is evidence that the
+  wrong document arrived. Written up, with the general rule it is an instance of ("a fetch that
+  succeeded is not evidence that the document arrived") and a note on what did and did not
+  transfer to the sibling defect in another repository, in
+  [docs/findings/wrong-document-attribution-2026-08-19.md](docs/findings/wrong-document-attribution-2026-08-19.md).
 - **A download that stopped early was published as a hospital's unreadable file.** CPython's
   `http.client` does not raise `IncompleteRead` when a length-delimited response ends early:
   `HTTPResponse.read(amt)` returns `b""` and closes the connection, with a source comment saying
