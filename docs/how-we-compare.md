@@ -106,3 +106,27 @@ missing its reason or its scopes is refused rather than published half-stated.
   and uncertainty work ([IMPLEMENTATION-PLAN.md](IMPLEMENTATION-PLAN.md)).
 - It never mixes cohorts with different policies, provenance, or dates, and never joins a current
   failed retrieval to an older cached inspection.
+
+## Targets that were reviewed and not graded
+
+A cohort with a stated sampling frame ([SAMPLING-FRAME.md](SAMPLING-FRAME.md)) draws its subjects
+before it knows anything about them, so most of what it draws will not end up with a letter beside
+it. Those targets are published anyway, in the manifest's `exclusions` and on the index page under
+"Checked and recorded, not graded", each with the origin that was checked, the date, and a `basis`
+that says how far the review got:
+
+| `basis` | Means |
+|---|---|
+| `format_outside_profile` | the file the facility's `cms-hpt.txt` points at is not a CMS hospital JSON document (CSV, ZIP, or a vendor endpoint declaring another media type). This profile reads JSON v3 only, and grading a conforming CSV against a JSON profile would measure the wrong thing. |
+| `txt_fetch_failed` | the `cms-hpt.txt` retrieval did not succeed at the origin resolved for this facility — an HTTP error, or a `robots.txt` this tool could not read, which RFC 9309 § 2.3.1.4 makes a complete disallow. |
+| `txt_not_found_at_origin` | the origin answered but served no TXT. The conventional TXT belongs at the hospital's *selected* MRF-hosting origin, which may be elsewhere. |
+| `txt_published_without_mrf_url` | a TXT was served and parsed, but the location entry for this facility declares no `mrf-url`, so the conventional path yields nothing to retrieve. |
+| `discovery_reviewed` | reviewed at discovery time for some other stated reason, given in full on the entry. |
+
+Two rules keep this list from becoming a place to hide results. **An exclusion is never a
+grade**: none of these bases says anything about the hospital, and `txt_fetch_failed` in
+particular records one failed probe of one origin on one date. And **a retrieval failure is not
+an exclusion**: where a facility publishes a JSON file and the request for it fails, the row stays
+in the cohort and is graded `F` with the dated reason. Format is read from the publication, never
+from a failed request, so the two can never be confused — which is what stops a 403 from being
+quietly reclassified as "not our format".

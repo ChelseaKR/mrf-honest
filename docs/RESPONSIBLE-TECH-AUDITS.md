@@ -231,3 +231,57 @@ reader will otherwise supply one.**
 **What is still open, unchanged by any of the above:** the manual screen-reader pass, the phase-4
 retention period for discovery contact evidence, the bias review re-run when the cohort grows
 past four large health systems, and the phase-5 "what this project got wrong" write-up.
+
+## Appendix, 2026-08-19: the bias review re-run, now that the cohort has a sampling frame
+
+The 2026-08-14 appendix closed with an obligation: *"Re-run this review when the cohort grows past
+its current composition, and before any aggregate statistic about hospitals as a class is
+published."* The cohort has grown from 6 files to 17, and — more to the point — it has acquired a
+stated sampling frame ([docs/SAMPLING-FRAME.md](SAMPLING-FRAME.md)). This is that re-run.
+
+**What changed about composition.** The first cohort was four large academic health systems, all
+in two states, all well resourced. The 2026-08-19 cohort adds a stratum drawn at random, with a
+committed seed, from CMS's own enumeration of 3,024 acute-care, non-federal hospitals: 48
+facilities across 29 states. The drawn facilities include 10 for-profit (`Proprietary`) hospitals,
+4 church-affiliated non-profits, 9 government hospitals (district, local, and state), and 2
+physician-owned. The smallest graded file in the cohort is 6.7 MB and the largest is 884 MB — two
+orders of magnitude, where the first cohort spanned one.
+
+**The hazard the first review looked for did not reappear, and a different one did.** The 2026-08-14
+review predicted the resource-shaped hazard would fall on small publishers and observed it falling
+on a large one. In the random stratum it fell on neither. What the grade policy actually penalised
+in a small hospital was a *stale file*: NMC Health, a community hospital in Newton, Kansas,
+publishes a conforming CMS v3 document whose own `last_updated_on` is 2025-06-30, more than a year
+before the assessment date. That is a **B**, driven by a `WARNING`, and it is the correct outcome:
+the finding is about the document's declared date, not about the hospital's budget, and warnings
+cap at B rather than failing anyone.
+
+**The real bias in this cohort is not in the grade policy. It is in the profile.** 32 of the 48
+drawn facilities — two thirds — publish their standard charges in a format this project does not
+read: CSV, ZIP, or a vendor endpoint that answers `text/csv`. They are not graded, and they are
+not failures; they are recorded exclusions with the reason stated. But the consequence for the
+published grade distribution is systematic and must be named: **the cohort's grades describe the
+subset of hospitals that chose JSON**, and format choice is not random with respect to size,
+vendor, or engineering capacity. A reader who takes the letter distribution as a picture of US
+hospital price transparency is reading a picture of JSON publishers. The site now states the frame
+and the format rule on its methods page for exactly this reason.
+
+**A second bias enters through origin resolution.** Neither CMS nor any other public dataset this
+project found records which website a hospital selected to host its file, so a person has to
+resolve each drawn facility to an origin. That step is not reproducible the way the draw is, and
+it is systematically harder for small and vendor-hosted hospitals, whose files sit on
+`cdn.`/`apps.`/`estimator.` subdomains that no naming convention predicts. Ten first-pass
+candidate origins in this run were simply wrong, and had they not been re-checked, ten hospitals
+would have been published as having failed to publish. The guard is stated in the frame document:
+a returned `cms-hpt.txt` counts as the right origin only when one of its location entries names
+the drawn facility, and a failed candidate is re-checked before the failure is recorded.
+
+**What this review still cannot establish.** 48 facilities out of 3,024 supports no national rate,
+and the cohort's two strata must not be pooled — the carry-forward stratum was chosen because it
+was known, and averaging it with a probability sample produces a number that describes neither. No
+aggregate statistic about hospitals as a class is published from this cohort, and the summary
+counts on the site are labelled as descriptions of the cohort.
+
+**Re-run this review** before any CSV profile ships (which would change the composition
+fundamentally), before the sample is extended past 48, and before any proportion is published as
+an estimate rather than a count.

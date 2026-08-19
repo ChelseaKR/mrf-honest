@@ -20,7 +20,9 @@ true. Each test here reads a published claim and re-derives it:
 
 from __future__ import annotations
 
+import hashlib
 import json
+import random
 import re
 from pathlib import Path
 from typing import cast
@@ -144,4 +146,165 @@ def test_the_audited_dependency_count_in_the_ledger_matches_the_lockfile() -> No
     assert int(claimed.group(1)) == exported, (
         f"docs/ROADMAP.md claims {claimed.group(1)} pinned distributions in the audited export; "
         f"uv.lock resolves {locked} packages, so the export carries {exported}."
+    )
+
+
+# --- the sampling frame -------------------------------------------------------------------
+#
+# A cohort with a stated frame makes two new claims that a reader cannot check by hand: that the
+# random stratum really is the seeded draw it says it is, and that nothing drawn was quietly
+# dropped. Both are exactly the kind of claim this project exists to distrust, so both are
+# re-derived here. Without the first, "random sample" is a word; without the second, a cohort
+# could be curated after the fact by deleting whichever targets embarrassed it, which is the
+# defect this repository was built to catch.
+
+FRAMES = ROOT / "data" / "frames"
+
+
+def _frame_for(comparison_path: Path) -> Path | None:
+    prefix = comparison_path.name.removesuffix(".comparison.json")
+    candidate = FRAMES / f"{prefix}.frame.json"
+    return candidate if candidate.exists() else None
+
+
+@pytest.mark.parametrize("comparison_path", PUBLISHED, ids=lambda path: path.name)
+def test_the_random_stratum_is_the_seeded_draw_it_claims_to_be(comparison_path: Path) -> None:
+    """Re-run the documented draw and require the recorded sample to be exactly its output.
+
+    ``docs/SAMPLING-FRAME.md`` states a universe, a filter, a seed, and a sample size, and the
+    honesty of every proportion computed over the random stratum rests on the recorded sample
+    being that draw rather than a list someone assembled and labelled one. The eligible identifier
+    list is committed because CMS refreshes the dataset: a frame that cannot be reconstructed is
+    not a frame. Cohorts predating the frame carry no frame file and are skipped rather than
+    failed -- they were convenience samples and say so.
+    """
+    frame_path = _frame_for(comparison_path)
+    if frame_path is None:
+        pytest.skip(f"{comparison_path.name} predates the sampling frame")
+    frame = json.loads(frame_path.read_text(encoding="utf-8"))
+    ids_path = ROOT / str(frame["eligible_facility_ids"])
+    lines = ids_path.read_text(encoding="utf-8").splitlines()
+    ids = [line.strip() for line in lines if line.strip()]
+
+    assert len(ids) == frame["eligible_count"], (
+        f"{frame_path.name} claims {frame['eligible_count']} eligible facilities; "
+        f"{ids_path.name} holds {len(ids)}"
+    )
+    digest = hashlib.sha256("\n".join(ids).encode("utf-8")).hexdigest()
+    assert digest == frame["eligible_facility_id_sha256"], (
+        f"{ids_path.name} is not the list {frame_path.name} was drawn from"
+    )
+
+    draw = frame["draw"]
+    # S311 is suppressed below because a seeded, reproducible draw is the entire point. A
+    # cryptographic generator would make the sample unverifiable, which is what this checks.
+    expected = random.Random(draw["seed"]).sample(ids, draw["sample_size"])  # noqa: S311
+    attempts = sorted(
+        cast(list[dict[str, object]], frame["attempts"]),
+        key=lambda row: cast(int, row["draw_position"]),
+    )
+    recorded = [str(row["facility_id"]) for row in attempts]
+    assert recorded == expected, (
+        f"{frame_path.name} records a sample that seed {draw['seed']} does not produce from "
+        f"{ids_path.name}. Either the sample was edited or the draw was re-run differently; "
+        "in both cases the random stratum is no longer a random sample."
+    )
+
+
+@pytest.mark.parametrize("comparison_path", PUBLISHED, ids=lambda path: path.name)
+def test_no_drawn_facility_is_missing_from_the_published_cohort(comparison_path: Path) -> None:
+    """Every facility drawn is published as a graded row or as a recorded exclusion.
+
+    This is the gate on the rule that makes the frame worth stating: a target that could not be
+    retrieved, or whose publication is in a format this profile does not read, stays visible with
+    its reason. A cohort quietly pruned of its failures would grade better and describe less, and
+    docs/SAMPLING-FRAME.md promises the opposite in as many words.
+    """
+    frame_path = _frame_for(comparison_path)
+    if frame_path is None:
+        pytest.skip(f"{comparison_path.name} predates the sampling frame")
+    frame = json.loads(frame_path.read_text(encoding="utf-8"))
+    comparison = json.loads(comparison_path.read_text(encoding="utf-8"))
+    slugs = {str(row["slug"]) for row in cast(list[dict[str, object]], comparison["files"])}
+    excluded = {
+        str(entry["id"]) for entry in cast(list[dict[str, object]], comparison["exclusions"])
+    }
+
+    attempts = cast(list[dict[str, object]], frame["attempts"])
+    assert len(attempts) == frame["draw"]["sample_size"], (
+        "the frame records fewer attempts than it drew; every drawn facility must be attempted"
+    )
+    for row in attempts:
+        ccn = str(row["facility_id"])
+        if row["outcome"] == "graded":
+            assert str(row["detail"]) in slugs, (
+                f"facility {ccn} is recorded as graded but {row['detail']!r} is not a published "
+                "file row"
+            )
+        else:
+            assert f"ccn-{ccn}" in excluded, (
+                f"facility {ccn} was drawn and not graded, but no exclusion explains why. A "
+                "drawn target may be excluded with a stated reason; it may never simply vanish."
+            )
+
+
+def test_the_readme_lead_states_the_cohort_the_comparison_actually_contains() -> None:
+    """Re-derive every quantity the README's lead asserts about the published cohort.
+
+    A prior audit checked these figures by hand and found them true; the point of this test is
+    that "true when someone last looked" is the condition every stale number in this repository
+    was once in. Each claim below is parsed out of the prose and recomputed from the newest
+    committed comparison, so growing the cohort without editing the lead fails the build.
+    """
+    comparison = json.loads(PUBLISHED[-1].read_text(encoding="utf-8"))
+    files = cast(list[dict[str, object]], comparison["files"])
+    # Wrapped prose puts line breaks inside the sentences these patterns read, and a claim that
+    # happened to wrap would otherwise go unchecked rather than fail.
+    readme = " ".join((ROOT / "README.md").read_text(encoding="utf-8").split())
+
+    def claimed(pattern: str, label: str) -> int:
+        match = re.search(pattern, readme)
+        assert match is not None, f"the README no longer states {label}"
+        return int(match.group(1).replace(",", ""))
+
+    assert claimed(r"(\d+) machine-readable files", "how many files the cohort holds") == len(files)
+
+    summary = cast(dict[str, object], comparison["summary"])
+    distribution = cast(dict[str, int], summary["grade_distribution"])
+    pattern = (
+        r"distribution is (\d+) \*\*A\*\*, (\d+) \*\*B\*\*, (\d+) \*\*C\*\*, "
+        r"(\d+) \*\*F\*\*, and (\d+) not graded"
+    )
+    letters = re.search(pattern, readme)
+    assert letters is not None, "the README no longer states the grade distribution"
+    assert [int(group) for group in letters.groups()] == [
+        distribution["A"],
+        distribution["B"],
+        distribution["C"],
+        distribution["F"],
+        summary["not_graded"],
+    ], "the README's grade distribution is not the one the comparison carries"
+
+    publishers = {str(row["publisher_id"]) for row in files}
+    assert claimed(r"files across (\d+) publishers", "how many publishers") == len(publishers)
+
+    bom = sum(
+        1
+        for row in files
+        for dimension in cast(dict[str, dict[str, object]], row["dimensions"]).values()
+        for finding in cast(list[dict[str, object]], dimension["findings"])
+        if finding["code"] == "JSON_UTF8_BOM_PRESENT"
+    )
+    assert claimed(r"([\d,]+) of the (?:\d+) files begin with a UTF-8", "the BOM count") == bom
+
+    sizes = [row["size_bytes"] for row in files if isinstance(row["size_bytes"], int)]
+    assert claimed(r"cohort is ([\d,]+) bytes", "the largest file's size") == max(sizes)
+
+    contracted = sum(
+        1
+        for row in files
+        if isinstance(row["lakehouse"], dict) and row["lakehouse"].get("status") == "success"
+    )
+    assert claimed(r"([\d,]+) of the cohort files are contracted", "the warehouse count") == (
+        contracted
     )

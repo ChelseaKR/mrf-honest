@@ -266,3 +266,37 @@ def test_index_headings_descend_without_skipping_a_level(tmp_path: Path) -> None
         assert levels.count(1) == 1, f"{page} has {levels.count(1)} h1 elements"
         for previous, current in itertools.pairwise(levels):
             assert current <= previous + 1, f"{page} jumps from h{previous} to h{current}"
+
+
+def test_the_index_and_methods_pages_state_whether_the_cohort_has_a_sampling_frame(
+    tmp_path: Path,
+) -> None:
+    """A grade distribution is read as a picture of the landscape unless the page says otherwise.
+
+    The first cohort had no sampling frame and its pages did not say so, which left the caveat to
+    the reader's charity. Both sentences are derived from the manifest rather than hard-coded, so
+    a framed cohort cannot render the unframed disclaimer and an unframed one cannot imply a
+    frame it does not have.
+    """
+    unframed = _comparison(tmp_path)
+    out = _render(tmp_path / "unframed", unframed)
+    index = (out / "index.html").read_text(encoding="utf-8")
+    methods = (out / "how-we-grade" / "index.html").read_text(encoding="utf-8")
+    assert "nothing here is a sample of hospitals as a class" in index
+    assert "This cohort has no stated sampling frame" in methods
+
+    framed = _comparison(tmp_path)
+    cast(dict[str, object], framed["collection"])["sampling_frame"] = {
+        "document": "docs/SAMPLING-FRAME.md",
+        "summary": "A seeded random draw from a stated universe.",
+        "format_rule": "Only CMS hospital JSON documents are graded.",
+    }
+    out = _render(tmp_path / "framed", framed)
+    index = (out / "index.html").read_text(encoding="utf-8")
+    methods = (out / "how-we-grade" / "index.html").read_text(encoding="utf-8")
+    assert "Subjects were drawn under a stated sampling frame" in index
+    assert "nothing here is a sample of hospitals as a class" not in index
+    assert "A seeded random draw from a stated universe." in methods
+    assert "Only CMS hospital JSON documents are graded." in methods
+    assert "docs/SAMPLING-FRAME.md" in methods
+    assert "This cohort has no stated sampling frame" not in methods

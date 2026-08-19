@@ -411,14 +411,28 @@ def index_page(comparison: Mapping[str, object], origin: str) -> Page:
     if not_graded:
         dist_html += f'<span class="dist"><strong>{not_graded}</strong> not graded</span>'
     cards = "".join(_index_row(row) for row in rows)
+    # The closing sentence is not decoration. A grade distribution reads as a picture of the
+    # landscape unless the page says what it is a picture of, and the honest answer depends on
+    # whether this cohort has a sampling frame -- so it is derived, never hard-coded.
+    collection = cast(Mapping[str, object], comparison.get("collection") or {})
+    framed = isinstance(collection.get("sampling_frame"), Mapping)
+    provenance = (
+        "Subjects were drawn under a stated sampling frame; the counts above describe this "
+        'cohort, not hospitals as a class. <a href="how-we-grade/">How these subjects were '
+        "chosen</a>."
+        if framed
+        else (
+            "The registry grows by discovering more hospitals' TXT documents; nothing here is a "
+            "sample of hospitals as a class."
+        )
+    )
     coverage = (
         f"This cohort covers <strong>{summary['targeted']}</strong> machine-readable files, "
         f"discovered from hospital <code>cms-hpt.txt</code> documents and collected in one "
         f"identified run on {_e(cohort.get('as_of'))}. "
         f"{summary['verified_body_available']} of {summary['targeted']} targets produced a "
         f"verified body; {summary['graded']} were graded and {not_graded} "
-        "recorded as not graded with the reason stated. The registry grows by discovering more "
-        "hospitals' TXT documents; nothing here is a sample of hospitals as a class."
+        f"recorded as not graded with the reason stated. {provenance}"
     )
     jsonld = _json_ld(
         {
@@ -489,6 +503,38 @@ def _matrix_section(comparison: Mapping[str, object]) -> str:
     return "".join(rows)
 
 
+def _sampling_frame_section(collection: Mapping[str, object]) -> str:
+    """Publish how the cohort's subjects were chosen, or say plainly that they were not.
+
+    A grade distribution invites a reader to generalize from it whether or not the page invites
+    them to. The first cohort had no frame and its pages did not say so, which left the
+    disclaimer to the reader's charity. A cohort that states a frame renders it here; a cohort
+    that has none renders that fact rather than an empty heading.
+    """
+    frame = collection.get("sampling_frame")
+    if not isinstance(frame, Mapping):
+        return (
+            "<h2>How these subjects were chosen</h2>"
+            "<p>This cohort has no stated sampling frame: its subjects were reached for because "
+            "their files were discoverable, not because they were drawn from a defined "
+            "population. It describes the files in it and supports no statement about hospital "
+            "price-transparency publishing in general.</p>"
+        )
+    frame_map = cast(Mapping[str, object], frame)
+    document = frame_map.get("document")
+    link = (
+        f' <a href="https://github.com/ChelseaKR/mrf-honest/blob/master/{_e(document)}"'
+        f' rel="nofollow">{_e(document)}</a> states it in full.'
+        if isinstance(document, str)
+        else ""
+    )
+    return (
+        "<h2>How these subjects were chosen</h2>"
+        f"<p>{_e(frame_map.get('summary'))}{link}</p>"
+        f"<p>{_e(frame_map.get('format_rule'))}</p>"
+    )
+
+
 def methods_page(comparison: Mapping[str, object], origin: str) -> Page:
     cohort = cast(Mapping[str, object], comparison["cohort"])
     policy = cast(Mapping[str, object], cohort["grade_policy"])
@@ -544,6 +590,7 @@ def methods_page(comparison: Mapping[str, object], origin: str) -> Page:
         "the run; a site that blocks is recorded and skipped, never circumvented. Retrieval "
         "of these files is what the transparency rule exists to allow: CMS requires them to be "
         "public, machine-readable, and accessible without barriers.</p>"
+        f"{_sampling_frame_section(collection)}"
         "<h2>Finding codes emitted in this cohort</h2>"
         f"{_matrix_section(comparison)}"
         f'<p class="caveat">{_CAVEAT}</p>'
