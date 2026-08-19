@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import cast
 
 from mrf_honest.cohort import build_comparison
-from mrf_honest.fetch import FetchPolicy, default_open, fetch_url
+from mrf_honest.fetch import PROBE_SAMPLE_BYTES, FetchPolicy, default_open, fetch_url, probe_url
 from mrf_honest.inspect import FileInspection, explain_finding, inspect_hospital_file
 from mrf_honest.inspect_csv import (
     CsvFileInspection,
@@ -228,6 +228,19 @@ def _run_fetch(args: argparse.Namespace) -> int:
     return _SUCCESS if outcome.ok else _FAILURE
 
 
+def _run_probe(args: argparse.Namespace) -> int:
+    policy = FetchPolicy(contact=cast(str, args.contact))
+    outcome = probe_url(
+        cast(str, args.url),
+        policy=policy,
+        politeness=_politeness(policy),
+        sample_bytes=cast(int, args.sample_bytes),
+    )
+    _emit_json(outcome.to_dict())
+    # A URL that answers with the wrong kind of document is data, not a probe failure.
+    return _SUCCESS if outcome.status == "probed" else _FAILURE
+
+
 def _run_discover(args: argparse.Namespace) -> int:
     registry = Registry(cast(Path, args.registry))
     cache_dir = cast(Path, args.cache_dir)
@@ -334,9 +347,11 @@ def _run_compare(args: argparse.Namespace) -> int:
 
 
 def _run_site(args: argparse.Namespace) -> int:
-    comparison = _load_json_object(cast(Path, args.comparison), "comparison")
+    comparisons = [
+        _load_json_object(path, "comparison") for path in cast(list[Path], args.comparisons)
+    ]
     written = render_site(
-        comparison,
+        comparisons,
         cast(Path, args.out),
         origin=cast(str, args.origin).rstrip("/"),
     )
@@ -421,6 +436,21 @@ def _build_parser() -> argparse.ArgumentParser:
     fetch_parser.add_argument("--max-bytes", type=_positive_int, default=_DEFAULT_MAX_BYTES)
     fetch_parser.set_defaults(handler=_run_fetch)
 
+    probe_parser = commands.add_parser(
+        "probe",
+        help="classify what one URL serves with a single bounded ranged request",
+    )
+    probe_parser.add_argument("url", metavar="URL")
+    probe_parser.add_argument("--contact", required=True)
+    probe_parser.add_argument(
+        "--bytes",
+        dest="sample_bytes",
+        type=_positive_int,
+        default=PROBE_SAMPLE_BYTES,
+        help=f"how many leading bytes to sample (default {PROBE_SAMPLE_BYTES})",
+    )
+    probe_parser.set_defaults(handler=_run_probe)
+
     discover_parser = commands.add_parser(
         "discover", help="discover MRF URLs from CMS cms-hpt.txt documents"
     )
@@ -479,9 +509,16 @@ def _build_parser() -> argparse.ArgumentParser:
     compare_parser.set_defaults(handler=_run_compare)
 
     site_parser = commands.add_parser(
-        "site", help="render the static site from a published comparison document"
+        "site", help="render the static site from one or more published comparison documents"
     )
-    site_parser.add_argument("--comparison", type=Path, required=True)
+    site_parser.add_argument(
+        "--comparison",
+        dest="comparisons",
+        type=Path,
+        action="append",
+        required=True,
+        help="a cohort comparison document; repeat for one site over several cohorts",
+    )
     site_parser.add_argument("--out", type=Path, required=True)
     site_parser.add_argument("--origin", default=DEFAULT_ORIGIN)
     site_parser.set_defaults(handler=_run_site)
