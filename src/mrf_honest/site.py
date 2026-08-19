@@ -21,6 +21,7 @@ from typing import cast
 
 from mrf_honest.cohort import INGEST_REFUSED, LOCAL_DIMENSIONS, NOT_GRADED
 from mrf_honest.inspect import FINDING_CATALOG
+from mrf_honest.inspect_csv import CSV_FINDING_CATALOG
 from mrf_honest.scorecard import RETRIEVAL_FINDING_CATALOG
 
 DEFAULT_ORIGIN = "https://chelseakr.github.io/mrf-honest"
@@ -184,8 +185,35 @@ def _display_name(row: Mapping[str, object]) -> str:
 
 
 def _catalog_description(code: str) -> str:
-    definition = FINDING_CATALOG.get(code) or RETRIEVAL_FINDING_CATALOG.get(code)
+    definition = (
+        FINDING_CATALOG.get(code)
+        or CSV_FINDING_CATALOG.get(code)
+        or RETRIEVAL_FINDING_CATALOG.get(code)
+    )
     return definition.description if definition is not None else ""
+
+
+#: Human titles for the assessment profiles a cohort's comparison scope can carry.
+_PROFILE_TITLES = {
+    "cms-hospital-json-v3": "CMS hospital JSON v3",
+    "cms-hospital-csv-v3": "CMS hospital CSV v3 (Tall and Wide)",
+}
+
+
+def _cohort_profile(comparison: Mapping[str, object]) -> str:
+    cohort = cast(Mapping[str, object], comparison["cohort"])
+    scope = cast(Mapping[str, object], cohort.get("comparison_scope") or {})
+    return str(scope.get("profile") or "cms-hospital-json-v3")
+
+
+def _cohort_title(comparison: Mapping[str, object]) -> str:
+    profile = _cohort_profile(comparison)
+    return _PROFILE_TITLES.get(profile, profile)
+
+
+def _cohort_data_name(comparison: Mapping[str, object]) -> str:
+    cohort = cast(Mapping[str, object], comparison["cohort"])
+    return f"{cohort.get('cohort_id')}.json"
 
 
 def _finding_item(finding: Mapping[str, object]) -> str:
@@ -237,7 +265,9 @@ def _counts_list(row: Mapping[str, object]) -> str:
     fields = (
         ("item_count", "items"),
         ("code_count", "billing codes"),
+        ("row_count", "data rows"),
         ("charge_group_count", "charge groups"),
+        ("payer_plan_combination_count", "payer-plan combinations"),
         ("payer_rate_count", "payer rate entries"),
         ("dollar_rate_count", "dollar-denominated rates"),
         ("percentage_rate_count", "percentage rates"),
@@ -382,7 +412,27 @@ def _index_row(row: Mapping[str, object]) -> str:
     )
 
 
-def _exclusion_rows(comparison: Mapping[str, object]) -> str:
+def _cross_references(comparisons: Sequence[Mapping[str, object]]) -> dict[str, tuple[str, str]]:
+    """Publisher display name -> (slug, cohort title), across every rendered cohort.
+
+    A ``format_outside_profile`` exclusion in one cohort names a facility another cohort may
+    have graded. The link is derived from the data (the sibling row's publisher name matching
+    the exclusion's recorded name), never typed in, so a facility graded nowhere gets no claim.
+    """
+    references: dict[str, tuple[str, str]] = {}
+    for comparison in comparisons:
+        title = _cohort_title(comparison)
+        for row in _rows(comparison):
+            name = row.get("publisher_name")
+            if isinstance(name, str) and name:
+                references[name] = (str(row["slug"]), title)
+    return references
+
+
+def _exclusion_rows(
+    comparison: Mapping[str, object],
+    references: Mapping[str, tuple[str, str]],
+) -> str:
     exclusions = cast(Sequence[Mapping[str, object]], comparison.get("exclusions") or ())
     rows = []
     for entry in exclusions:
@@ -390,17 +440,25 @@ def _exclusion_rows(comparison: Mapping[str, object]) -> str:
         method = ""
         if isinstance(reviewed, Mapping):
             method = f" Reviewed {_e(reviewed.get('date'))}: {_e(reviewed.get('method'))}."
+        cross = ""
+        name = entry.get("name")
+        if entry.get("basis") == "format_outside_profile" and isinstance(name, str):
+            reference = references.get(name)
+            if reference is not None:
+                slug, cohort_title = reference
+                cross = (
+                    f' Graded under the {_e(cohort_title)} profile as <a href="hospital/'
+                    f'{_e(slug)}/">{_e(slug)}</a>.'
+                )
         rows.append(
             f"<li><strong>{_e(entry.get('name'))}</strong> "
-            f"(<code>{_e(entry.get('basis'))}</code>): {_e(entry.get('reason'))}.{method}</li>"
+            f"(<code>{_e(entry.get('basis'))}</code>): {_e(entry.get('reason'))}."
+            f"{method}{cross}</li>"
         )
     return "".join(rows)
 
 
-def index_page(comparison: Mapping[str, object], origin: str) -> Page:
-    summary = _summary(comparison)
-    cohort = cast(Mapping[str, object], comparison["cohort"])
-    rows = _rows(comparison)
+def _distribution_html(summary: Mapping[str, object]) -> str:
     distribution = cast(Mapping[str, int], summary["grade_distribution"])
     dist_html = "".join(
         f'<span class="dist"><strong>{count}</strong> {letter}</span>'
@@ -410,7 +468,13 @@ def index_page(comparison: Mapping[str, object], origin: str) -> Page:
     not_graded = cast(int, summary["not_graded"])
     if not_graded:
         dist_html += f'<span class="dist"><strong>{not_graded}</strong> not graded</span>'
-    cards = "".join(_index_row(row) for row in rows)
+    return dist_html
+
+
+def _coverage_sentence(comparison: Mapping[str, object]) -> str:
+    summary = _summary(comparison)
+    cohort = cast(Mapping[str, object], comparison["cohort"])
+    not_graded = cast(int, summary["not_graded"])
     # The closing sentence is not decoration. A grade distribution reads as a picture of the
     # landscape unless the page says what it is a picture of, and the honest answer depends on
     # whether this cohort has a sampling frame -- so it is derived, never hard-coded.
@@ -426,7 +490,7 @@ def index_page(comparison: Mapping[str, object], origin: str) -> Page:
             "sample of hospitals as a class."
         )
     )
-    coverage = (
+    return (
         f"This cohort covers <strong>{summary['targeted']}</strong> machine-readable files, "
         f"discovered from hospital <code>cms-hpt.txt</code> documents and collected in one "
         f"identified run on {_e(cohort.get('as_of'))}. "
@@ -434,13 +498,54 @@ def index_page(comparison: Mapping[str, object], origin: str) -> Page:
         f"verified body; {summary['graded']} were graded and {not_graded} "
         f"recorded as not graded with the reason stated. {provenance}"
     )
+
+
+def _cohort_section(
+    comparison: Mapping[str, object],
+    references: Mapping[str, tuple[str, str]],
+) -> str:
+    cohort = cast(Mapping[str, object], comparison["cohort"])
+    summary = _summary(comparison)
+    cards = "".join(_index_row(row) for row in _rows(comparison))
+    exclusions = _exclusion_rows(comparison, references)
+    exclusion_block = (
+        "<h3>Checked and recorded, not graded</h3>"
+        "<p>Targets this cohort reviewed but did not grade stay visible, with how far the "
+        "review went and what it found. An absent or unreachable TXT at one origin is not "
+        "evidence about the hospital's publication.</p>"
+        f'<ul class="exclusions">{exclusions}</ul>'
+        if exclusions
+        else ""
+    )
+    # Cohorts are separate sections on purpose: their rows were assessed under different
+    # profiles and must never be pooled into one distribution (docs/how-we-compare.md).
+    return (
+        f"<h2>Files graded under the {_e(_cohort_title(comparison))} profile "
+        f"({_e(cohort.get('as_of'))})</h2>"
+        f'<p class="coverage">{_coverage_sentence(comparison)}</p>'
+        f'<div class="dist-row">{_distribution_html(summary)}</div>'
+        f'<ul class="cards">{cards}</ul>'
+        f"{exclusion_block}"
+    )
+
+
+def index_page(comparisons: Sequence[Mapping[str, object]], origin: str) -> Page:
+    references = _cross_references(comparisons)
+    first_cohort = cast(Mapping[str, object], comparisons[0]["cohort"])
+    targeted_total = sum(cast(int, _summary(c)["targeted"]) for c in comparisons)
+    sections = "".join(_cohort_section(comparison, references) for comparison in comparisons)
+    data_links = " · ".join(
+        f'<a href="data/{_e(_cohort_data_name(comparison))}">machine-readable comparison '
+        f"({_e(_cohort_title(comparison))})</a>"
+        for comparison in comparisons
+    )
     jsonld = _json_ld(
         {
             "@context": "https://schema.org",
             "@type": "Dataset",
             "name": "mrf-honest hospital price-transparency file grades",
             "url": f"{origin}/",
-            "dateModified": str(cohort.get("as_of")),
+            "dateModified": str(first_cohort.get("as_of")),
             "license": "https://www.apache.org/licenses/LICENSE-2.0",
             "isAccessibleForFree": True,
         }
@@ -450,21 +555,11 @@ def index_page(comparison: Mapping[str, object], origin: str) -> Page:
         '<p class="lede">US hospitals must publish machine-readable files of their standard '
         "charges. This site grades each published <em>file</em> — never the hospital — on "
         "whether it can be retrieved, parsed, and interpreted, with every finding citing the "
-        "rule or schema requirement it rests on.</p></header>"
-        f'<p class="coverage">{coverage}</p>'
-        f'<div class="dist-row">{dist_html}</div>'
-        # The cards carry <h3>. Without this <h2> the index goes straight from <h1> to <h3>,
-        # which axe reports as `heading-order` and which someone navigating by heading level
-        # hears as a section that is not there.
-        "<h2>Graded files</h2>"
-        f'<ul class="cards">{cards}</ul>'
-        "<h2>Checked and recorded, not graded</h2>"
-        "<p>Targets this cohort reviewed but did not grade stay visible, with how far the "
-        "review went and what it found. An absent or unreachable TXT at one origin is not "
-        "evidence about the hospital's publication.</p>"
-        f'<ul class="exclusions">{_exclusion_rows(comparison)}</ul>'
+        "rule or schema requirement it rests on. JSON and CSV publications are graded under "
+        "separate profiles and never pooled into one distribution.</p></header>"
+        f"{sections}"
         '<p><a href="how-we-grade/">How grading works, and what it deliberately does not '
-        'claim</a> · <a href="data/comparison.json">machine-readable comparison</a> · '
+        f"claim</a> · {data_links} · "
         '<a href="https://github.com/ChelseaKR/mrf-honest/tree/master/docs/findings">'
         "written-up findings with evidence</a></p>"
         f'<p class="caveat">{_CAVEAT}</p>{jsonld}'
@@ -473,7 +568,7 @@ def index_page(comparison: Mapping[str, object], origin: str) -> Page:
         path="",
         title="mrf-honest: hospital price-transparency file grades",
         description=(
-            f"Deterministic, spec-cited grades for {summary['targeted']} hospital "
+            f"Deterministic, spec-cited grades for {targeted_total} hospital "
             "price-transparency files, with fail-closed coverage reporting."
         ),
         priority="1.0",
@@ -514,7 +609,7 @@ def _sampling_frame_section(collection: Mapping[str, object]) -> str:
     frame = collection.get("sampling_frame")
     if not isinstance(frame, Mapping):
         return (
-            "<h2>How these subjects were chosen</h2>"
+            "<h3>How these subjects were chosen</h3>"
             "<p>This cohort has no stated sampling frame: its subjects were reached for because "
             "their files were discoverable, not because they were drawn from a defined "
             "population. It describes the files in it and supports no statement about hospital "
@@ -529,16 +624,31 @@ def _sampling_frame_section(collection: Mapping[str, object]) -> str:
         else ""
     )
     return (
-        "<h2>How these subjects were chosen</h2>"
+        "<h3>How these subjects were chosen</h3>"
         f"<p>{_e(frame_map.get('summary'))}{link}</p>"
         f"<p>{_e(frame_map.get('format_rule'))}</p>"
     )
 
 
-def methods_page(comparison: Mapping[str, object], origin: str) -> Page:
+def _cohort_methods_section(comparison: Mapping[str, object]) -> str:
     cohort = cast(Mapping[str, object], comparison["cohort"])
     policy = cast(Mapping[str, object], cohort["grade_policy"])
     collection = cast(Mapping[str, object], comparison.get("collection") or {})
+    title = _cohort_title(comparison)
+    return (
+        f"<h2>The {_e(title)} cohort ({_e(cohort.get('as_of'))})</h2>"
+        f"<p>Grade policy <code>{_e(policy.get('version'))}</code>, fingerprint "
+        f"<code>{_e(str(policy.get('fingerprint'))[:16])}…</code>; the full rule table ships "
+        "in this cohort's machine-readable comparison.</p>"
+        f"<p>{_e(collection.get('description'))}</p>"
+        f"{_sampling_frame_section(collection)}"
+        f"<h3>Finding codes emitted in this cohort</h3>"
+        f"{_matrix_section(comparison)}"
+    )
+
+
+def methods_page(comparisons: Sequence[Mapping[str, object]], origin: str) -> Page:
+    cohort_sections = "".join(_cohort_methods_section(c) for c in comparisons)
     body = (
         '<nav class="crumbs"><a href="../">All graded files</a></nav>'
         "<h1>How these files are graded</h1>"
@@ -552,11 +662,14 @@ def methods_page(comparison: Mapping[str, object], origin: str) -> Page:
         "anywhere in the grading path.</p>"
         "<h2>What is checked</h2>"
         "<p>Five independent dimensions per file: retrievability (one identified, bounded "
-        "download attempt), conformance (selected CMS v3 envelope, structure, and "
-        "accepted-value checks), completeness (presence and usability of the fields that make "
-        "a rate interpretable), interpretability (whether rates are usable amounts or require "
-        "separate treatment), and freshness (the file's own <code>last_updated_on</code> "
-        "against the assessment date). The complete finding catalog with citations is in "
+        "download attempt), conformance (selected CMS v3 envelope or general-element, "
+        "structure, and accepted-value checks), completeness (presence and usability of the "
+        "fields that make a rate interpretable), interpretability (whether rates are usable "
+        "amounts or require separate treatment), and freshness (the file's own "
+        "<code>last_updated_on</code> against the assessment date). JSON publications are "
+        "assessed under the CMS JSON v3 profile and CSV publications under the CMS CSV v3 "
+        "profile (Tall and Wide); the two are never pooled. The complete finding catalogs with "
+        "citations are in "
         '<a href="https://github.com/ChelseaKR/mrf-honest/blob/master/docs/how-we-grade.md" '
         'rel="nofollow">docs/how-we-grade.md</a>.</p>'
         "<h2>What is deliberately not checked</h2>"
@@ -574,25 +687,20 @@ def methods_page(comparison: Mapping[str, object], origin: str) -> Page:
         "from one vantage on one date.</li>"
         "</ul>"
         "<h2>The letter grade</h2>"
-        f"<p>Grade policy <code>{_e(policy.get('version'))}</code>, fingerprint "
-        f"<code>{_e(str(policy.get('fingerprint'))[:16])}…</code>. The full rule table ships "
-        "in the machine-readable comparison. In evaluation order: a failed download is an "
+        "<p>In evaluation order: a failed download is an "
         "<strong>F</strong> with the dated reason; a local limit (invalid input, the project's "
         "size ceiling, cache trouble) is <strong>not graded</strong> and never conflated with "
         "an F; an incomplete stream is an <strong>F</strong>; then errors (or missing "
         "evidence) in zero dimensions is an <strong>A</strong> (warnings make it a "
         "<strong>B</strong>), one dimension a <strong>C</strong>, two a <strong>D</strong>, "
         "three or more an <strong>F</strong>. Tolerated INFO observations never lower a "
-        "grade.</p>"
-        "<h2>How this cohort was collected</h2>"
-        f"<p>{_e(collection.get('description'))}</p>"
+        "grade. Each cohort names the exact policy its grades were minted under below.</p>"
+        "<h2>Retrieval conduct</h2>"
         "<p>Hosts' <code>robots.txt</code> files were checked for every retrieved URL before "
         "the run; a site that blocks is recorded and skipped, never circumvented. Retrieval "
         "of these files is what the transparency rule exists to allow: CMS requires them to be "
         "public, machine-readable, and accessible without barriers.</p>"
-        f"{_sampling_frame_section(collection)}"
-        "<h2>Finding codes emitted in this cohort</h2>"
-        f"{_matrix_section(comparison)}"
+        f"{cohort_sections}"
         f'<p class="caveat">{_CAVEAT}</p>'
     )
     return Page(
@@ -679,28 +787,52 @@ def write_page(out_dir: Path, page: Page, origin: str, generated_at: str) -> Pat
 
 
 def render_site(
-    comparison: Mapping[str, object],
+    comparison: Mapping[str, object] | Sequence[Mapping[str, object]],
     out_dir: Path,
     *,
     origin: str = DEFAULT_ORIGIN,
 ) -> list[Path]:
-    """Render the complete static site for one comparison document."""
-    generated_at = str(comparison.get("generated_at"))
+    """Render the complete static site for one or more cohort comparison documents.
+
+    Each comparison stays its own clearly scoped section; nothing is pooled across profiles.
+    A single mapping is accepted for compatibility with single-cohort callers.
+    """
+    comparisons: list[Mapping[str, object]] = (
+        [comparison] if isinstance(comparison, Mapping) else list(comparison)
+    )
+    if not comparisons:
+        raise ValueError("render_site needs at least one comparison document")
+    slugs: dict[str, str] = {}
+    for entry in comparisons:
+        cohort_id = str(cast(Mapping[str, object], entry["cohort"]).get("cohort_id"))
+        for row in _rows(entry):
+            slug = str(row["slug"])
+            if slug in slugs:
+                raise ValueError(
+                    f"file slug {slug!r} appears in both {slugs[slug]!r} and {cohort_id!r}; "
+                    "every file page needs exactly one source row"
+                )
+            slugs[slug] = cohort_id
+    generated_at = str(comparisons[0].get("generated_at"))
     pages = [
-        index_page(comparison, origin),
-        methods_page(comparison, origin),
-        *(file_page(row, comparison, origin) for row in _rows(comparison)),
+        index_page(comparisons, origin),
+        methods_page(comparisons, origin),
+        *(file_page(row, entry, origin) for entry in comparisons for row in _rows(entry)),
         not_found_page(),
     ]
     written = [write_page(out_dir, page, origin, generated_at) for page in pages]
     data_dir = out_dir / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
-    data_path = data_dir / "comparison.json"
-    data_path.write_text(
-        json.dumps(comparison, ensure_ascii=False, sort_keys=True, separators=(",", ":")),
-        encoding="utf-8",
-    )
-    written.append(data_path)
+    for index, entry in enumerate(comparisons):
+        encoded = json.dumps(entry, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        data_path = data_dir / _cohort_data_name(entry)
+        data_path.write_text(encoded, encoding="utf-8")
+        written.append(data_path)
+        if index == 0:
+            # The pre-profile site published exactly one document at this URL; keep it alive.
+            compat_path = data_dir / "comparison.json"
+            compat_path.write_text(encoded, encoding="utf-8")
+            written.append(compat_path)
     sitemap_path = out_dir / "sitemap.xml"
     sitemap_path.write_text(sitemap(pages, origin), encoding="utf-8")
     written.append(sitemap_path)

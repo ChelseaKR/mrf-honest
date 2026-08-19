@@ -1,0 +1,255 @@
+{
+ "policy": "A cohort manifest attests the collection context that assessment rows cannot carry by themselves (docs/PHASE-3-FINDINGS.md). `build_comparison` refuses to compare rows without the operator_controlled_single_run attestation. This cohort grades, under the CMS hospital CSV v3 profile, the facilities the sibling hospital-json-v3-2026-08-19 cohort recorded as format_outside_profile exclusions with a CSV-retrievable publication: nothing was re-drawn and nothing was added, so the two cohorts together account for every facility of the one committed sampling frame. Failures stay in the cohort as rows: a robots.txt disallow and this project's own size ceiling are NOT_GRADED with the reason, and a failed download is an F with the dated reason. The two cohorts must never be pooled into one distribution (docs/how-we-compare.md). Contact evidence stays in the local discovery registry and is never published.",
+ "cohort_id": "hospital-csv-v3-2026-08-19",
+ "collection": {
+  "operator_controlled_single_run": true,
+  "utc_date": "2026-08-19",
+  "description": "One serial, operator-invoked run of `mrf-honest scorecard --profile csv` per target under the default retrieval policy: identified User-Agent with a contact address, HTTPS only, robots.txt fetched and obeyed in code before every request, conditional revalidation against the verified cache, retry backoff, and the default 1 GiB decoded-size ceiling. One bounded GET per file, with a three-second pause between invocations. Two targets whose bodies were already in the verified cache from the sibling cohort's format classification moved no new body bytes.",
+  "user_agent": "mrf-honest/0.1",
+  "sampling_frame": {
+   "document": "docs/SAMPLING-FRAME.md",
+   "record": "data/frames/2026-08-19.frame.json",
+   "summary": "One stratum, a complete enumeration: every facility of the committed 2026-08-19 seeded random draw (48 facilities from CMS's enumeration of 3024 acute-care, non-federal, 50-states-and-DC hospitals) whose cms-hpt.txt publication the sibling JSON cohort recorded as a CSV-retrievable format_outside_profile exclusion - 25 of the 32 format exclusions; the other 7 are ZIP archives and remain excluded there. Every target is a row in this cohort, graded or stated. Totals describe this cohort, not hospitals as a class, and must never be pooled with the JSON cohort.",
+   "sibling_cohort": "hospital-json-v3-2026-08-19",
+   "stratum_b_random_draw": {
+    "eligible_facility_id_sha256": "f92fcc6cce676778baf4f7e26e16cefa9a32c249b791b175f68b155642d0f904",
+    "seed": 20260819,
+    "sample_size": 48,
+    "csv_targets": 25
+   },
+   "format_rule": "A target is graded only where the publication is a CMS hospital CSV document (Tall or Wide). Format was read from the publication during the sibling cohort's review, never from a failed request: the URL's file extension decides where it has one; where it has none, a specific declared media type decides; where the declaration is generic, the retrieved document decides. A ZIP archive is a container, not a CSV file, and grading one against this profile would measure the wrong thing; the 7 ZIP publications remain recorded exclusions of the sibling cohort. A .csv publication whose retrieval failed stays in this cohort and is graded F with the dated reason."
+  }
+ },
+ "discovery": {
+  "method": "Targets are the sibling cohort's CSV-retrievable format_outside_profile exclusions. For each, the MRF URL is the one the facility's own retrieved cms-hpt.txt published for the matching location entry in the local discovery registry; no URL was hand-assembled. publisher_id is the registrable label of the cms-hpt.txt origin; location_id is the facility name the sibling exclusion recorded, slugged. Each target below records how its location entry was matched.",
+  "date": "2026-08-19",
+  "targets": [
+   {
+    "ccn": "010055",
+    "facility_name": "Flowers Hospital (Dothan, AL)",
+    "origin": "flowershospital.com",
+    "publisher_id": "flowershospital",
+    "location_id": "flowers-hospital",
+    "format_recorded_by_sibling": ".csv",
+    "matched": "TXT location name contains the CMS facility name (or the reverse)"
+   },
+   {
+    "ccn": "050254",
+    "facility_name": "Marshall Medical Center (Placerville, CA)",
+    "origin": "marshallmedical.org",
+    "publisher_id": "marshallmedical",
+    "location_id": "marshall-medical-center",
+    "format_recorded_by_sibling": ".csv",
+    "matched": "TXT location name contains the CMS facility name (or the reverse)"
+   },
+   {
+    "ccn": "050324",
+    "facility_name": "Scripps Memorial Hospital La Jolla (La Jolla, CA)",
+    "origin": "scripps.org",
+    "publisher_id": "scripps",
+    "location_id": "scripps-memorial-hospital-la-jolla",
+    "format_recorded_by_sibling": ".csv",
+    "matched": "TXT location name contains the CMS facility name (or the reverse)"
+   },
+   {
+    "ccn": "050510",
+    "facility_name": "Kaiser Foundation Hospital (San Rafael, CA)",
+    "origin": "healthy.kaiserpermanente.org",
+    "publisher_id": "kaiserpermanente",
+    "location_id": "kaiser-foundation-hospital",
+    "format_recorded_by_sibling": ".csv",
+    "matched": "matched on the San Rafael city name; the CMS name is the undistinguished KAISER FOUNDATION HOSPITAL"
+   },
+   {
+    "ccn": "060015",
+    "facility_name": "Centura Health-St Anthony Hospital (Lakewood, CO)",
+    "origin": "centura.org",
+    "publisher_id": "centura",
+    "location_id": "centura-health-st-anthony-hospital",
+    "format_recorded_by_sibling": ".csv",
+    "matched": "TXT location name contains the CMS facility name (or the reverse)"
+   },
+   {
+    "ccn": "060119",
+    "facility_name": "Medical Center Of The Rockies (Loveland, CO)",
+    "origin": "uchealth.org",
+    "publisher_id": "uchealth",
+    "location_id": "medical-center-of-the-rockies",
+    "format_recorded_by_sibling": ".csv",
+    "matched": "TXT location name contains the CMS facility name (or the reverse)"
+   },
+   {
+    "ccn": "110234",
+    "facility_name": "Sgmc Berrien Campus (Nashville, GA)",
+    "origin": "sgmc.org",
+    "publisher_id": "sgmc",
+    "location_id": "sgmc-berrien-campus",
+    "format_recorded_by_sibling": "no extension; the response declared Content-Type text/csv",
+    "matched": "matched on the Berrien campus name"
+   },
+   {
+    "ccn": "180087",
+    "facility_name": "Taylor Regional Hospital (Campbellsville, KY)",
+    "origin": "trhosp.org",
+    "publisher_id": "trhosp",
+    "location_id": "taylor-regional-hospital",
+    "format_recorded_by_sibling": "vendor report URL, fileType=CSV",
+    "matched": "TXT location name contains the CMS facility name (or the reverse)"
+   },
+   {
+    "ccn": "190144",
+    "facility_name": "Minden Medical Center (Minden, LA)",
+    "origin": "mindenmedicalcenter.com",
+    "publisher_id": "mindenmedicalcenter",
+    "location_id": "minden-medical-center",
+    "format_recorded_by_sibling": ".csv",
+    "matched": "TXT location name contains the CMS facility name (or the reverse)"
+   },
+   {
+    "ccn": "190259",
+    "facility_name": "Lafayette Surgical Specialty Hospital (Lafayette, LA)",
+    "origin": "lafayettesurgical.com",
+    "publisher_id": "lafayettesurgical",
+    "location_id": "lafayette-surgical-specialty-hospital",
+    "format_recorded_by_sibling": "no extension; the response declared Content-Type text/csv",
+    "matched": "TXT location name contains the CMS facility name (or the reverse)"
+   },
+   {
+    "ccn": "210005",
+    "facility_name": "Frederick Health Hospital (Frederick, MD)",
+    "origin": "frederickhealth.org",
+    "publisher_id": "frederickhealth",
+    "location_id": "frederick-health-hospital",
+    "format_recorded_by_sibling": ".csv",
+    "matched": "TXT location name contains the CMS facility name (or the reverse)"
+   },
+   {
+    "ccn": "210058",
+    "facility_name": "Umd Rehabilitation &  Orthopaedic Institute (Baltimore, MD)",
+    "origin": "umms.org",
+    "publisher_id": "umms",
+    "location_id": "umd-rehabilitation-orthopaedic-institute",
+    "format_recorded_by_sibling": ".csv",
+    "matched": "matched to the TXT entry naming the institute; the CMS name abbreviates it as UMD REHABILITATION & ORTHOPAEDIC INSTITUTE"
+   },
+   {
+    "ccn": "230022",
+    "facility_name": "Insight Hospital And Medical Center Coldwater (Coldwater, MI)",
+    "origin": "insightcoldwater.org",
+    "publisher_id": "insightcoldwater",
+    "location_id": "insight-hospital-and-medical-center-coldwater",
+    "format_recorded_by_sibling": ".csv",
+    "matched": "TXT location name contains the CMS facility name (or the reverse)"
+   },
+   {
+    "ccn": "250134",
+    "facility_name": "Whitfield Medical Surgical Hospital (Whitfield, MS)",
+    "origin": "msh.ms.gov",
+    "publisher_id": "msh",
+    "location_id": "whitfield-medical-surgical-hospital",
+    "format_recorded_by_sibling": ".csv",
+    "matched": "TXT location name contains the CMS facility name (or the reverse)"
+   },
+   {
+    "ccn": "310060",
+    "facility_name": "St Luke'S Warren Hospital (Phillipsburg, NJ)",
+    "origin": "slhn.org",
+    "publisher_id": "slhn",
+    "location_id": "st-luke-s-warren-hospital",
+    "format_recorded_by_sibling": ".ashx; the response declared Content-Type text/csv",
+    "matched": "matched on the Warren campus name; the CMS name is ST LUKE'S WARREN HOSPITAL"
+   },
+   {
+    "ccn": "310112",
+    "facility_name": "Bayshore Medical Center (Holmdel, NJ)",
+    "origin": "hackensackmeridianhealth.org",
+    "publisher_id": "hackensackmeridianhealth",
+    "location_id": "bayshore-medical-center",
+    "format_recorded_by_sibling": ".csv",
+    "matched": "TXT location name contains the CMS facility name (or the reverse)"
+   },
+   {
+    "ccn": "330073",
+    "facility_name": "United Memorial Medical Center (Batavia, NY)",
+    "origin": "rochesterregional.org",
+    "publisher_id": "rochesterregional",
+    "location_id": "united-memorial-medical-center",
+    "format_recorded_by_sibling": ".csv",
+    "matched": "TXT location name contains the CMS facility name (or the reverse)"
+   },
+   {
+    "ccn": "370183",
+    "facility_name": "Hillcrest Hospital Henryetta (Henryetta, OK)",
+    "origin": "hillcrest.com",
+    "publisher_id": "hillcrest",
+    "location_id": "hillcrest-hospital-henryetta",
+    "format_recorded_by_sibling": ".csv",
+    "matched": "TXT location name contains the CMS facility name (or the reverse)"
+   },
+   {
+    "ccn": "380090",
+    "facility_name": "Bay Area Hospital (Coos Bay, OR)",
+    "origin": "bayareahospital.org",
+    "publisher_id": "bayareahospital",
+    "location_id": "bay-area-hospital",
+    "format_recorded_by_sibling": "vendor report URL, fileType=CSV",
+    "matched": "TXT location name contains the CMS facility name (or the reverse)"
+   },
+   {
+    "ccn": "390028",
+    "facility_name": "Upmc Mercy (Pittsburgh, PA)",
+    "origin": "upmc.com",
+    "publisher_id": "upmc",
+    "location_id": "upmc-mercy",
+    "format_recorded_by_sibling": ".csv",
+    "matched": "TXT location name contains the CMS facility name (or the reverse)"
+   },
+   {
+    "ccn": "390330",
+    "facility_name": "St Luke'S Hospital - Monroe Campus (Stroudsburg, PA)",
+    "origin": "slhn.org",
+    "publisher_id": "slhn",
+    "location_id": "st-luke-s-hospital-monroe-campus",
+    "format_recorded_by_sibling": ".ashx; the response declared Content-Type text/csv",
+    "matched": "TXT location name contains the CMS facility name (or the reverse)"
+   },
+   {
+    "ccn": "440029",
+    "facility_name": "Williamson Medical Center (Franklin, TN)",
+    "origin": "williamsonhealth.org",
+    "publisher_id": "williamsonhealth",
+    "location_id": "williamson-medical-center",
+    "format_recorded_by_sibling": ".csv",
+    "matched": "TXT location name contains the CMS facility name (or the reverse)"
+   },
+   {
+    "ccn": "450104",
+    "facility_name": "Guadalupe Regional Medical Center (Seguin, TX)",
+    "origin": "grmedcenter.com",
+    "publisher_id": "grmedcenter",
+    "location_id": "guadalupe-regional-medical-center",
+    "format_recorded_by_sibling": ".csv",
+    "matched": "TXT location name contains the CMS facility name (or the reverse)"
+   },
+   {
+    "ccn": "510046",
+    "facility_name": "Princeton Community Hospital Assn Inc (Princeton, WV)",
+    "origin": "wvumedicine.org",
+    "publisher_id": "wvumedicine",
+    "location_id": "princeton-community-hospital-assn-inc",
+    "format_recorded_by_sibling": ".csv",
+    "matched": "TXT location name contains the CMS facility name (or the reverse)"
+   },
+   {
+    "ccn": "670068",
+    "facility_name": "Texas Health Presbyterian Hospital Flower Mound (Flower Mound, TX)",
+    "origin": "texashealth.org",
+    "publisher_id": "texashealth",
+    "location_id": "texas-health-presbyterian-hospital-flower-mound",
+    "format_recorded_by_sibling": ".csv",
+    "matched": "TXT location name contains the CMS facility name (or the reverse)"
+   }
+  ]
+ },
+ "exclusions": []
+}

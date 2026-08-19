@@ -173,3 +173,26 @@ Before the next cohort, or before any statement about hospitals in general is pu
 this data, whichever comes first. The open question the frame does not yet answer is whether the
 JSON/CSV split observed in stratum B is stable, and whether a CSV profile would change what this
 project can honestly say.
+
+## 2026-08-19, later the same day: the CSV profile answered the revisit question
+
+The open question above — whether a CSV profile would change what this project can honestly
+say — was answered the way questions should be: by building the profile and running it. A
+second assessment profile now implements CMS's CSV v3.0.0 templates (Tall and Wide), and a
+sibling cohort, `hospital-csv-v3-2026-08-19`, grades **all 25 CSV-retrievable targets of this
+same draw** under it. Nothing was re-drawn and nothing was added: the CSV cohort's target list
+is exactly the sibling exclusions recorded as CSV-retrievable, and a test walks the seam
+(`tests/test_published_claims.py`) so that no drawn facility can vanish between the two
+documents — every CSV-retrievable exclusion is a declared target, every declared target is a
+published row, nothing is graded twice, and the 7 ZIP publications remain recorded exclusions.
+
+The accounting for the one committed draw of 48 is now: 11 graded under the JSON profile,
+25 published as rows of the CSV cohort (21 graded; 2 robots disallows and 2 files over the
+project's size ceiling, stated), 7 ZIP archives recorded and excluded, 4 origins whose
+`cms-hpt.txt` could not be retrieved, and 1 whose location entry did not resolve.
+
+**The two cohorts are published side by side and never pooled.** Each was assessed under its
+own profile with its own fingerprinted policies, and a distribution computed across both would
+compare findings produced by different rule sets. "Two thirds of the draw falls outside the
+profile" stops being the headline; what replaces it is stated per cohort, on the site, with the
+same fail-closed exclusion discipline this document promised.

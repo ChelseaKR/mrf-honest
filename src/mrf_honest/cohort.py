@@ -46,6 +46,12 @@ from mrf_honest.scorecard import require_comparable
 
 GRADE_POLICY_VERSION = "cms-hospital-json-v3-file-grade-v1"
 
+#: The CSV profile's presentation-grade policy. The rule table is deliberately identical to the
+#: JSON profile's: the letter describes dimensions and severities, not a file format. What must
+#: differ is the name, because a published grade names the policy it was minted under, and a CSV
+#: page claiming a ``json-v3`` policy would be a small lie in the shop window.
+CSV_GRADE_POLICY_VERSION = "cms-hospital-csv-v3-file-grade-v1"
+
 #: Schema version of the published comparison document, bumped whenever the shape of the
 #: document changes. Version 2 added the refused branch of ``files[].lakehouse``: warehouse
 #: evidence became a discriminated record instead of "an object or ``null``", so a consumer
@@ -78,22 +84,70 @@ _WEB_PAGE_MEDIA_TYPES = frozenset({"text/html", "application/xhtml+xml"})
 
 _UNREAD_CONTENT_RULE = "content that could not be read is treated as failed, not passed"
 
-#: The complete deterministic policy, hashed so a rule change creates a new fingerprint instead
-#: of silently regrading old cohorts under new semantics.
-_GRADE_RULES: dict[str, object] = {
-    "version": GRADE_POLICY_VERSION,
-    "retrievability_findings": "F",
-    "retrievability_not_assessed": NOT_GRADED,
-    "scan_incomplete": "F",
-    "error_dimension_counts": {"0": "A or B", "1": "C", "2": "D", "3+": "F"},
-    "warnings_split_a_b": True,
-    "info_findings_never_lower_a_grade": True,
-    "not_assessed_local_dimension_counts_as_error_dimension": True,
+
+def _grade_rules(version: str) -> dict[str, object]:
+    """The complete deterministic policy, hashed so a rule change creates a new fingerprint
+    instead of silently regrading old cohorts under new semantics."""
+    return {
+        "version": version,
+        "retrievability_findings": "F",
+        "retrievability_not_assessed": NOT_GRADED,
+        "scan_incomplete": "F",
+        "error_dimension_counts": {"0": "A or B", "1": "C", "2": "D", "3+": "F"},
+        "warnings_split_a_b": True,
+        "info_findings_never_lower_a_grade": True,
+        "not_assessed_local_dimension_counts_as_error_dimension": True,
+    }
+
+
+def _rules_fingerprint(rules: Mapping[str, object]) -> str:
+    return hashlib.sha256(
+        json.dumps(rules, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+
+
+_GRADE_RULES: dict[str, object] = _grade_rules(GRADE_POLICY_VERSION)
+
+GRADE_POLICY_FINGERPRINT = _rules_fingerprint(_GRADE_RULES)
+
+
+@dataclass(frozen=True)
+class GradePolicy:
+    """One profile's presentation-grade policy: its name, rule table, and fingerprint."""
+
+    version: str
+    rules: Mapping[str, object]
+    fingerprint: str
+    unread_noun: str
+
+
+_JSON_GRADE_POLICY = GradePolicy(
+    version=GRADE_POLICY_VERSION,
+    rules=_GRADE_RULES,
+    fingerprint=GRADE_POLICY_FINGERPRINT,
+    unread_noun="the standard_charge_information array",
+)
+_CSV_GRADE_RULES = _grade_rules(CSV_GRADE_POLICY_VERSION)
+_CSV_GRADE_POLICY = GradePolicy(
+    version=CSV_GRADE_POLICY_VERSION,
+    rules=_CSV_GRADE_RULES,
+    fingerprint=_rules_fingerprint(_CSV_GRADE_RULES),
+    unread_noun="the standard-charge table",
+)
+
+#: Grade policy by the assessment profile recorded in each row's comparison scope. An absent or
+#: unknown profile falls back to the JSON policy, which is exactly what every record written
+#: before profiles existed was graded under.
+_GRADE_POLICIES: dict[str, GradePolicy] = {
+    "cms-hospital-json-v3": _JSON_GRADE_POLICY,
+    "cms-hospital-csv-v3": _CSV_GRADE_POLICY,
 }
 
-GRADE_POLICY_FINGERPRINT = hashlib.sha256(
-    json.dumps(_GRADE_RULES, sort_keys=True, separators=(",", ":")).encode("utf-8")
-).hexdigest()
+
+def _policy_for(record: Mapping[str, object]) -> GradePolicy:
+    scope = record.get("comparison_scope")
+    profile = scope.get("profile") if isinstance(scope, Mapping) else None
+    return _GRADE_POLICIES.get(str(profile), _JSON_GRADE_POLICY)
 
 
 class CohortError(Exception):
@@ -109,6 +163,8 @@ class FileGrade:
     error_dimensions: tuple[str, ...] = ()
     warning_findings: int = 0
     info_findings: int = 0
+    policy_version: str = GRADE_POLICY_VERSION
+    policy_fingerprint: str = GRADE_POLICY_FINGERPRINT
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -117,8 +173,8 @@ class FileGrade:
             "error_dimensions": list(self.error_dimensions),
             "warning_findings": self.warning_findings,
             "info_findings": self.info_findings,
-            "policy_version": GRADE_POLICY_VERSION,
-            "policy_fingerprint": GRADE_POLICY_FINGERPRINT,
+            "policy_version": self.policy_version,
+            "policy_fingerprint": self.policy_fingerprint,
         }
 
 
@@ -151,7 +207,7 @@ def _severity_count(findings: Iterable[Mapping[str, object]], severity: str) -> 
     return sum(1 for finding in findings if finding.get("severity") == severity)
 
 
-def _grade_local_dimensions(scorecard: Mapping[str, object]) -> FileGrade:
+def _grade_local_dimensions(scorecard: Mapping[str, object], policy: GradePolicy) -> FileGrade:
     error_dimensions: list[str] = []
     warnings = 0
     infos = 0
@@ -170,19 +226,30 @@ def _grade_local_dimensions(scorecard: Mapping[str, object]) -> FileGrade:
                 "every assessed dimension completed with no error or warning findings; "
                 "tolerated INFO observations do not lower a grade"
             )
-            return FileGrade("A", reason, failed, warnings, infos)
+            return _graded("A", reason, failed, warnings, infos, policy)
         reason = f"no structural errors; {warnings} warning finding(s) were recorded"
-        return FileGrade("B", reason, failed, warnings, infos)
+        return _graded("B", reason, failed, warnings, infos, policy)
     named = ", ".join(failed)
     reason = (
         f"errors or missing evidence in {len(failed)} of {len(LOCAL_DIMENSIONS)} "
         f"local dimensions: {named}"
     )
     if len(failed) == 1:
-        return FileGrade("C", reason, failed, warnings, infos)
+        return _graded("C", reason, failed, warnings, infos, policy)
     if len(failed) == 2:
-        return FileGrade("D", reason, failed, warnings, infos)
-    return FileGrade("F", reason, failed, warnings, infos)
+        return _graded("D", reason, failed, warnings, infos, policy)
+    return _graded("F", reason, failed, warnings, infos, policy)
+
+
+def _graded(
+    grade: str,
+    reason: str,
+    failed: tuple[str, ...],
+    warnings: int,
+    infos: int,
+    policy: GradePolicy,
+) -> FileGrade:
+    return FileGrade(grade, reason, failed, warnings, infos, policy.version, policy.fingerprint)
 
 
 def _media_type(declared: object) -> str | None:
@@ -197,7 +264,7 @@ def _media_type(declared: object) -> str | None:
     return media_type or None
 
 
-def _unstreamable_reason(record: Mapping[str, object]) -> str:
+def _unstreamable_reason(record: Mapping[str, object], noun: str) -> str:
     """Explain a document that could not be streamed, using what the server said it was sending.
 
     Three different events used to share one sentence: a hospital's malformed file, an HTTP 200
@@ -214,24 +281,22 @@ def _unstreamable_reason(record: Mapping[str, object]) -> str:
     declared = retrieval.get("content_type") if isinstance(retrieval, Mapping) else None
     media_type = _media_type(declared)
     if media_type is None:
-        return (
-            "the standard_charge_information array could not be streamed to completion; "
-            f"{_UNREAD_CONTENT_RULE}"
-        )
+        return f"{noun} could not be streamed to completion; {_UNREAD_CONTENT_RULE}"
     if media_type in _WEB_PAGE_MEDIA_TYPES:
         return (
             f"the server declared Content-Type {media_type!r} — a web page, not the requested "
-            "file — and the standard_charge_information array could not be streamed to "
+            f"file — and {noun} could not be streamed to "
             f"completion; {_UNREAD_CONTENT_RULE}"
         )
     return (
-        "the standard_charge_information array could not be streamed to completion; the server "
+        f"{noun} could not be streamed to completion; the server "
         f"declared Content-Type {media_type!r}; {_UNREAD_CONTENT_RULE}"
     )
 
 
 def grade_assessment(record: Mapping[str, object]) -> FileGrade:
     """Map one persisted assessment record to its deterministic presentation grade."""
+    policy = _policy_for(record)
     scorecard = _required_mapping(record, "scorecard")
     retrievability = _required_mapping(scorecard, "retrievability")
     status = retrievability.get("status")
@@ -241,10 +306,10 @@ def grade_assessment(record: Mapping[str, object]) -> FileGrade:
         reason = "the identified download attempt did not produce a verified file"
         if detail:
             reason = f"{reason}: {detail}"
-        return FileGrade("F", reason)
+        return _graded("F", reason, (), 0, 0, policy)
     if status == "NOT_ASSESSED":
         note = str(retrievability.get("note") or "retrievability was not assessed")
-        return FileGrade(NOT_GRADED, note)
+        return _graded(NOT_GRADED, note, (), 0, 0, policy)
     if status != "OBSERVED":
         raise CohortError(f"unrecognized retrievability status {status!r}")
     inspection = record.get("inspection")
@@ -253,11 +318,11 @@ def grade_assessment(record: Mapping[str, object]) -> FileGrade:
         # to guess rather than mint a grade from a record this module cannot explain.
         raise CohortError("retrievability is OBSERVED but no inspection evidence is present")
     if inspection.get("scan_completed") is not True:
-        return FileGrade("F", _unstreamable_reason(record))
+        return _graded("F", _unstreamable_reason(record, policy.unread_noun), (), 0, 0, policy)
     # Reached only when the document streamed to completion, which is why the declared media
     # type is not read here: a file that parses has answered the question the header could only
     # have hinted at.
-    return _grade_local_dimensions(scorecard)
+    return _grade_local_dimensions(scorecard, policy)
 
 
 def _validated_manifest(manifest: Mapping[str, object]) -> Mapping[str, object]:
@@ -328,17 +393,22 @@ def _ingest_by_content(
 
 
 def _inspection_counts(inspection: Mapping[str, object]) -> dict[str, object]:
+    # The union of both profiles' count fields, filtered to what this inspection carries:
+    # a JSON inspection has no row_count and a CSV inspection has no charge_group_count, and
+    # publishing either as null would read as a measured absence.
     keys = (
         "item_count",
         "code_count",
+        "row_count",
         "charge_group_count",
+        "payer_plan_combination_count",
         "payer_rate_count",
         "dollar_rate_count",
         "percentage_rate_count",
         "algorithm_rate_count",
         "problem_count",
     )
-    return {key: inspection.get(key) for key in keys}
+    return {key: inspection[key] for key in keys if key in inspection}
 
 
 def _dimension_view(scorecard: Mapping[str, object]) -> dict[str, object]:
@@ -446,15 +516,16 @@ def _cohort_header(
 ) -> dict[str, object]:
     first = records[0]
     scope = dict(_required_mapping(first, "comparison_scope"))
+    policy = _policy_for(first)
     return {
         "cohort_id": manifest["cohort_id"],
         "as_of": first.get("as_of"),
         "comparison_scope": scope,
         "inspection_fingerprint": first.get("inspection_fingerprint"),
         "grade_policy": {
-            "version": GRADE_POLICY_VERSION,
-            "fingerprint": GRADE_POLICY_FINGERPRINT,
-            "rules": _GRADE_RULES,
+            "version": policy.version,
+            "fingerprint": policy.fingerprint,
+            "rules": dict(policy.rules),
         },
     }
 
