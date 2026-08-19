@@ -55,21 +55,23 @@ README quotes a ledger figure, this table is the source and the README follows i
 
 | Metric | Target | Measured by | Gate | Last measured |
 |---|---|---|---|---|
-| Branch coverage | >= 85% | `pytest --cov` (branch mode, `fail_under = 85`) | AUTO (`make verify`) | 91.16%, 344 tests passing, 2026-08-18 |
+| Branch coverage | >= 85% | `pytest --cov` (branch mode, `fail_under = 85`) | AUTO (`make verify`) | 91.29%, 361 tests passing, 2026-08-19 |
 | Lint findings (ruff `E,F,I,B,S,C90,UP,RUF`, `max-complexity=10`) | 0 | `ruff check src tests perf` | AUTO (`make verify`) | 0, 2026-08-16 |
 | Formatting findings | 0 | `ruff format --check src tests perf` | AUTO (`make verify`) | 0, 2026-08-16 |
 | `mypy --strict` errors | 0 | `mypy` over `src` and `perf` | AUTO (`make verify`) | 0, 2026-08-16 |
 | Lockfile drift | none | `uv lock --check` (**not** `uv sync --frozen`, which cannot see drift) | AUTO (`make verify`, CI `uv sync --locked`) | in sync, 2026-08-16 |
 | Known vulnerabilities in the locked dependency set | 0, no ignore list | `pip-audit --strict --no-deps` over `uv export --all-extras` (51 pinned distributions; `uv.lock` resolves 52 packages and `--no-emit-project` drops this one) | AUTO (`make verify`) | 0, 2026-08-16 |
-| Lighthouse accessibility, best-practices and SEO, every rendered page | 1.0 (a declared floor above the standard's 0.90) | `perf/score_lighthouse.py` over Lighthouse 12 reports for every HTML file the render produced | AUTO (`.github/workflows/accessibility.yml`) | 1.0 / 1.0 / 1.0 on all 9 pages, 2026-08-15 |
-| Lighthouse performance, every rendered page | >= 0.95 absolute, and no worse than 10% off `perf/baseline.json` | same job | AUTO (`.github/workflows/accessibility.yml`) | 1.0 on all 9 pages, 2026-08-15 |
-| Page weight and request count | 0 bytes of script, stylesheet, font, image and third party; 1 request; <= 60 KB document | `perf/resource-budget.json` asserted against Lighthouse's `resource-summary` audit (**not** `--budget-path`, which does not exist in Lighthouse 12) | AUTO (`.github/workflows/accessibility.yml`) | heaviest page 12,197 bytes in 1 request, 2026-08-15 |
+| Lighthouse accessibility, best-practices and SEO, every rendered page | 1.0 (a declared floor above the standard's 0.90) | `perf/score_lighthouse.py` over Lighthouse 12 reports for every HTML file the render produced | AUTO (`.github/workflows/accessibility.yml`) | 1.0 / 1.0 / 1.0 on all 20 pages, 2026-08-19 |
+| Lighthouse performance, every rendered page | >= 0.95 absolute, and no worse than 10% off `perf/baseline.json` | same job | AUTO (`.github/workflows/accessibility.yml`) | 1.0 on all 20 pages, 2026-08-19 |
+| Page weight and request count | 0 bytes of script, stylesheet, font, image and third party; 1 request; <= 60 KB document | `perf/resource-budget.json` asserted against Lighthouse's `resource-summary` audit (**not** `--budget-path`, which does not exist in Lighthouse 12) | AUTO (`.github/workflows/accessibility.yml`) | heaviest page 34,938 bytes in 1 request, 2026-08-19 |
 | Design-token contrast, every declared text/background pair | >= 4.5:1 (WCAG 2.2 SC 1.4.3), no large-text exemptions claimed | `tests/test_site.py`, which also fails on a palette colour with no declared pair | AUTO (`make verify`) | 16 pairs, minimum 4.97:1, 2026-08-15 |
 | Heading order, every generated page | no skipped level, exactly one h1 | `tests/test_site.py` | AUTO (`make verify`) | 0 violations, 2026-08-15 |
 | robots.txt obeyed, no override path | a disallow or an unreadable robots.txt stops the fetch before any request for the file | `tests/test_politeness.py` against a real `http.server` on loopback, plus a signature assertion that no `ignore_robots`/`force` parameter exists | AUTO (`make verify`) | 22 cases, 0 failures, 2026-08-15 |
 | Per-host interval and `Retry-After` | interval held across a run; `Crawl-delay` lengthens only; 429/503 `Retry-After` outranks local backoff | same suite | AUTO (`make verify`) | default floor 2.0 s; measured 3.0 s waited on a `Retry-After: 3` against a 100 s configured backoff, 2026-08-15 |
 | Retrieval failures attributed to a publisher | only causes that are actually the publisher's; every local or ambiguous cause is not graded | `tests/test_scorecard.py` status matrix, which fails when a new `FetchStatus` is added without an explicit mapping | AUTO (`make verify`) | 11 of 11 statuses mapped; TLS verification moved from publisher failure to not graded, 2026-08-15 |
-| Published comparison reproducible from its committed inputs | byte-for-byte | `tests/test_published_claims.py` re-runs `build_comparison` over the committed assessments, manifest and ingest evidence | AUTO (`make verify`, and again on the deploy path in `.github/workflows/pages.yml`) | 1 of 1 cohorts reproduce exactly, 2026-08-16 |
+| Published comparison reproducible from its committed inputs | byte-for-byte | `tests/test_published_claims.py` re-runs `build_comparison` over the committed assessments, manifest and ingest evidence | AUTO (`make verify`, and again on the deploy path in `.github/workflows/pages.yml`) | 2 of 2 cohorts reproduce exactly, 2026-08-19 |
+| Random stratum is the seeded draw it claims to be | exact | `tests/test_published_claims.py` re-runs `random.Random(seed).sample` over the committed eligible-facility-id list and compares it to the recorded sample | AUTO (`make verify`) | 48 of 48 drawn facilities match, 2026-08-19 |
+| Drawn facilities published or explained | 100% | `tests/test_published_claims.py` requires every drawn facility to be a graded row or a recorded exclusion | AUTO (`make verify`) | 48 of 48 accounted for: 11 graded, 37 exclusions, 2026-08-19 |
 | Published figures re-derived rather than dated | every number a gate can recompute | `tests/test_published_claims.py` (page counts against the render, audited dependency count against `uv.lock`) | AUTO (`make verify`) | 3 claims checked; 2 were wrong when the gate was added, 2026-08-16 |
 | Manual screen-reader pass | one dated walkthrough of the index and one file page | a person, recorded in `RESPONSIBLE-TECH-AUDITS.md` | REVIEW | **not performed**; the open obligation, stated rather than implied |
 | Streaming scan on the 64,828,148-byte reference file | RSS below file size; zero problems | `/usr/bin/time -l`, recorded in `PHASE-0-FINDINGS.md` | REVIEW (re-measure when `stream.py` changes) | 30,114 items, 0 problems, 9.25 s, 33,865,728-byte RSS (0.5224x), 26,231,240-byte peak footprint, 2026-08-09 |
@@ -90,6 +92,20 @@ Retrieval politeness is no longer an operator procedure. `src/mrf_honest/politen
 and obeys `robots.txt` before the first request with no override flag, holds a per-host minimum
 interval across a whole run that a `Crawl-delay` can only lengthen, and honours `Retry-After` on
 429 and 503 ahead of this tool's own backoff. Every decision and every wait is retained as
-JSON-safe evidence. What that unblocks is a roster-sourced second cohort; what it does not by
+JSON-safe evidence. What that unblocked was the second cohort, published 2026-08-19 with a stated
+sampling frame (`docs/SAMPLING-FRAME.md`) rather than a convenience list; what it does not by
 itself authorise is a *scheduled* job, which still needs a service/job tier declaration before
 it ships.
+
+**Open, and measured on the 2026-08-19 run: the fetcher has no cheap way to learn a file's
+format.** A `cms-hpt.txt` entry whose `mrf-url` carries no file extension — a vendor API path, an
+`.ashx` handler — cannot be classified without asking for it, and this project only learns the
+answer from the `Content-Type` of a response whose body it has already streamed. Four targets in
+the random stratum were classified that way, and the four bodies downloaded to discover they were
+CSV came to **669,479,338 bytes** pulled from hospitals' servers for files this profile cannot
+read: 319,062,694 and 259,393,549 from two `.ashx` handlers, 56,236,566 and 34,786,529 from two
+vendor API paths. A `HEAD` first, or a ranged first read, would have answered the same question in
+kilobytes. Nothing here is a correctness bug — the classification was right and no hospital was
+mis-graded — but "polite" is supposed to mean the load this tool puts on a publisher is the
+smallest load that answers the question, and 669 MB is not that. This wants a format probe in
+`fetch` before the cohort grows again.

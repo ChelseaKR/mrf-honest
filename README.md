@@ -3,20 +3,43 @@
 **Deterministic, spec-cited grades for hospital price-transparency files, published with the
 evidence attached.**
 
-The first graded cohort is live: six machine-readable files across four health systems,
-discovered from CMS-conventional `cms-hpt.txt` documents, retrieved in one identified run,
-streamed without loading into memory, and graded fail-closed. Five files grade **A** under the
-published policy; one grades **C** — an 884 MB file that declares the superseded 2.0.0 template
-seven months after CMS's v3.0.0 effective date, while carrying, element for element, the
-v3.0.0 envelope that version string says it does not have. The label is stale, not the content
-([the finding, with evidence](docs/findings/superseded-template-version-2026-08-14.md)). Four of
-the six files begin with a UTF-8 byte-order mark that RFC 8259 forbids and strict JSON parsers
-reject; the catalog records it as a tolerated `INFO` observation, and all four grade **A**.
-Every grade, count, and finding on the
+The graded cohort is live: 17 machine-readable files across 15 publishers, discovered from
+CMS-conventional `cms-hpt.txt` documents, retrieved in one identified run, streamed without
+loading into memory, and graded fail-closed. The distribution is 12 **A**, 1 **B**, 2 **C**,
+2 **F**, and 0 not graded. Every grade, count, and finding on the
 [site](https://chelseakr.github.io/mrf-honest/) is generated from the committed
-[comparison document](data/cohorts/2026-08-14.comparison.json), never typed in, and each finding
+[comparison document](data/cohorts/2026-08-19.comparison.json), never typed in, and each finding
 cites the CMS rule ([45 CFR § 180.50]) or
 [CMS schema documentation](https://github.com/CMSgov/hospital-price-transparency) it rests on.
+
+**The cohort has a stated sampling frame**, which the first one did not
+([docs/SAMPLING-FRAME.md](docs/SAMPLING-FRAME.md)). Eleven of the seventeen files come from a
+seeded random draw of 48 facilities from CMS's own enumeration of 3,024 acute-care, non-federal
+hospitals — 29 states, for-profit and church and county and academic. The other six are every
+subject the first cohort published, carried forward rather than quietly dropped. All 48 drawn
+facilities were attempted, and the 37 that were not graded are published as recorded exclusions
+with the origin checked and the reason found. A cohort pruned of its failures would grade better
+and describe less, which is the exact defect this project exists to catch.
+
+**The largest finding in it is not a grade.** Two thirds of the randomly drawn hospitals — 32 of
+48 — publish their standard charges in a format this project does not read: CSV, ZIP, or a vendor
+endpoint that answers `text/csv`. Those are recorded, not graded. A hospital publishing a
+conforming CSV is not a hospital with a problem, and grading it against a JSON profile would
+measure the wrong thing. The corollary is the part that matters: **the letter distribution above
+describes hospitals that chose JSON, not hospitals.**
+
+The two **F**s are retrieval failures at the URLs the hospitals' own `cms-hpt.txt` documents
+publish — Northside Hospital Duluth's answers HTTP 403 to an identified client, and Rio Grande
+Regional Hospital's answers HTTP 409, *"Public access is not permitted on this storage account."*
+Both are stated with the dated reason rather than dropped. The two **C**s are both version
+strings: an 884 MB Cedars-Sinai file that declares the superseded 2.0.0 template seven months
+after CMS's v3.0.0 effective date while carrying, element for element, the v3.0.0 envelope that
+version string says it does not have ([the finding, with
+evidence](docs/findings/superseded-template-version-2026-08-14.md)), and Central Maine Medical
+Center's, which declares `3.0` where CMS specifies `3.0.0`. The one **B** is a conforming file
+whose own `last_updated_on` is more than a year before the assessment date. 5 of the 17 files
+begin with a UTF-8 byte-order mark that RFC 8259 forbids and strict JSON parsers reject; the
+catalog records it as a tolerated `INFO` observation, and all five grade **A**.
 
 The first real cohort also broke the pipeline twice, and both breaks are published: a CSV
 dialect the spool reader guessed instead of declared (fixed, regression-pinned), and a default
@@ -64,16 +87,17 @@ uv run mrf-honest scorecard https://files.example.org/standardcharges.json \
 # Every ingest attempt contributes one evidence document, whether the warehouse loaded the file
 # or refused it; a refusal carries the reason, which the file page publishes.
 uv run mrf-honest compare \
-  --assessments data/cohorts/2026-08-14.assessments.jsonl \
-  --manifest data/cohorts/2026-08-14.json \
-  $(for e in data/cohorts/2026-08-14.ingest/*.json; do printf ' --ingest-result %s' "$e"; done) \
+  --assessments data/cohorts/2026-08-19.assessments.jsonl \
+  --manifest data/cohorts/2026-08-19.json \
+  $(for e in data/cohorts/2026-08-19.ingest/*.json; do printf ' --ingest-result %s' "$e"; done) \
   > comparison.json
 uv run mrf-honest site --comparison comparison.json --out site
 ```
 
 Re-running that command over the committed inputs reproduces
-[the committed comparison](data/cohorts/2026-08-14.comparison.json) byte for byte, and both
+[the committed comparison](data/cohorts/2026-08-19.comparison.json) byte for byte, and both
 `make verify` and the publish workflow check exactly that before anything is rendered from it.
+Every published cohort is checked that way, not just the newest one.
 
 The CLI also provides `discover`, `fetch`, `profile`, and `explain`; `grade` is an alias for
 `scorecard`. Retrieval requires an identifying contact string, caches decoded content by
@@ -141,11 +165,12 @@ Built:
 - A DuckDB + partitioned-Parquet lakehouse with 13 documented models, executable data contracts
   at every layer boundary, exact raw text retention, `DECIMAL(38,10)` numerics, and idempotent
   content-addressed run identity ([docs/MODEL-DAG.md](docs/MODEL-DAG.md),
-  [ADR 0003](docs/adr/0003-local-lakehouse-duckdb-parquet.md)). Five of the six cohort files are
-  contracted through it; the sixth declares template `2.0.0` and the v3-only pipeline refuses
-  it. That refusal is recorded as evidence with its reason and published on the file's page,
-  because a limit of this project rendered as a bare absence reads like an unnamed defect in a
-  named hospital's file.
+  [ADR 0003](docs/adr/0003-local-lakehouse-duckdb-parquet.md)). 13 of the cohort files are
+  contracted through it; two declare a template version the v3-only pipeline does not implement
+  (`2.0.0`, and `3.0` where CMS specifies `3.0.0`) and it refuses them, and two were never
+  retrieved at all. Each refusal is recorded as evidence with its reason and published on the
+  file's page, because a limit of this project rendered as a bare absence reads like an unnamed
+  defect in a named hospital's file.
 - `robots.txt`, per-host pacing and `Retry-After` enforced in the fetcher rather than by an
   operator's habits (`src/mrf_honest/politeness.py`). robots is fetched before the first request
   and obeyed with no override flag; an unreachable `robots.txt` is a complete disallow per
@@ -199,7 +224,7 @@ ADR in [docs/adr/](docs/adr/). No blank rows, no silent skips.
 
 | Standard | State |
 |---|---|
-| Code Quality | Applies: `make verify` runs six gates — `ruff check` (security `S` rules, `max-complexity=10`), `ruff format --check`, `mypy --strict`, pytest with a branch-coverage floor of 85, `uv lock --check`, and `pip-audit --strict` over the exported lockfile. Current: 344 tests, 91.16% branch coverage, zero lint/format/type findings, lockfile in sync, zero known vulnerabilities (2026-08-18). Floors: Python >= 3.12 (`.python-version` pins 3.14), ruff >= 0.15, mypy >= 1.18, locked in `uv.lock`. Dev tooling is a PEP 735 `[dependency-groups]` group, so `uv sync` installs it and a published wheel never carries it. |
+| Code Quality | Applies: `make verify` runs six gates — `ruff check` (security `S` rules, `max-complexity=10`), `ruff format --check`, `mypy --strict`, pytest with a branch-coverage floor of 85, `uv lock --check`, and `pip-audit --strict` over the exported lockfile. Current: 361 tests, 91.29% branch coverage, zero lint/format/type findings, lockfile in sync, zero known vulnerabilities (2026-08-19). Floors: Python >= 3.12 (`.python-version` pins 3.14), ruff >= 0.15, mypy >= 1.18, locked in `uv.lock`. Dev tooling is a PEP 735 `[dependency-groups]` group, so `uv sync` installs it and a published wheel never carries it. |
 | Security & Supply-Chain | Applies: the streaming, inspection, discovery, fetch, registry, comparison, and site path is standard-library-only; DuckDB is an optional lakehouse dependency ([ADRs 0002-0003](docs/adr/)). The lockfile, ruff `S` gate, HTTPS/redirect validation, bounded downloads, and SHA-pinned CI actions reduce the current surface. Hosted CodeQL (Python and Actions) and a checksum-pinned full-history gitleaks scan run on push, PR, and weekly schedule (`.github/workflows/security.yml`). `make verify` runs `pip-audit --strict` against the whole exported lockfile — every extra and the dev group — with no ignore list, so the audit runs on a laptop and in CI rather than only in CI. The lockfile-drift gate is `uv lock --check`, not `uv sync --frozen`: measured on a deliberately drifted project under uv 0.12.1, `uv lock --check` and `uv sync --locked` exit 1 and `uv sync --frozen` exits 0, because `--frozen` installs from the lockfile without reading `pyproject.toml` and so cannot see the two disagree. |
 | CI/CD | Applies: SHA-pinned workflows mirror `make verify` on Python 3.12 and 3.14, build distributions, and publish the site from committed data only. The publish job first re-derives the newest comparison from its committed assessments, manifest, and ingest evidence and requires a byte-for-byte match, then requires one rendered page per row in it; a generator that no longer reproduces its own published artifact cannot deploy. `make verify` runs the same derivation, but that is a separate workflow whose failure would not by itself stop a deploy, which is why the check is on both paths. |
 | Observability | Applies to the local batch shape plus a static published artifact: finalized run manifests and DuckDB `model_metric` rows retain counts, bytes, and wall time; the site is rebuilt from committed data with no availability objective declared. See [docs/ROADMAP.md](docs/ROADMAP.md). |

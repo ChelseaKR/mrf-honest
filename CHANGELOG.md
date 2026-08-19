@@ -7,6 +7,72 @@ no version tags yet; until the first dated release (phase 5 of
 
 ## [Unreleased]
 
+### Added
+
+- **The cohort has a sampling frame, and the first one is now on record as not having had one.**
+  The published cohort grew from 6 files to 17, but the size is the less interesting half. The
+  2026-08-14 cohort was a convenience sample — four large academic systems, reached for because
+  their `cms-hpt.txt` documents were already discoverable — and a convenience sample supports one
+  kind of statement ("here is what these six files looked like") and no statement at all about
+  hospital price-transparency publishing. Nothing on the site said so, which left the disclaimer
+  to the reader's charity. The 2026-08-19 cohort is drawn from two strata, each a complete
+  enumeration with no discretion at selection time: **stratum B** is a uniform random sample of
+  48 facilities drawn with a committed seed from the 3,024 acute-care, non-federal,
+  50-states-and-DC hospitals in CMS's own *Hospital General Information* dataset, and **stratum
+  A** carries forward every subject the first cohort published, so a grade is never silently
+  withdrawn. The frame, its filters, its seed, its weakest joint, and what it can and cannot
+  support are written down in [docs/SAMPLING-FRAME.md](docs/SAMPLING-FRAME.md); the eligible
+  facility identifiers are committed verbatim at `data/frames/2026-08-19.eligible-facility-ids.txt`
+  because CMS refreshes the dataset and a frame that cannot be reconstructed is not a frame.
+  `GRADE_POLICY_FINGERPRINT` and the rule table are untouched: this adds subjects, it does not
+  re-score anything.
+- **Two new gates, because "random sample" and "nothing was dropped" are exactly the claims this
+  project should distrust.** `tests/test_published_claims.py` now re-runs
+  `random.Random(seed).sample` over the committed identifier list and fails if the recorded
+  sample is not its output, and separately requires every drawn facility to appear either as a
+  graded row or as a published exclusion with a stated basis and reason. Without the first,
+  "random sample" is a word; without the second, a cohort could be curated after the fact by
+  deleting whichever targets embarrassed it. The README's quantitative lead — file count,
+  publisher count, BOM count, largest file, warehouse count — is now re-derived from the
+  committed comparison by a third test, so growing a cohort without editing the prose fails the
+  build rather than shipping a stale number.
+- **The methods page publishes how subjects were chosen, or says plainly that they were not.** A
+  grade distribution invites a reader to generalise from it whether or not the page invites them
+  to, so `mrf-honest site` now renders the cohort's sampling frame and its format rule; a cohort
+  with no frame renders that fact rather than an empty heading.
+
+### Changed
+
+- **What the expanded cohort actually found, none of which the first six files could have
+  shown.** Of the 48 randomly drawn facilities, 11 published a CMS JSON document this profile
+  reads and were graded; **32 — two thirds — publish CSV, ZIP, or a vendor endpoint that answers
+  `text/csv`**, and are recorded exclusions rather than grades, because a hospital publishing a
+  conforming CSV is not a hospital with a problem and grading it against a JSON profile would
+  measure the wrong thing. Four origins could not be reached at all (two HTTP 403 to an
+  identified client, two whose `robots.txt` would not verify over TLS, which RFC 9309 § 2.3.1.4
+  makes a complete disallow) and one served a `cms-hpt.txt` whose only location entry declares no
+  `mrf-url` field. The graded distribution moved from `{A: 5, C: 1}` to `{A: 12, B: 1, C: 2, F:
+  2}`: the project's first **B** is a conforming file whose own `last_updated_on` is more than a
+  year before the assessment date, the second **C** is a file declaring version `3.0` where CMS
+  specifies `3.0.0`, and both **F**s are retrieval failures at URLs the hospitals' own
+  `cms-hpt.txt` documents publish — one HTTP 403, one HTTP 409 *"Public access is not permitted
+  on this storage account."* The blunt consequence, stated in the README and on the site: the
+  letter distribution describes hospitals that chose JSON, not hospitals.
+- **`Content-Type` recording earned its keep on its first real run.** Four drawn targets publish
+  through vendor endpoints whose URLs carry no file extension, or an `.ashx` handler. Without the
+  declaration recorded there is no way to tell those from a hospital that published a broken JSON
+  document; with it, `text/csv` classifies them as out of profile instead of handing four
+  hospitals a spurious `F` built from eight "envelope field missing" errors.
+- The bias review that the 2026-08-14 responsible-tech appendix deferred *"until the cohort grows
+  past its current composition"* has been run and is appended to
+  [docs/RESPONSIBLE-TECH-AUDITS.md](docs/RESPONSIBLE-TECH-AUDITS.md). Its finding is that the
+  material bias in this cohort is not in the grade policy but in the *profile*, and secondarily in
+  origin resolution — the one manual step in the frame, which is systematically harder for small
+  and vendor-hosted hospitals. Ten first-pass candidate origins in this run were wrong (one of
+  them a parked domain belonging to an unrelated system in another state); had they not been
+  re-checked before anything was recorded, ten hospitals would have been published as having
+  failed to publish, and two of those in fact publish conforming JSON and are graded here.
+
 ### Fixed
 
 - **A web page served where a file was requested was published as a hospital's unreadable

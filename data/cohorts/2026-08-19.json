@@ -1,0 +1,745 @@
+{
+  "policy": "A cohort manifest attests the collection context that assessment rows cannot carry by themselves (docs/PHASE-3-FINDINGS.md). `build_comparison` refuses to compare rows without the operator_controlled_single_run attestation. This cohort adds a stated sampling frame (docs/SAMPLING-FRAME.md): its random stratum is a seeded draw from CMS's own enumeration of acute-care hospitals, every drawn facility was attempted, and every facility that was not graded appears below as a recorded exclusion with its basis and its reason. Exclusions are recorded targets, not findings: `basis` says how far the review went, `reason` says what it found. The two strata must not be pooled into a rate; see docs/SAMPLING-FRAME.md. Contact evidence stays in the local discovery registry and is never published.",
+  "cohort_id": "hospital-json-v3-2026-08-19",
+  "collection": {
+    "operator_controlled_single_run": true,
+    "utc_date": "2026-08-19",
+    "description": "One serial, operator-invoked run of `mrf-honest scorecard` per target under the default retrieval policy: identified User-Agent with a contact address, HTTPS only, robots.txt fetched and obeyed in code before every request, a per-host minimum interval, conditional revalidation against the verified cache, retry backoff, and the default 1 GiB decoded-size ceiling. One bounded GET per file, with a pause between invocations. The six carry-forward files revalidated against the cache: five returned HTTP 304 and moved no body bytes at all.",
+    "user_agent": "mrf-honest/0.1",
+    "sampling_frame": {
+      "document": "docs/SAMPLING-FRAME.md",
+      "record": "data/frames/2026-08-19.frame.json",
+      "summary": "Two strata, each a complete enumeration. Stratum A carries forward every subject published in the 2026-08-14 cohort (6 files, 4 systems) and is a convenience sample. Stratum B is a seeded uniform random sample of 48 facilities drawn from the 3024 acute-care, non-federal, 50-states-and-DC hospitals in the CMS Hospital General Information dataset; every drawn facility was attempted and every outcome is recorded. Cohort-wide totals mix the two strata and are descriptions of this cohort, not estimates.",
+      "stratum_a_carry_forward": [
+        "uc-health/university-of-cincinnati-medical-center",
+        "uc-health/west-chester-hospital",
+        "stanford-health-care/stanford-health-care",
+        "stanford-health-care/stanford-health-care-tri-valley",
+        "cedars-sinai/cedars-sinai-medical-center",
+        "uc-davis-health/uc-davis-medical-center"
+      ],
+      "stratum_b_random_draw": {
+        "universe": {
+          "source": "CMS Hospital General Information",
+          "dataset": "xubh-q36u",
+          "endpoint": "https://data.cms.gov/provider-data/api/1/datastore/query/xubh-q36u/0",
+          "retrieved": "2026-08-19",
+          "rows_retrieved": 5419
+        },
+        "inclusion": [
+          "hospital_type == \"Acute Care Hospitals\"",
+          "state in the 50 states and DC",
+          "hospital_ownership != \"Government - Federal\""
+        ],
+        "eligible_count": 3024,
+        "eligible_facility_id_sha256": "f92fcc6cce676778baf4f7e26e16cefa9a32c249b791b175f68b155642d0f904",
+        "seed": 20260819,
+        "sample_size": 48,
+        "graded": 11,
+        "not_graded": 37
+      },
+      "format_rule": "A target is graded only where the publication is a CMS hospital JSON document. Format is read from the publication, never from a failed request: the URL's file extension decides where it has one; where it has none, a specific declared media type decides; where the declaration is generic, the retrieved document decides. A hospital publishing a conforming CSV is not a hospital with a problem, and is recorded as an exclusion rather than graded against the wrong profile. A .json publication whose retrieval failed stays in the cohort and is graded F with the dated reason.",
+      "origin_resolution": "Neither CMS nor any other public dataset this project found records which website a hospital selected to host its file, so resolving a drawn facility to an origin is the one manual step in the frame. A returned cms-hpt.txt is accepted as the right origin only when one of its location entries names the drawn facility, which makes a correct resolution self-verifying; the MRF URL graded is that entry's. Candidate origins that failed were re-checked against independent sources before the failure was recorded, because a wrong guess that 404s must never be published as a hospital that did not publish. Ten first-pass candidates were wrong and were corrected before anything was recorded; two of the ten publish conforming JSON and are graded here. The origin actually checked is named in every exclusion and in data/frames/2026-08-19.frame.json."
+    },
+    "robots": "robots.txt is fetched and applied by the fetcher itself (src/mrf_honest/politeness.py, RFC 9309), not by an operator's habit: a 2xx body is parsed and obeyed, a 4xx means no robots.txt exists, and a 5xx or network failure is treated as a complete disallow. Two origins in this cohort's draw were skipped on that rule -- both served a robots.txt whose TLS chain would not verify -- and are recorded as exclusions rather than retried."
+  },
+  "discovery": {
+    "method": "`mrf-honest discover` retrieved https://<origin>/cms-hpt.txt for every resolved origin with an identified client; every attempt, including failures, is durable evidence in the local discovery registry. No MRF URL in this cohort was hand-assembled: every graded URL is the one a location entry in a retrieved cms-hpt.txt published for the drawn facility.",
+    "date": "2026-08-19",
+    "origins_checked": 47,
+    "domains": [
+      {
+        "domain": "balladhealth.org",
+        "facilities": [
+          "490053"
+        ]
+      },
+      {
+        "domain": "bayareahospital.org",
+        "facilities": [
+          "380090"
+        ]
+      },
+      {
+        "domain": "baycare.org",
+        "facilities": [
+          "100121"
+        ]
+      },
+      {
+        "domain": "carondelet.org",
+        "facilities": [
+          "030010"
+        ]
+      },
+      {
+        "domain": "centura.org",
+        "facilities": [
+          "060015"
+        ]
+      },
+      {
+        "domain": "chihealth.com",
+        "facilities": [
+          "280130"
+        ]
+      },
+      {
+        "domain": "christushealth.org",
+        "facilities": [
+          "450082"
+        ]
+      },
+      {
+        "domain": "cmhc.org",
+        "facilities": [
+          "200024"
+        ]
+      },
+      {
+        "domain": "commonspirit.org",
+        "facilities": [
+          "030119"
+        ]
+      },
+      {
+        "domain": "conemaugh.org",
+        "facilities": [
+          "390110"
+        ]
+      },
+      {
+        "domain": "dschd.org",
+        "facilities": [
+          "450155"
+        ]
+      },
+      {
+        "domain": "frederickhealth.org",
+        "facilities": [
+          "210005"
+        ]
+      },
+      {
+        "domain": "grmedcenter.com",
+        "facilities": [
+          "450104"
+        ]
+      },
+      {
+        "domain": "hackensackmeridianhealth.org",
+        "facilities": [
+          "310112"
+        ]
+      },
+      {
+        "domain": "hamiltonhealth.com",
+        "facilities": [
+          "110001"
+        ]
+      },
+      {
+        "domain": "hcafloridahealthcare.com",
+        "facilities": [
+          "100252"
+        ]
+      },
+      {
+        "domain": "healthy.kaiserpermanente.org",
+        "facilities": [
+          "050510"
+        ]
+      },
+      {
+        "domain": "hillcrest.com",
+        "facilities": [
+          "370183"
+        ]
+      },
+      {
+        "domain": "insightcoldwater.org",
+        "facilities": [
+          "230022"
+        ]
+      },
+      {
+        "domain": "lafayettesurgical.com",
+        "facilities": [
+          "190259"
+        ]
+      },
+      {
+        "domain": "marshallmedical.org",
+        "facilities": [
+          "050254"
+        ]
+      },
+      {
+        "domain": "mercer-health.com",
+        "facilities": [
+          "360058"
+        ]
+      },
+      {
+        "domain": "mercy.net",
+        "facilities": [
+          "040062"
+        ]
+      },
+      {
+        "domain": "mindenmedicalcenter.com",
+        "facilities": [
+          "190144"
+        ]
+      },
+      {
+        "domain": "msh.ms.gov",
+        "facilities": [
+          "250134"
+        ]
+      },
+      {
+        "domain": "newtonmed.com",
+        "facilities": [
+          "170103"
+        ]
+      },
+      {
+        "domain": "northside.com",
+        "facilities": [
+          "110252"
+        ]
+      },
+      {
+        "domain": "piedmontmedicalcenter.com",
+        "facilities": [
+          "420002"
+        ]
+      },
+      {
+        "domain": "portsmouthhospital.com",
+        "facilities": [
+          "300029"
+        ]
+      },
+      {
+        "domain": "riohealth.com",
+        "facilities": [
+          "450711"
+        ]
+      },
+      {
+        "domain": "rochesterregional.org",
+        "facilities": [
+          "330073"
+        ]
+      },
+      {
+        "domain": "scripps.org",
+        "facilities": [
+          "050324"
+        ]
+      },
+      {
+        "domain": "sgmc.org",
+        "facilities": [
+          "110234"
+        ]
+      },
+      {
+        "domain": "slhn.org",
+        "facilities": [
+          "310060",
+          "390330"
+        ]
+      },
+      {
+        "domain": "sphp.com",
+        "facilities": [
+          "330406"
+        ]
+      },
+      {
+        "domain": "stelizabeth.com",
+        "facilities": [
+          "180045"
+        ]
+      },
+      {
+        "domain": "texashealth.org",
+        "facilities": [
+          "670068"
+        ]
+      },
+      {
+        "domain": "trinityhealthofne.org",
+        "facilities": [
+          "070008"
+        ]
+      },
+      {
+        "domain": "uchealth.org",
+        "facilities": [
+          "060119"
+        ]
+      },
+      {
+        "domain": "umms.org",
+        "facilities": [
+          "210058"
+        ]
+      },
+      {
+        "domain": "uoflhealth.org",
+        "facilities": [
+          "180040"
+        ]
+      },
+      {
+        "domain": "upmc.com",
+        "facilities": [
+          "390028"
+        ]
+      },
+      {
+        "domain": "williamsonhealth.org",
+        "facilities": [
+          "440029"
+        ]
+      },
+      {
+        "domain": "wvumedicine.org",
+        "facilities": [
+          "510046"
+        ]
+      },
+      {
+        "domain": "www.flowershospital.com",
+        "facilities": [
+          "010055"
+        ]
+      },
+      {
+        "domain": "www.franciscanhealth.org",
+        "facilities": [
+          "150109"
+        ]
+      },
+      {
+        "domain": "www.trhosp.org",
+        "facilities": [
+          "180087"
+        ]
+      }
+    ]
+  },
+  "exclusions": [
+    {
+      "id": "ccn-330073",
+      "name": "United Memorial Medical Center (Batavia, NY)",
+      "basis": "format_outside_profile",
+      "reason": "the publication this facility's cms-hpt.txt points at is not a CMS hospital JSON document; this cohort's implemented profile inspects CMS hospital JSON v3 only, and grading another format against a JSON profile would measure the wrong thing — .csv",
+      "reviewed": {
+        "method": "drawn at position 2 of the seeded random sample; `mrf-honest discover` attempted https://rochesterregional.org/cms-hpt.txt",
+        "date": "2026-08-19",
+        "source": "https://rochesterregional.org/cms-hpt.txt"
+      }
+    },
+    {
+      "id": "ccn-380090",
+      "name": "Bay Area Hospital (Coos Bay, OR)",
+      "basis": "format_outside_profile",
+      "reason": "the publication this facility's cms-hpt.txt points at is not a CMS hospital JSON document; this cohort's implemented profile inspects CMS hospital JSON v3 only, and grading another format against a JSON profile would measure the wrong thing — vendor report URL, fileType=CSV",
+      "reviewed": {
+        "method": "drawn at position 3 of the seeded random sample; `mrf-honest discover` attempted https://bayareahospital.org/cms-hpt.txt",
+        "date": "2026-08-19",
+        "source": "https://bayareahospital.org/cms-hpt.txt"
+      }
+    },
+    {
+      "id": "ccn-450155",
+      "name": "Hereford Regional Medical Center (Hereford, TX)",
+      "basis": "txt_published_without_mrf_url",
+      "reason": "the origin served a cms-hpt.txt, but the location entry for this facility declares no mrf-url field, so the CMS-conventional path yields no file to retrieve — the single location entry declares no mrf-url field and an empty source-page-url",
+      "reviewed": {
+        "method": "drawn at position 4 of the seeded random sample; `mrf-honest discover` attempted https://dschd.org/cms-hpt.txt",
+        "date": "2026-08-19",
+        "source": "https://dschd.org/cms-hpt.txt"
+      }
+    },
+    {
+      "id": "ccn-100121",
+      "name": "Bartow Regional Medical Center (Bartow, FL)",
+      "basis": "txt_fetch_failed",
+      "reason": "the cms-hpt.txt retrieval did not succeed at the origin resolved for this facility; no MRF URL was obtained through the CMS-conventional path, and a failed probe of one origin is not evidence about the hospital's publication — robots.txt TLS chain would not verify",
+      "reviewed": {
+        "method": "drawn at position 5 of the seeded random sample; `mrf-honest discover` attempted https://baycare.org/cms-hpt.txt",
+        "date": "2026-08-19",
+        "source": "https://baycare.org/cms-hpt.txt"
+      }
+    },
+    {
+      "id": "ccn-210058",
+      "name": "Umd Rehabilitation &  Orthopaedic Institute (Baltimore, MD)",
+      "basis": "format_outside_profile",
+      "reason": "the publication this facility's cms-hpt.txt points at is not a CMS hospital JSON document; this cohort's implemented profile inspects CMS hospital JSON v3 only, and grading another format against a JSON profile would measure the wrong thing — .csv",
+      "reviewed": {
+        "method": "drawn at position 6 of the seeded random sample; `mrf-honest discover` attempted https://umms.org/cms-hpt.txt",
+        "date": "2026-08-19",
+        "source": "https://umms.org/cms-hpt.txt"
+      }
+    },
+    {
+      "id": "ccn-490053",
+      "name": "Johnston Memorial Hospital (Abingdon, VA)",
+      "basis": "format_outside_profile",
+      "reason": "the publication this facility's cms-hpt.txt points at is not a CMS hospital JSON document; this cohort's implemented profile inspects CMS hospital JSON v3 only, and grading another format against a JSON profile would measure the wrong thing — .zip",
+      "reviewed": {
+        "method": "drawn at position 7 of the seeded random sample; `mrf-honest discover` attempted https://balladhealth.org/cms-hpt.txt",
+        "date": "2026-08-19",
+        "source": "https://balladhealth.org/cms-hpt.txt"
+      }
+    },
+    {
+      "id": "ccn-510046",
+      "name": "Princeton Community Hospital Assn Inc (Princeton, WV)",
+      "basis": "format_outside_profile",
+      "reason": "the publication this facility's cms-hpt.txt points at is not a CMS hospital JSON document; this cohort's implemented profile inspects CMS hospital JSON v3 only, and grading another format against a JSON profile would measure the wrong thing — .csv",
+      "reviewed": {
+        "method": "drawn at position 9 of the seeded random sample; `mrf-honest discover` attempted https://wvumedicine.org/cms-hpt.txt",
+        "date": "2026-08-19",
+        "source": "https://wvumedicine.org/cms-hpt.txt"
+      }
+    },
+    {
+      "id": "ccn-110001",
+      "name": "Hamilton Medical Center (Dalton, GA)",
+      "basis": "format_outside_profile",
+      "reason": "the publication this facility's cms-hpt.txt points at is not a CMS hospital JSON document; this cohort's implemented profile inspects CMS hospital JSON v3 only, and grading another format against a JSON profile would measure the wrong thing — .csv.zip",
+      "reviewed": {
+        "method": "drawn at position 10 of the seeded random sample; `mrf-honest discover` attempted https://hamiltonhealth.com/cms-hpt.txt",
+        "date": "2026-08-19",
+        "source": "https://hamiltonhealth.com/cms-hpt.txt"
+      }
+    },
+    {
+      "id": "ccn-250134",
+      "name": "Whitfield Medical Surgical Hospital (Whitfield, MS)",
+      "basis": "format_outside_profile",
+      "reason": "the publication this facility's cms-hpt.txt points at is not a CMS hospital JSON document; this cohort's implemented profile inspects CMS hospital JSON v3 only, and grading another format against a JSON profile would measure the wrong thing — .csv",
+      "reviewed": {
+        "method": "drawn at position 11 of the seeded random sample; `mrf-honest discover` attempted https://msh.ms.gov/cms-hpt.txt",
+        "date": "2026-08-19",
+        "source": "https://msh.ms.gov/cms-hpt.txt"
+      }
+    },
+    {
+      "id": "ccn-050324",
+      "name": "Scripps Memorial Hospital La Jolla (La Jolla, CA)",
+      "basis": "format_outside_profile",
+      "reason": "the publication this facility's cms-hpt.txt points at is not a CMS hospital JSON document; this cohort's implemented profile inspects CMS hospital JSON v3 only, and grading another format against a JSON profile would measure the wrong thing — .csv",
+      "reviewed": {
+        "method": "drawn at position 12 of the seeded random sample; `mrf-honest discover` attempted https://scripps.org/cms-hpt.txt",
+        "date": "2026-08-19",
+        "source": "https://scripps.org/cms-hpt.txt"
+      }
+    },
+    {
+      "id": "ccn-060015",
+      "name": "Centura Health-St Anthony Hospital (Lakewood, CO)",
+      "basis": "format_outside_profile",
+      "reason": "the publication this facility's cms-hpt.txt points at is not a CMS hospital JSON document; this cohort's implemented profile inspects CMS hospital JSON v3 only, and grading another format against a JSON profile would measure the wrong thing — .csv",
+      "reviewed": {
+        "method": "drawn at position 14 of the seeded random sample; `mrf-honest discover` attempted https://centura.org/cms-hpt.txt",
+        "date": "2026-08-19",
+        "source": "https://centura.org/cms-hpt.txt"
+      }
+    },
+    {
+      "id": "ccn-670068",
+      "name": "Texas Health Presbyterian Hospital Flower Mound (Flower Mound, TX)",
+      "basis": "format_outside_profile",
+      "reason": "the publication this facility's cms-hpt.txt points at is not a CMS hospital JSON document; this cohort's implemented profile inspects CMS hospital JSON v3 only, and grading another format against a JSON profile would measure the wrong thing — .csv",
+      "reviewed": {
+        "method": "drawn at position 15 of the seeded random sample; `mrf-honest discover` attempted https://texashealth.org/cms-hpt.txt",
+        "date": "2026-08-19",
+        "source": "https://texashealth.org/cms-hpt.txt"
+      }
+    },
+    {
+      "id": "ccn-390110",
+      "name": "Conemaugh Memorial Medical Center (Johnstown, PA)",
+      "basis": "format_outside_profile",
+      "reason": "the publication this facility's cms-hpt.txt points at is not a CMS hospital JSON document; this cohort's implemented profile inspects CMS hospital JSON v3 only, and grading another format against a JSON profile would measure the wrong thing — .csv.zip",
+      "reviewed": {
+        "method": "drawn at position 17 of the seeded random sample; `mrf-honest discover` attempted https://conemaugh.org/cms-hpt.txt",
+        "date": "2026-08-19",
+        "source": "https://conemaugh.org/cms-hpt.txt"
+      }
+    },
+    {
+      "id": "ccn-190259",
+      "name": "Lafayette Surgical Specialty Hospital (Lafayette, LA)",
+      "basis": "format_outside_profile",
+      "reason": "the publication this facility's cms-hpt.txt points at is not a CMS hospital JSON document; this cohort's implemented profile inspects CMS hospital JSON v3 only, and grading another format against a JSON profile would measure the wrong thing — no extension; the response declared Content-Type text/csv",
+      "reviewed": {
+        "method": "drawn at position 18 of the seeded random sample; `mrf-honest discover` attempted https://lafayettesurgical.com/cms-hpt.txt",
+        "date": "2026-08-19",
+        "source": "https://lafayettesurgical.com/cms-hpt.txt"
+      }
+    },
+    {
+      "id": "ccn-040062",
+      "name": "Mercy Hospital Fort Smith (Fort Smith, AR)",
+      "basis": "format_outside_profile",
+      "reason": "the publication this facility's cms-hpt.txt points at is not a CMS hospital JSON document; this cohort's implemented profile inspects CMS hospital JSON v3 only, and grading another format against a JSON profile would measure the wrong thing — .zip",
+      "reviewed": {
+        "method": "drawn at position 20 of the seeded random sample; `mrf-honest discover` attempted https://mercy.net/cms-hpt.txt",
+        "date": "2026-08-19",
+        "source": "https://mercy.net/cms-hpt.txt"
+      }
+    },
+    {
+      "id": "ccn-030010",
+      "name": "St. Mary'S Hospital (Tucson, AZ)",
+      "basis": "txt_fetch_failed",
+      "reason": "the cms-hpt.txt retrieval did not succeed at the origin resolved for this facility; no MRF URL was obtained through the CMS-conventional path, and a failed probe of one origin is not evidence about the hospital's publication — HTTP 403 at this origin",
+      "reviewed": {
+        "method": "drawn at position 21 of the seeded random sample; `mrf-honest discover` attempted https://carondelet.org/cms-hpt.txt",
+        "date": "2026-08-19",
+        "source": "https://carondelet.org/cms-hpt.txt"
+      }
+    },
+    {
+      "id": "ccn-440029",
+      "name": "Williamson Medical Center (Franklin, TN)",
+      "basis": "format_outside_profile",
+      "reason": "the publication this facility's cms-hpt.txt points at is not a CMS hospital JSON document; this cohort's implemented profile inspects CMS hospital JSON v3 only, and grading another format against a JSON profile would measure the wrong thing — .csv",
+      "reviewed": {
+        "method": "drawn at position 22 of the seeded random sample; `mrf-honest discover` attempted https://williamsonhealth.org/cms-hpt.txt",
+        "date": "2026-08-19",
+        "source": "https://williamsonhealth.org/cms-hpt.txt"
+      }
+    },
+    {
+      "id": "ccn-420002",
+      "name": "Piedmont Medical Center (Rock Hill, SC)",
+      "basis": "txt_fetch_failed",
+      "reason": "the cms-hpt.txt retrieval did not succeed at the origin resolved for this facility; no MRF URL was obtained through the CMS-conventional path, and a failed probe of one origin is not evidence about the hospital's publication — HTTP 403 at this origin",
+      "reviewed": {
+        "method": "drawn at position 24 of the seeded random sample; `mrf-honest discover` attempted https://piedmontmedicalcenter.com/cms-hpt.txt",
+        "date": "2026-08-19",
+        "source": "https://piedmontmedicalcenter.com/cms-hpt.txt"
+      }
+    },
+    {
+      "id": "ccn-180087",
+      "name": "Taylor Regional Hospital (Campbellsville, KY)",
+      "basis": "format_outside_profile",
+      "reason": "the publication this facility's cms-hpt.txt points at is not a CMS hospital JSON document; this cohort's implemented profile inspects CMS hospital JSON v3 only, and grading another format against a JSON profile would measure the wrong thing — vendor report URL, fileType=CSV",
+      "reviewed": {
+        "method": "drawn at position 25 of the seeded random sample; `mrf-honest discover` attempted https://www.trhosp.org/cms-hpt.txt",
+        "date": "2026-08-19",
+        "source": "https://www.trhosp.org/cms-hpt.txt"
+      }
+    },
+    {
+      "id": "ccn-050254",
+      "name": "Marshall Medical Center (Placerville, CA)",
+      "basis": "format_outside_profile",
+      "reason": "the publication this facility's cms-hpt.txt points at is not a CMS hospital JSON document; this cohort's implemented profile inspects CMS hospital JSON v3 only, and grading another format against a JSON profile would measure the wrong thing — .csv",
+      "reviewed": {
+        "method": "drawn at position 26 of the seeded random sample; `mrf-honest discover` attempted https://marshallmedical.org/cms-hpt.txt",
+        "date": "2026-08-19",
+        "source": "https://marshallmedical.org/cms-hpt.txt"
+      }
+    },
+    {
+      "id": "ccn-310060",
+      "name": "St Luke'S Warren Hospital (Phillipsburg, NJ)",
+      "basis": "format_outside_profile",
+      "reason": "the publication this facility's cms-hpt.txt points at is not a CMS hospital JSON document; this cohort's implemented profile inspects CMS hospital JSON v3 only, and grading another format against a JSON profile would measure the wrong thing — .ashx; the response declared Content-Type text/csv",
+      "reviewed": {
+        "method": "drawn at position 27 of the seeded random sample; `mrf-honest discover` attempted https://slhn.org/cms-hpt.txt",
+        "date": "2026-08-19",
+        "source": "https://slhn.org/cms-hpt.txt"
+      }
+    },
+    {
+      "id": "ccn-370183",
+      "name": "Hillcrest Hospital Henryetta (Henryetta, OK)",
+      "basis": "format_outside_profile",
+      "reason": "the publication this facility's cms-hpt.txt points at is not a CMS hospital JSON document; this cohort's implemented profile inspects CMS hospital JSON v3 only, and grading another format against a JSON profile would measure the wrong thing — .csv",
+      "reviewed": {
+        "method": "drawn at position 28 of the seeded random sample; `mrf-honest discover` attempted https://hillcrest.com/cms-hpt.txt",
+        "date": "2026-08-19",
+        "source": "https://hillcrest.com/cms-hpt.txt"
+      }
+    },
+    {
+      "id": "ccn-110234",
+      "name": "Sgmc Berrien Campus (Nashville, GA)",
+      "basis": "format_outside_profile",
+      "reason": "the publication this facility's cms-hpt.txt points at is not a CMS hospital JSON document; this cohort's implemented profile inspects CMS hospital JSON v3 only, and grading another format against a JSON profile would measure the wrong thing — no extension; the response declared Content-Type text/csv",
+      "reviewed": {
+        "method": "drawn at position 29 of the seeded random sample; `mrf-honest discover` attempted https://sgmc.org/cms-hpt.txt",
+        "date": "2026-08-19",
+        "source": "https://sgmc.org/cms-hpt.txt"
+      }
+    },
+    {
+      "id": "ccn-230022",
+      "name": "Insight Hospital And Medical Center Coldwater (Coldwater, MI)",
+      "basis": "format_outside_profile",
+      "reason": "the publication this facility's cms-hpt.txt points at is not a CMS hospital JSON document; this cohort's implemented profile inspects CMS hospital JSON v3 only, and grading another format against a JSON profile would measure the wrong thing — .csv",
+      "reviewed": {
+        "method": "drawn at position 30 of the seeded random sample; `mrf-honest discover` attempted https://insightcoldwater.org/cms-hpt.txt",
+        "date": "2026-08-19",
+        "source": "https://insightcoldwater.org/cms-hpt.txt"
+      }
+    },
+    {
+      "id": "ccn-010055",
+      "name": "Flowers Hospital (Dothan, AL)",
+      "basis": "format_outside_profile",
+      "reason": "the publication this facility's cms-hpt.txt points at is not a CMS hospital JSON document; this cohort's implemented profile inspects CMS hospital JSON v3 only, and grading another format against a JSON profile would measure the wrong thing — .csv",
+      "reviewed": {
+        "method": "drawn at position 31 of the seeded random sample; `mrf-honest discover` attempted https://www.flowershospital.com/cms-hpt.txt",
+        "date": "2026-08-19",
+        "source": "https://www.flowershospital.com/cms-hpt.txt"
+      }
+    },
+    {
+      "id": "ccn-060119",
+      "name": "Medical Center Of The Rockies (Loveland, CO)",
+      "basis": "format_outside_profile",
+      "reason": "the publication this facility's cms-hpt.txt points at is not a CMS hospital JSON document; this cohort's implemented profile inspects CMS hospital JSON v3 only, and grading another format against a JSON profile would measure the wrong thing — .csv",
+      "reviewed": {
+        "method": "drawn at position 32 of the seeded random sample; `mrf-honest discover` attempted https://uchealth.org/cms-hpt.txt",
+        "date": "2026-08-19",
+        "source": "https://uchealth.org/cms-hpt.txt"
+      }
+    },
+    {
+      "id": "ccn-210005",
+      "name": "Frederick Health Hospital (Frederick, MD)",
+      "basis": "format_outside_profile",
+      "reason": "the publication this facility's cms-hpt.txt points at is not a CMS hospital JSON document; this cohort's implemented profile inspects CMS hospital JSON v3 only, and grading another format against a JSON profile would measure the wrong thing — .csv",
+      "reviewed": {
+        "method": "drawn at position 34 of the seeded random sample; `mrf-honest discover` attempted https://frederickhealth.org/cms-hpt.txt",
+        "date": "2026-08-19",
+        "source": "https://frederickhealth.org/cms-hpt.txt"
+      }
+    },
+    {
+      "id": "ccn-390028",
+      "name": "Upmc Mercy (Pittsburgh, PA)",
+      "basis": "format_outside_profile",
+      "reason": "the publication this facility's cms-hpt.txt points at is not a CMS hospital JSON document; this cohort's implemented profile inspects CMS hospital JSON v3 only, and grading another format against a JSON profile would measure the wrong thing — .csv",
+      "reviewed": {
+        "method": "drawn at position 35 of the seeded random sample; `mrf-honest discover` attempted https://upmc.com/cms-hpt.txt",
+        "date": "2026-08-19",
+        "source": "https://upmc.com/cms-hpt.txt"
+      }
+    },
+    {
+      "id": "ccn-390330",
+      "name": "St Luke'S Hospital - Monroe Campus (Stroudsburg, PA)",
+      "basis": "format_outside_profile",
+      "reason": "the publication this facility's cms-hpt.txt points at is not a CMS hospital JSON document; this cohort's implemented profile inspects CMS hospital JSON v3 only, and grading another format against a JSON profile would measure the wrong thing — .ashx; the response declared Content-Type text/csv",
+      "reviewed": {
+        "method": "drawn at position 36 of the seeded random sample; `mrf-honest discover` attempted https://slhn.org/cms-hpt.txt",
+        "date": "2026-08-19",
+        "source": "https://slhn.org/cms-hpt.txt"
+      }
+    },
+    {
+      "id": "ccn-190144",
+      "name": "Minden Medical Center (Minden, LA)",
+      "basis": "format_outside_profile",
+      "reason": "the publication this facility's cms-hpt.txt points at is not a CMS hospital JSON document; this cohort's implemented profile inspects CMS hospital JSON v3 only, and grading another format against a JSON profile would measure the wrong thing — .csv",
+      "reviewed": {
+        "method": "drawn at position 37 of the seeded random sample; `mrf-honest discover` attempted https://mindenmedicalcenter.com/cms-hpt.txt",
+        "date": "2026-08-19",
+        "source": "https://mindenmedicalcenter.com/cms-hpt.txt"
+      }
+    },
+    {
+      "id": "ccn-310112",
+      "name": "Bayshore Medical Center (Holmdel, NJ)",
+      "basis": "format_outside_profile",
+      "reason": "the publication this facility's cms-hpt.txt points at is not a CMS hospital JSON document; this cohort's implemented profile inspects CMS hospital JSON v3 only, and grading another format against a JSON profile would measure the wrong thing — .csv",
+      "reviewed": {
+        "method": "drawn at position 38 of the seeded random sample; `mrf-honest discover` attempted https://hackensackmeridianhealth.org/cms-hpt.txt",
+        "date": "2026-08-19",
+        "source": "https://hackensackmeridianhealth.org/cms-hpt.txt"
+      }
+    },
+    {
+      "id": "ccn-450104",
+      "name": "Guadalupe Regional Medical Center (Seguin, TX)",
+      "basis": "format_outside_profile",
+      "reason": "the publication this facility's cms-hpt.txt points at is not a CMS hospital JSON document; this cohort's implemented profile inspects CMS hospital JSON v3 only, and grading another format against a JSON profile would measure the wrong thing — .csv",
+      "reviewed": {
+        "method": "drawn at position 40 of the seeded random sample; `mrf-honest discover` attempted https://grmedcenter.com/cms-hpt.txt",
+        "date": "2026-08-19",
+        "source": "https://grmedcenter.com/cms-hpt.txt"
+      }
+    },
+    {
+      "id": "ccn-070008",
+      "name": "Johnson Memorial Hospital (Stafford Springs, CT)",
+      "basis": "format_outside_profile",
+      "reason": "the publication this facility's cms-hpt.txt points at is not a CMS hospital JSON document; this cohort's implemented profile inspects CMS hospital JSON v3 only, and grading another format against a JSON profile would measure the wrong thing — .zip",
+      "reviewed": {
+        "method": "drawn at position 42 of the seeded random sample; `mrf-honest discover` attempted https://trinityhealthofne.org/cms-hpt.txt",
+        "date": "2026-08-19",
+        "source": "https://trinityhealthofne.org/cms-hpt.txt"
+      }
+    },
+    {
+      "id": "ccn-180040",
+      "name": "Uofl Health - Jewish Hospital And Mary & Elizabeth Hospital (Louisville, KY)",
+      "basis": "format_outside_profile",
+      "reason": "the publication this facility's cms-hpt.txt points at is not a CMS hospital JSON document; this cohort's implemented profile inspects CMS hospital JSON v3 only, and grading another format against a JSON profile would measure the wrong thing — .zip",
+      "reviewed": {
+        "method": "drawn at position 43 of the seeded random sample; `mrf-honest discover` attempted https://uoflhealth.org/cms-hpt.txt",
+        "date": "2026-08-19",
+        "source": "https://uoflhealth.org/cms-hpt.txt"
+      }
+    },
+    {
+      "id": "ccn-050510",
+      "name": "Kaiser Foundation Hospital (San Rafael, CA)",
+      "basis": "format_outside_profile",
+      "reason": "the publication this facility's cms-hpt.txt points at is not a CMS hospital JSON document; this cohort's implemented profile inspects CMS hospital JSON v3 only, and grading another format against a JSON profile would measure the wrong thing — .csv",
+      "reviewed": {
+        "method": "drawn at position 46 of the seeded random sample; `mrf-honest discover` attempted https://healthy.kaiserpermanente.org/cms-hpt.txt",
+        "date": "2026-08-19",
+        "source": "https://healthy.kaiserpermanente.org/cms-hpt.txt"
+      }
+    },
+    {
+      "id": "ccn-330406",
+      "name": "Sunnyview Hospital And Rehabilitation Center (Schenectady, NY)",
+      "basis": "format_outside_profile",
+      "reason": "the publication this facility's cms-hpt.txt points at is not a CMS hospital JSON document; this cohort's implemented profile inspects CMS hospital JSON v3 only, and grading another format against a JSON profile would measure the wrong thing — .zip",
+      "reviewed": {
+        "method": "drawn at position 47 of the seeded random sample; `mrf-honest discover` attempted https://sphp.com/cms-hpt.txt",
+        "date": "2026-08-19",
+        "source": "https://sphp.com/cms-hpt.txt"
+      }
+    },
+    {
+      "id": "ccn-150109",
+      "name": "Franciscan Health Lafayette (Lafayette, IN)",
+      "basis": "txt_fetch_failed",
+      "reason": "the cms-hpt.txt retrieval did not succeed at the origin resolved for this facility; no MRF URL was obtained through the CMS-conventional path, and a failed probe of one origin is not evidence about the hospital's publication — robots.txt TLS chain would not verify: the origin serves a valid leaf certificate with no intermediate",
+      "reviewed": {
+        "method": "drawn at position 48 of the seeded random sample; `mrf-honest discover` attempted https://www.franciscanhealth.org/cms-hpt.txt",
+        "date": "2026-08-19",
+        "source": "https://www.franciscanhealth.org/cms-hpt.txt"
+      }
+    }
+  ]
+}
