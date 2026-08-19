@@ -397,3 +397,71 @@ def test_every_drawn_facility_is_accounted_for_across_both_profile_cohorts() -> 
         "the CSV cohort's target count disagrees with the sibling cohort's CSV-retrievable "
         "exclusions"
     )
+
+
+def test_the_readme_lead_states_the_csv_cohort_the_comparison_actually_contains() -> None:
+    """Re-derive every quantity the README asserts about the published CSV cohort.
+
+    Same rule as the JSON-cohort test above: "true when someone last looked" is the condition
+    every stale number in this repository was once in, so each claim is parsed out of the prose
+    and recomputed from the committed comparison.
+    """
+    comparisons = _rendered_comparisons()
+    csv_cohorts = [
+        c
+        for c in comparisons
+        if cast(dict[str, object], cast(dict[str, object], c["cohort"])["comparison_scope"])[
+            "profile"
+        ]
+        == "cms-hospital-csv-v3"
+    ]
+    if not csv_cohorts:
+        pytest.skip("no CSV-profile cohort is published")
+    comparison = csv_cohorts[0]
+    readme = " ".join((ROOT / "README.md").read_text(encoding="utf-8").split())
+    summary = cast(dict[str, object], comparison["summary"])
+
+    def claimed(pattern: str, label: str) -> int:
+        match = re.search(pattern, readme)
+        assert match is not None, f"the README no longer states {label}"
+        return int(match.group(1).replace(",", ""))
+
+    assert claimed(r"grades all (\d+) CSV targets", "the CSV target count") == summary["targeted"]
+
+    pattern = (
+        r"The CSV distribution is (\d+) \*\*A\*\*, (\d+) \*\*B\*\*, (\d+) \*\*C\*\*, "
+        r"(\d+) \*\*D\*\*, (\d+) \*\*F\*\*, and (\d+) not graded"
+    )
+    letters = re.search(pattern, readme)
+    assert letters is not None, "the README no longer states the CSV grade distribution"
+    distribution = cast(dict[str, int], summary["grade_distribution"])
+    assert [int(group) for group in letters.groups()] == [
+        distribution["A"],
+        distribution["B"],
+        distribution["C"],
+        distribution["D"],
+        distribution["F"],
+        cast(int, summary["not_graded"]),
+    ], "the README's CSV grade distribution is not the one the comparison carries"
+
+    matrix = {
+        str(entry["code"]): entry
+        for entry in cast(list[dict[str, object]], comparison["finding_matrix"])
+    }
+
+    def occurrences(code: str) -> int:
+        entry = matrix.get(code)
+        return cast(int, entry["occurrence_total"]) if entry is not None else 0
+
+    assert claimed(
+        r"([\d,]+) payer or plan names are encoded with no charge", "the payer-without-charge count"
+    ) == occurrences("CMS_CSV_PAYER_WITHOUT_CHARGE")
+    assert claimed(
+        r"([\d,]+) methodology values outside", "the invalid-methodology count"
+    ) == occurrences("CMS_CSV_METHODOLOGY_INVALID")
+    assert claimed(r"(\d+) files are not valid UTF-8", "the non-UTF-8 count") == len(
+        cast(list[object], matrix["CMS_CSV_ENCODING_NOT_UTF8"]["files"])
+    )
+    assert claimed(r"(\d+) of the 25 begin with a UTF-8", "the CSV BOM count") == len(
+        cast(list[object], matrix["CMS_CSV_UTF8_BOM_PRESENT"]["files"])
+    )

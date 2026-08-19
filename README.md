@@ -3,30 +3,50 @@
 **Deterministic, spec-cited grades for hospital price-transparency files, published with the
 evidence attached.**
 
-The graded cohort is live: 17 machine-readable files across 15 publishers, discovered from
+Two graded cohorts are live, one per CMS file format, side by side and never pooled. The JSON
+cohort covers 17 machine-readable files across 15 publishers, discovered from
 CMS-conventional `cms-hpt.txt` documents, retrieved in one identified run, streamed without
 loading into memory, and graded fail-closed. The distribution is 12 **A**, 1 **B**, 2 **C**,
 2 **F**, and 0 not graded. Every grade, count, and finding on the
-[site](https://chelseakr.github.io/mrf-honest/) is generated from the committed
-[comparison document](data/cohorts/2026-08-19.comparison.json), never typed in, and each finding
+[site](https://chelseakr.github.io/mrf-honest/) is generated from the committed comparison
+documents ([JSON cohort](data/cohorts/2026-08-19.comparison.json),
+[CSV cohort](data/cohorts/2026-08-19-csv.comparison.json)), never typed in, and each finding
 cites the CMS rule ([45 CFR § 180.50]) or
 [CMS schema documentation](https://github.com/CMSgov/hospital-price-transparency) it rests on.
 
-**The cohort has a stated sampling frame**, which the first one did not
-([docs/SAMPLING-FRAME.md](docs/SAMPLING-FRAME.md)). Eleven of the seventeen files come from a
-seeded random draw of 48 facilities from CMS's own enumeration of 3,024 acute-care, non-federal
-hospitals — 29 states, for-profit and church and county and academic. The other six are every
-subject the first cohort published, carried forward rather than quietly dropped. All 48 drawn
-facilities were attempted, and the 37 that were not graded are published as recorded exclusions
-with the origin checked and the reason found. A cohort pruned of its failures would grade better
-and describe less, which is the exact defect this project exists to catch.
+**The cohorts have a stated sampling frame**, which the first one did not
+([docs/SAMPLING-FRAME.md](docs/SAMPLING-FRAME.md)). Eleven of the seventeen JSON files come from
+a seeded random draw of 48 facilities from CMS's own enumeration of 3,024 acute-care,
+non-federal hospitals — 29 states, for-profit and church and county and academic. The other six
+are every subject the first cohort published, carried forward rather than quietly dropped. All
+48 drawn facilities were attempted, and the 37 that the JSON cohort did not grade are published
+as recorded exclusions with the origin checked and the reason found. A cohort pruned of its
+failures would grade better and describe less, which is the exact defect this project exists to
+catch.
 
-**The largest finding in it is not a grade.** Two thirds of the randomly drawn hospitals — 32 of
-48 — publish their standard charges in a format this project does not read: CSV, ZIP, or a vendor
-endpoint that answers `text/csv`. Those are recorded, not graded. A hospital publishing a
-conforming CSV is not a hospital with a problem, and grading it against a JSON profile would
-measure the wrong thing. The corollary is the part that matters: **the letter distribution above
-describes hospitals that chose JSON, not hospitals.**
+**The majority format is now graded, not excluded.** Two thirds of the randomly drawn
+hospitals — 32 of 48 — publish their standard charges as CSV, ZIP, or a vendor endpoint that
+answers `text/csv` rather than JSON; until 2026-08-19 every one was a recorded exclusion, and
+the letter distribution above described hospitals that chose JSON, not hospitals. A second
+assessment profile now implements CMS's CSV v3.0.0 templates, Tall and Wide, and a sibling
+cohort grades all 25 CSV targets of the same draw. The CSV distribution is 11 **A**, 2 **B**,
+4 **C**, 3 **D**, 1 **F**, and 4 not graded — two hosts whose `robots.txt` says no, honored;
+two files over this project's own 1 GiB ceiling, stated rather than blamed on the publisher.
+What remains outside both profiles stays recorded: 7 ZIP archives, 4 origins whose
+`cms-hpt.txt` could not be retrieved, and 1 whose location entry did not resolve.
+
+**The CSV profile's first real cohort produced its own best findings.** Across six files,
+118,411 payer or plan names are encoded with no charge beside them — the CSV data dictionary's
+first conditional requirement, violated at scale. The distribution of that number is itself the
+finding: 118,096 of the instances sit in the two files still publishing the superseded v2.0.0
+template more than seven months after CMS's v3.0.0 effective date — in one of them, every
+single data row — while the four current-template files carry only a few-hundred-row residual.
+That is the same defect class as the Cedars-Sinai finding below, measured now in CSV; a third
+hospital declares template `3.0.1`, a version CMS never published. One hospital's own `cms-hpt.txt` points at a URL that
+answers HTTP 404; that is the CSV cohort's F, stated with the dated reason. A single file
+carries 4,785 methodology values outside the CMS accepted set; 3 files are not valid UTF-8 and
+were read as Latin-1 with the tolerance recorded, and 8 of the 25 begin with a UTF-8
+byte-order mark.
 
 The two **F**s are retrieval failures at the URLs the hospitals' own `cms-hpt.txt` documents
 publish — Northside Hospital Duluth's answers HTTP 403 to an identified client, and Rio Grande
@@ -65,6 +85,14 @@ make verify
 # Inspect a local CMS hospital JSON v3 file. Findings are observations, not a compliance ruling.
 uv run mrf-honest inspect prices.json --as-of 2026-08-09 --format json
 
+# Inspect a local CMS hospital CSV v3 file (Tall or Wide) under the CSV profile.
+uv run mrf-honest inspect standardcharges.csv --profile csv --as-of 2026-08-09 --format json
+
+# Classify what a URL serves with one bounded ranged request (~4 KB), before deciding which
+# profile to grade it under. Never a grading input; robots.txt is consulted first, no override.
+uv run mrf-honest probe https://files.example.org/standardcharges \
+  --contact operator@example.org
+
 # Build a contracted local snapshot. DuckDB is supplied by the dev group or the lakehouse extra.
 uv run mrf-honest ingest prices.json \
   --publisher-id example-health \
@@ -99,8 +127,9 @@ Re-running that command over the committed inputs reproduces
 `make verify` and the publish workflow check exactly that before anything is rendered from it.
 Every published cohort is checked that way, not just the newest one.
 
-The CLI also provides `discover`, `fetch`, `profile`, and `explain`; `grade` is an alias for
-`scorecard`. Retrieval requires an identifying contact string, caches decoded content by
+The CLI also provides `discover`, `fetch`, `probe`, `profile`, and `explain`; `grade` is an
+alias for `scorecard`, and `scorecard --profile csv` assesses a CSV publication under the CSV
+profile. Retrieval requires an identifying contact string, caches decoded content by
 SHA-256, validates HTTPS redirects, applies size limits and retry backoff, checks the body that
 arrived against the `Content-Length` the server declared so a transfer that stopped early is
 never inspected as though it were the whole document, and records discovery
@@ -162,6 +191,17 @@ Built:
   interpretability, freshness — with a source-cited finding catalog
   ([docs/how-we-grade.md](docs/how-we-grade.md)) and integrity-hashed persisted records
   ([ADR 0004](docs/adr/0004-separate-remote-scorecard-artifacts.md)).
+- A second assessment profile for CMS's CSV v3.0.0 templates, Tall and Wide
+  (`src/mrf_honest/inspect_csv.py`): general data elements matched by name rather than
+  position, the dictionary's twelve conditional requirements, accepted-value sets, placeholder
+  detection, and the same five dimensions, streamed row by row with bounded memory — a 319 MB,
+  1.5-million-row file inspects in about 21 seconds. Each profile carries its own policy
+  fingerprints, and the comparison layer refuses to pool them.
+- A bounded format probe (`mrf-honest probe`): one ranged, identified, robots-checked GET of
+  ~4 KB that classifies what a URL serves by its leading bytes — ZIP magic, a JSON opener, an
+  HTML doctype, or the CMS CSV header row — so routing a target to a profile no longer costs a
+  full download. The 2026-08-19 run had spent 669,479,338 bytes learning four extensionless
+  targets were CSV; the probe answers that in kilobytes, and is never a grading input.
 - A DuckDB + partitioned-Parquet lakehouse with 13 documented models, executable data contracts
   at every layer boundary, exact raw text retention, `DECIMAL(38,10)` numerics, and idempotent
   content-addressed run identity ([docs/MODEL-DAG.md](docs/MODEL-DAG.md),
@@ -192,10 +232,10 @@ Still open:
 - structural separation of dollar, percentage, and algorithm representations exists; the
   phase-4 small-cell suppression and uncertainty intervals do not, so **no price comparison is
   published anywhere**;
-- hospital CSV and payer-MRF adapters (there is no payer-MRF pipeline yet; a `.zip`/CSV
-  publication in the current cohort is recorded and excluded rather than mis-graded);
-- a second, roster-sourced cohort. The first was purposive, which is right for a shakedown run
-  and wrong for a rate; retrieval politeness is now in code (below), so the prerequisite is met;
+- a payer-MRF pipeline, ZIP-container handling, and warehouse (lakehouse) support for the CSV
+  profile: the warehouse remains JSON-v3-only, so CSV cohort pages state that no contract
+  evidence exists rather than implying a pass (a `.zip` publication is still recorded and
+  excluded rather than mis-graded);
 - safe concurrent-writer coordination, supported warehouse migrations, and a full SIGKILL/fsync
   crash matrix; and
 - the phase-5 dataset export, API, MCP server, and release process.
@@ -224,7 +264,7 @@ ADR in [docs/adr/](docs/adr/). No blank rows, no silent skips.
 
 | Standard | State |
 |---|---|
-| Code Quality | Applies: `make verify` runs six gates — `ruff check` (security `S` rules, `max-complexity=10`), `ruff format --check`, `mypy --strict`, pytest with a branch-coverage floor of 85, `uv lock --check`, and `pip-audit --strict` over the exported lockfile. Current: 361 tests, 91.29% branch coverage, zero lint/format/type findings, lockfile in sync, zero known vulnerabilities (2026-08-19). Floors: Python >= 3.12 (`.python-version` pins 3.14), ruff >= 0.15, mypy >= 1.18, locked in `uv.lock`. Dev tooling is a PEP 735 `[dependency-groups]` group, so `uv sync` installs it and a published wheel never carries it. |
+| Code Quality | Applies: `make verify` runs six gates — `ruff check` (security `S` rules, `max-complexity=10`), `ruff format --check`, `mypy --strict`, pytest with a branch-coverage floor of 85, `uv lock --check`, and `pip-audit --strict` over the exported lockfile. Current: 429 tests, 91.86% branch coverage, zero lint/format/type findings, lockfile in sync, zero known vulnerabilities (2026-08-19). Floors: Python >= 3.12 (`.python-version` pins 3.14), ruff >= 0.15, mypy >= 1.18, locked in `uv.lock`. Dev tooling is a PEP 735 `[dependency-groups]` group, so `uv sync` installs it and a published wheel never carries it. |
 | Security & Supply-Chain | Applies: the streaming, inspection, discovery, fetch, registry, comparison, and site path is standard-library-only; DuckDB is an optional lakehouse dependency ([ADRs 0002-0003](docs/adr/)). The lockfile, ruff `S` gate, HTTPS/redirect validation, bounded downloads, and SHA-pinned CI actions reduce the current surface. Hosted CodeQL (Python and Actions) and a checksum-pinned full-history gitleaks scan run on push, PR, and weekly schedule (`.github/workflows/security.yml`). `make verify` runs `pip-audit --strict` against the whole exported lockfile — every extra and the dev group — with no ignore list, so the audit runs on a laptop and in CI rather than only in CI. The lockfile-drift gate is `uv lock --check`, not `uv sync --frozen`: measured on a deliberately drifted project under uv 0.12.1, `uv lock --check` and `uv sync --locked` exit 1 and `uv sync --frozen` exits 0, because `--frozen` installs from the lockfile without reading `pyproject.toml` and so cannot see the two disagree. |
 | CI/CD | Applies: SHA-pinned workflows mirror `make verify` on Python 3.12 and 3.14, build distributions, and publish the site from committed data only. The publish job first re-derives the newest comparison from its committed assessments, manifest, and ingest evidence and requires a byte-for-byte match, then requires one rendered page per row in it; a generator that no longer reproduces its own published artifact cannot deploy. `make verify` runs the same derivation, but that is a separate workflow whose failure would not by itself stop a deploy, which is why the check is on both paths. |
 | Observability | Applies to the local batch shape plus a static published artifact: finalized run manifests and DuckDB `model_metric` rows retain counts, bytes, and wall time; the site is rebuilt from committed data with no availability objective declared. See [docs/ROADMAP.md](docs/ROADMAP.md). |

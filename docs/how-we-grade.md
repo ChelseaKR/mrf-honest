@@ -2,7 +2,9 @@
 
 `mrf-honest inspect` reports local-file evidence, while `mrf-honest scorecard` (also available as
 `grade`) performs one identified retrieval and durably combines that remote evidence with the
-local inspection. Both report five independent dimensions for one CMS hospital JSON v3 file. They
+local inspection. Both report five independent dimensions for one CMS hospital v3 file under an
+explicit assessment profile: `cms-hospital-json-v3` (the default), or `cms-hospital-csv-v3` via
+`--profile csv` (see [The CSV profile](#the-csv-profile)). They
 deliberately do **not** calculate a composite score, rank, letter grade, pass/fail result, or CMS
 compliance label. The word “grade” in this document means only the deterministic assignment of a
 status and source-cited findings within each dimension. The separate comparison layer derives a
@@ -271,3 +273,43 @@ scope. Preserve the evidence and citations when presenting any result.
 [JSON schema]: https://github.com/CMSgov/hospital-price-transparency/blob/master/documentation/JSON/schemas/V3.0.0_Hospital_price_transparency_schema.json
 [45 CFR § 180.50]: https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-E/part-180/subpart-B/section-180.50
 [CMS policy FAQ]: https://www.cms.gov/files/document/hpt-policy-faqs-june-2026.pdf
+
+## The CSV profile
+
+`--profile csv` assesses one CMS hospital CSV v3 publication — the Tall or Wide template — under
+`cms-hospital-csv-v3`, a sibling profile with the same five dimensions, the same
+`OBSERVED`/`FINDINGS`/`NOT_ASSESSED` semantics, and its own source-cited finding catalog
+(`CMS_CSV_*` codes in `src/mrf_honest/inspect_csv.py`, citing the
+[CMS CSV data dictionary](https://github.com/CMSgov/hospital-price-transparency/blob/master/documentation/CSV/README.md),
+the published v3.0.0 templates, and [45 CFR § 180.50]). The table is streamed row by row with
+bounded retained state, exactly as the JSON inspector streams its charge array.
+
+What the CSV inspector checks, in the dictionary's own terms:
+
+- **General data elements** (rows 1–2), matched by header name rather than position, because
+  real published files order them differently from the template while carrying the required
+  set. The attestation column is recognized by its full required header text; `true`/`false`
+  are accepted case-insensitively, and an explicit `false` is a WARNING, mirroring the JSON
+  profile.
+- **Layout**: Wide if any payer-and-plan-parameterized header is present, Tall otherwise; a
+  file mixing Tall payer columns with Wide parameterized headers is flagged and read as Wide.
+  In Wide files, one payer-and-plan combination appearing in any of its nine headers requires
+  all nine, per the dictionary's placeholder notes.
+- **The twelve conditional requirements** of the dictionary, per data row — payer context for
+  encoded charges and the converse, code/type pairing, `other`-methodology notes, minimum/
+  maximum beside dollar rates, allowed-amount count and percentiles beside derived rates,
+  zero-count explanations, NDC drug fields, and drug-measurement pairing.
+- **Accepted values**: setting, methodology, code types, drug types of measurement, the three
+  documented shapes of the allowed-amount count, and positive-number checks on numeric
+  elements.
+
+Tolerances the dictionary states are implemented as tolerances, never findings: header case,
+spaces around pipes, `M/D/YYYY` dates for the MRF date, and a tolerated UTF-8 BOM recorded as
+INFO. A file that is not valid UTF-8 is read as Latin-1 and the tolerance is recorded as INFO
+rather than failing a file the dictionary never required to be UTF-8.
+
+Profile boundaries are enforced where they matter: each profile carries its own inspection and
+assessment-policy fingerprints, `require_comparable` refuses to compare rows across profiles,
+and the published site renders each cohort as its own clearly scoped section. The warehouse
+remains JSON-v3-only; a CSV file page states that no contract evidence exists for it rather
+than implying a pass.

@@ -9,6 +9,27 @@ no version tags yet; until the first dated release (phase 5 of
 
 ### Added
 
+- **The majority format is graded, not excluded: a CSV assessment profile and its first real
+  cohort (2026-08-19).** Two thirds of the random draw publish CSV rather than JSON, and until
+  now every one was a recorded exclusion — the letter distribution described hospitals that
+  chose JSON, not hospitals. `cms-hospital-csv-v3` implements CMS's CSV v3.0.0 data dictionary
+  for the Tall and Wide templates: general elements matched by name rather than position, the
+  twelve conditional requirements, accepted-value sets, and placeholder detection, streamed
+  row by row with bounded memory (a 319 MB, 1.5-million-row file inspects in ~21 s). The
+  sibling cohort `hospital-csv-v3-2026-08-19` grades all 25 CSV-retrievable targets of the
+  committed draw: 11 A, 2 B, 4 C, 3 D, 1 F, 4 not graded with the reason stated. Its first
+  findings are written up in
+  `docs/findings/csv-profile-first-cohort-2026-08-19.md`: 118,411 payer names with no charge
+  beside them (99.7% of them in two files still declaring the superseded v2.0.0 template), a
+  hospital declaring template `3.0.1` which CMS never published, and a hospital whose own
+  `cms-hpt.txt` points at a 404. The comparison layer refuses to pool the profiles; the site
+  renders one clearly scoped section per cohort with derived cross-references, and a new gate
+  walks the seam so no drawn facility can vanish between the two documents.
+- **A bounded format probe, `mrf-honest probe`.** The 2026-08-19 run downloaded 669,479,338
+  bytes to learn that four extensionless targets were CSV. The probe answers the same question
+  with one robots-checked ranged GET of ~4 KB, classifying the leading bytes themselves (ZIP
+  magic, a JSON opener, an HTML doctype, the CMS CSV header row) rather than trusting a
+  Content-Type header. Never a grading input; never touches the cache.
 - **The cohort has a sampling frame, and the first one is now on record as not having had one.**
   The published cohort grew from 6 files to 17, but the size is the less interesting half. The
   2026-08-14 cohort was a convenience sample — four large academic systems, reached for because
