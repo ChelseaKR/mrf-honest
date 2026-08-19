@@ -778,3 +778,136 @@ def test_a_rewrapped_certificate_error_is_still_recognised(tmp_path: Path) -> No
         clock=clock,
     )
     assert outcome.status is FetchStatus.TLS_VERIFICATION_FAILED
+
+
+# --- what the server said it was serving ---------------------------------------------------
+
+
+def test_the_declared_media_type_is_recorded_on_the_outcome(tmp_path: Path) -> None:
+    """A fetch that succeeded is not evidence that the document arrived.
+
+    The only thing the server ever said about *what* it was sending is ``Content-Type``, and
+    until it is recorded no later stage can say "this URL served a web page" rather than "this
+    file could not be read".
+    """
+    outcome = fetch_url(
+        "https://example.test/prices.json",
+        tmp_path,
+        politeness=robots_fixtures.politeness(),
+        policy=policy(),
+        opener=FakeOpener(
+            FakeResponse(
+                b"<html><body>Download our file</body></html>",
+                headers={"Content-Type": "text/html; charset=UTF-8"},
+            )
+        ),
+        clock=clock,
+    )
+    assert outcome.status is FetchStatus.FETCHED
+    assert outcome.content_type == "text/html; charset=UTF-8"
+
+
+def test_a_declared_media_type_never_decides_whether_a_body_is_admitted(tmp_path: Path) -> None:
+    """Content-Type is evidence, never a gate.
+
+    A conforming MRF served as ``text/html`` is a conforming MRF. Refusing it here would fail a
+    publisher for a header, which is a statement this tool has no basis to make.
+    """
+    body = json.dumps({"standard_charge_information": []}).encode()
+    outcome = fetch_url(
+        "https://example.test/prices.json",
+        tmp_path,
+        politeness=robots_fixtures.politeness(),
+        policy=policy(),
+        opener=FakeOpener(FakeResponse(body, headers={"Content-Type": "text/html"})),
+        clock=clock,
+    )
+    assert outcome.status is FetchStatus.FETCHED
+    assert outcome.path is not None and outcome.path.read_bytes() == body
+    assert outcome.content_type == "text/html"
+
+
+def test_a_missing_content_type_is_recorded_as_unrecorded_not_as_a_type(tmp_path: Path) -> None:
+    outcome = fetch_url(
+        "https://example.test/prices.json",
+        tmp_path,
+        politeness=robots_fixtures.politeness(),
+        policy=policy(),
+        opener=FakeOpener(FakeResponse(b"{}")),
+        clock=clock,
+    )
+    assert outcome.status is FetchStatus.FETCHED
+    assert outcome.content_type is None
+
+
+def test_a_revalidated_body_carries_the_type_declared_when_it_was_downloaded(
+    tmp_path: Path,
+) -> None:
+    """A 304 has no body and usually no Content-Type; the cached declaration is the evidence."""
+    first = fetch_url(
+        "https://example.test/prices.json",
+        tmp_path,
+        politeness=robots_fixtures.politeness(),
+        policy=policy(),
+        opener=FakeOpener(
+            FakeResponse(
+                b"{}",
+                headers={"ETag": '"abc"', "Content-Type": "application/json"},
+            )
+        ),
+        clock=clock,
+    )
+    assert first.content_type == "application/json"
+    second = fetch_url(
+        "https://example.test/prices.json",
+        tmp_path,
+        politeness=robots_fixtures.politeness(),
+        policy=policy(),
+        opener=FakeOpener(FakeResponse(status=304, headers={"ETag": '"abc"'})),
+        clock=clock,
+    )
+    assert second.status is FetchStatus.NOT_MODIFIED
+    assert second.content_type == "application/json"
+
+
+def test_the_type_is_recorded_even_when_the_body_could_not_be_stored(tmp_path: Path) -> None:
+    """The malformed-body branch is exactly where the distinction has to be available."""
+    outcome = fetch_url(
+        "https://example.test/prices.json.gz",
+        tmp_path,
+        politeness=robots_fixtures.politeness(),
+        policy=policy(retries=0),
+        opener=FakeOpener(
+            FakeResponse(
+                b"not gzip at all",
+                headers={"Content-Encoding": "gzip", "Content-Type": "text/html"},
+                final_url="https://example.test/prices.json.gz",
+            )
+        ),
+        clock=clock,
+    )
+    assert outcome.status is FetchStatus.CONTENT_ERROR
+    assert outcome.content_type == "text/html"
+
+
+def test_a_recorded_media_type_survives_serialization(tmp_path: Path) -> None:
+    outcome = fetch_url(
+        "https://example.test/prices.json",
+        tmp_path,
+        politeness=robots_fixtures.politeness(),
+        policy=policy(),
+        opener=FakeOpener(FakeResponse(b"{}", headers={"Content-Type": "application/json"})),
+        clock=clock,
+    )
+    assert FetchOutcome.from_dict(outcome.to_dict()).content_type == "application/json"
+
+
+def test_an_outcome_recorded_before_content_type_existed_still_rehydrates() -> None:
+    """Records written by earlier versions carry no Content-Type and must stay readable."""
+    legacy = {
+        "url": "https://example.test/prices.json",
+        "status": "fetched",
+        "attempted_at": "2026-05-01T12:00:00Z",
+        "attempts": 1,
+    }
+    assert FetchOutcome.from_dict(legacy).content_type is None

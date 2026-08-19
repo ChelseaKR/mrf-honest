@@ -105,6 +105,7 @@ def _success_record(
     *,
     raw: bytes | None = None,
     subject: AssessmentSubject | None = None,
+    content_type: str | None = None,
 ) -> dict[str, object]:
     subject = subject or _subject()
     body = raw if raw is not None else json.dumps(document or _document()).encode()
@@ -123,6 +124,7 @@ def _success_record(
         wire_size_bytes=len(body),
         http_status=200,
         final_url=subject.requested_url,
+        content_type=content_type,
     )
     assessment = compose_file_assessment(
         subject,
@@ -255,6 +257,95 @@ def test_a_download_that_stopped_early_and_a_malformed_file_read_differently(
     assert "could not be streamed to completion" not in stopped_early.reason
     assert "did not produce a verified file" in stopped_early.reason
     assert "883973507 bytes the server declared" in stopped_early.reason
+
+
+_LANDING_PAGE = (
+    b'<!doctype html>\n<html lang="en"><head><title>Price Transparency</title></head>\n'
+    b"<body><h1>Standard Charges</h1><p>Select a file to download.</p></body></html>\n"
+)
+
+
+def test_a_web_page_and_a_malformed_file_do_not_read_alike(tmp_path: Path) -> None:
+    """Both are F and both are the publisher's. They are still not the same event.
+
+    One URL answered with a web page where a document was requested; the other answered with the
+    document, and the document is broken. Before Content-Type was recorded the tool had no way
+    to tell those apart, so it published the second sentence for both.
+    """
+    web_page = grade_assessment(
+        _success_record(
+            tmp_path / "page",
+            raw=_LANDING_PAGE,
+            content_type="text/html;charset=UTF-8",
+        )
+    )
+    malformed = grade_assessment(
+        _success_record(
+            tmp_path / "broken",
+            raw=b'{"standard_charge_information": [ {"description": "x"',
+            content_type="application/json",
+        )
+    )
+    assert web_page.grade == malformed.grade == "F"
+    assert web_page.reason != malformed.reason
+    assert "text/html" in web_page.reason
+    assert "a web page, not the requested file" in web_page.reason
+    assert "web page" not in malformed.reason
+    assert "application/json" in malformed.reason
+    # Neither sentence may drop the rule that unread content is failed, not passed.
+    assert "failed, not passed" in web_page.reason
+    assert "failed, not passed" in malformed.reason
+
+
+def test_a_declared_media_type_is_not_a_grading_input(tmp_path: Path) -> None:
+    """A conforming MRF served as ``text/html`` is a conforming MRF.
+
+    This is the decision the fix must not regress: Content-Type explains a failure that already
+    happened, and never causes one.
+    """
+    served_as_html = grade_assessment(_success_record(tmp_path / "a", content_type="text/html"))
+    served_as_json = grade_assessment(
+        _success_record(tmp_path / "b", content_type="application/json")
+    )
+    unrecorded = grade_assessment(_success_record(tmp_path / "c"))
+    assert served_as_html.grade == served_as_json.grade == unrecorded.grade == "A"
+    assert served_as_html.reason == served_as_json.reason == unrecorded.reason
+    assert "html" not in served_as_html.reason
+
+
+def test_an_unrecorded_media_type_claims_nothing_about_what_was_served(tmp_path: Path) -> None:
+    """Assessments made before Content-Type was recorded must not gain a claim retroactively.
+
+    An absent header and an absent recording are different facts, and neither is "the server
+    served the wrong thing". The historical sentence is reproduced exactly.
+    """
+    grade = grade_assessment(
+        _success_record(tmp_path, raw=b'{"standard_charge_information": [ {"description": "x"')
+    )
+    assert grade.grade == "F"
+    assert grade.reason == (
+        "the standard_charge_information array could not be streamed to completion; "
+        "content that could not be read is treated as failed, not passed"
+    )
+
+
+def test_a_stopped_download_and_a_served_web_page_do_not_read_alike(tmp_path: Path) -> None:
+    """The third sentence in the family, so all three events stay distinguishable."""
+    web_page = grade_assessment(
+        _success_record(tmp_path, raw=_LANDING_PAGE, content_type="text/html")
+    )
+    stopped_early = grade_assessment(
+        _failure_record(
+            FetchStatus.NETWORK_ERROR,
+            http_status=200,
+            error="the response body ended after 41 of the 883973507 bytes the server declared "
+            "in Content-Length",
+        )
+    )
+    assert web_page.grade == stopped_early.grade == "F"
+    assert web_page.reason != stopped_early.reason
+    assert "could not be streamed to completion" in web_page.reason
+    assert "could not be streamed to completion" not in stopped_early.reason
 
 
 def test_failed_download_is_a_stated_f() -> None:

@@ -790,7 +790,9 @@ def _fetch_evidence(fetch: FetchOutcome) -> dict[str, object]:
             evidence[f"{key}_sha256"] = None
     raw_error = evidence.get("error")
     evidence["error"] = _bounded_problem(raw_error) if isinstance(raw_error, str) else None
-    for key in ("etag", "last_modified"):
+    # ``content_type`` is a server-controlled string that reaches a published page, so it is
+    # bounded exactly like the other header values rather than trusted for being short.
+    for key in ("etag", "last_modified", "content_type"):
         value = evidence.get(key)
         if isinstance(value, str):
             evidence[key] = _bounded_problem(value)

@@ -18,7 +18,12 @@ Fail-closed rules, in one place:
 - retrievability that was ``NOT_ASSESSED`` (invalid input, a project size ceiling, local cache
   trouble) is ``NOT_GRADED`` with the reason, because attributing local limits to the publisher
   would be wrong, and silently conflating it with ``F`` would be worse;
-- an incomplete charge-array stream is an ``F``: what could not be read is failed, not passed;
+- an incomplete charge-array stream is an ``F``: what could not be read is failed, not passed.
+  A fetch that succeeded is not evidence that the document arrived, so the stated reason names
+  the media type the server declared when one was recorded: a URL that answered with a web page
+  and a hospital that published a malformed file are both ``F``, and must not read alike. The
+  declaration is evidence about a failure that already happened and never causes one, so it is
+  not a grading input and does not appear in the rule table below;
 - a local dimension without evidence counts against the grade exactly like a dimension with
   structural errors; absence of a check is stated, never implied as a pass.
 
@@ -59,6 +64,19 @@ INGEST_REFUSED = "refused"
 LOCAL_DIMENSIONS = ("conformance", "completeness", "interpretability", "freshness")
 
 NOT_GRADED = "NOT_GRADED"
+
+#: Media types whose whole purpose is to be rendered for a person to look at. When a URL that
+#: was asked for a machine-readable file answers with one of these *and* the document did not
+#: parse, the response was a web page rather than the file — a closed list of server
+#: declarations, not a judgement about what the bytes look like.
+#:
+#: This list is consulted only after a document has already failed to stream, and never decides
+#: a grade. A conforming MRF served as ``text/html`` is a conforming MRF: one of the six files
+#: in the 2026-08-14 cohort would be graded on a header rather than on its contents if that
+#: were not true, and failing a publisher for a header is a claim this project cannot support.
+_WEB_PAGE_MEDIA_TYPES = frozenset({"text/html", "application/xhtml+xml"})
+
+_UNREAD_CONTENT_RULE = "content that could not be read is treated as failed, not passed"
 
 #: The complete deterministic policy, hashed so a rule change creates a new fingerprint instead
 #: of silently regrading old cohorts under new semantics.
@@ -167,6 +185,51 @@ def _grade_local_dimensions(scorecard: Mapping[str, object]) -> FileGrade:
     return FileGrade("F", reason, failed, warnings, infos)
 
 
+def _media_type(declared: object) -> str | None:
+    """The bare media type from a ``Content-Type`` declaration, or ``None``.
+
+    RFC 9110 § 8.3: everything from the first ``;`` is a parameter, and the type is
+    case-insensitive. This only tidies the server's own words; it does not inspect the body.
+    """
+    if not isinstance(declared, str):
+        return None
+    media_type = declared.split(";", 1)[0].strip().lower()
+    return media_type or None
+
+
+def _unstreamable_reason(record: Mapping[str, object]) -> str:
+    """Explain a document that could not be streamed, using what the server said it was sending.
+
+    Three different events used to share one sentence: a hospital's malformed file, an HTTP 200
+    that returned a web page, and (until the truncation fix) a download that stopped early. The
+    grade is ``F`` in every case and the grade rules are untouched — what changes is that the
+    published sentence now states the evidence rather than only the symptom.
+
+    Where no declaration was recorded, the historical sentence is reproduced exactly. An
+    unrecorded header is not the same fact as a server that declared nothing, and neither is
+    evidence that the wrong document arrived, so neither may add a claim to a named hospital's
+    page.
+    """
+    retrieval = record.get("retrieval")
+    declared = retrieval.get("content_type") if isinstance(retrieval, Mapping) else None
+    media_type = _media_type(declared)
+    if media_type is None:
+        return (
+            "the standard_charge_information array could not be streamed to completion; "
+            f"{_UNREAD_CONTENT_RULE}"
+        )
+    if media_type in _WEB_PAGE_MEDIA_TYPES:
+        return (
+            f"the server declared Content-Type {media_type!r} — a web page, not the requested "
+            "file — and the standard_charge_information array could not be streamed to "
+            f"completion; {_UNREAD_CONTENT_RULE}"
+        )
+    return (
+        "the standard_charge_information array could not be streamed to completion; the server "
+        f"declared Content-Type {media_type!r}; {_UNREAD_CONTENT_RULE}"
+    )
+
+
 def grade_assessment(record: Mapping[str, object]) -> FileGrade:
     """Map one persisted assessment record to its deterministic presentation grade."""
     scorecard = _required_mapping(record, "scorecard")
@@ -190,11 +253,10 @@ def grade_assessment(record: Mapping[str, object]) -> FileGrade:
         # to guess rather than mint a grade from a record this module cannot explain.
         raise CohortError("retrievability is OBSERVED but no inspection evidence is present")
     if inspection.get("scan_completed") is not True:
-        return FileGrade(
-            "F",
-            "the standard_charge_information array could not be streamed to completion; "
-            "content that could not be read is treated as failed, not passed",
-        )
+        return FileGrade("F", _unstreamable_reason(record))
+    # Reached only when the document streamed to completion, which is why the declared media
+    # type is not read here: a file that parses has answered the question the header could only
+    # have hinted at.
     return _grade_local_dimensions(scorecard)
 
 

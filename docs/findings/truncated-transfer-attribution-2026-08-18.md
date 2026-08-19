@@ -76,9 +76,12 @@ evidence about how much of the cohort the guard covers, not a fixed property of 
 
 ## What is still open
 
-- An HTTP 200 that returns an HTML landing page instead of the document is still described by the
-  same "could not be streamed to completion" sentence as a genuinely malformed JSON file. Both
-  are `F` and both are the publisher's, so no grade is wrong, but the reason is less specific
-  than it could be. `Content-Type` is not recorded on the assessment at all today.
+- ~~An HTTP 200 that returns an HTML landing page instead of the document is still described by
+  the same "could not be streamed to completion" sentence as a genuinely malformed JSON file.
+  Both are `F` and both are the publisher's, so no grade is wrong, but the reason is less
+  specific than it could be. `Content-Type` is not recorded on the assessment at all today.~~
+  Closed 2026-08-19: [a web page served where a file was
+  requested](wrong-document-attribution-2026-08-19.md). Both events remain `F`; the declared
+  media type is now recorded and the two sentences differ.
 - Nothing verifies a declared length against a `HEAD` or `Range` probe before the download
   begins; the check here is after the fact, on the response that arrived.
