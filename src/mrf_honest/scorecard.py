@@ -21,7 +21,7 @@ from datetime import UTC, date, datetime
 from enum import StrEnum
 from pathlib import Path
 from types import MappingProxyType
-from typing import cast
+from typing import Protocol, cast
 from urllib.parse import urlsplit, urlunsplit
 
 from mrf_honest.fetch import (
@@ -44,6 +44,11 @@ from mrf_honest.inspect import (
     FindingDefinition,
     inspect_hospital_file,
 )
+from mrf_honest.inspect_csv import (
+    CSV_INSPECTION_FINGERPRINT,
+    CsvFileInspection,
+    inspect_hospital_csv_file,
+)
 from mrf_honest.politeness import Politeness
 from mrf_honest.types import PublisherRef
 
@@ -52,6 +57,10 @@ CMS_HPT_POLICY_FAQ = "https://www.cms.gov/files/document/hpt-policy-faqs-june-20
 _ASSESSMENT_VERSION = 1
 ASSESSMENT_POLICY_VERSION = "cms-hospital-json-v3-scorecard-v1"
 _PROFILE = "cms-hospital-json-v3"
+
+#: Either implemented local inspection record; the scorecard composition only relies on the
+#: fields the two share (body identity, ``as_of``, publisher, scan completion, serialization).
+InspectionRecord = FileInspection | CsvFileInspection
 _PROBLEM_TEXT_LIMIT = 500
 _URL_TEXT_LIMIT = 2_048
 _AUTOMATION_BARRIER_HTTP_STATUSES = frozenset({401, 403})
@@ -271,45 +280,128 @@ if _MAPPED_STATUSES != frozenset(FetchStatus):  # fail loudly when the fetch tax
     raise RuntimeError("scorecard retrieval mapping does not cover every FetchStatus")
 
 
-ASSESSMENT_POLICY_FINGERPRINT = _digest(
-    {
-        "assessment_policy_version": ASSESSMENT_POLICY_VERSION,
-        "automation_barrier_http_statuses": sorted(_AUTOMATION_BARRIER_HTTP_STATUSES),
-        "coverage_fields": (
-            "targeted",
-            "network_attempted",
-            "verified_body_available",
-            "inspection_performed",
-            "inspection_scan_completed",
-        ),
-        "comparison_scope_fields": (
-            "publisher_type",
-            "profile",
-            "url_provenance",
-            "assessment_policy_fingerprint",
-            "retrieval_policy_fingerprint",
-            "as_of",
-        ),
-        "invalid_url_rule": "finding-only-for-observed-unsafe-redirect-v2",
-        "inspection_fingerprint": INSPECTION_FINGERPRINT,
-        "prior_evidence_join": "forbidden-v1",
-        "profile": _PROFILE,
-        "publisher_failures": sorted(status.value for status in _PUBLISHER_FAILURES),
-        "local_or_policy_ambiguity": sorted(status.value for status in _LOCAL_OR_POLICY_AMBIGUITY),
-        "success_statuses": sorted(status.value for status in _SUCCESS_STATUSES),
-        "success_rule": "matching-digest-size-post-inspection-rehash-v1",
-        "url_publication": "userinfo-query-fragment-redacted-with-exact-hash-v2",
-        "retrieval_findings": {
-            code: {
-                "citations": definition.citations,
-                "description": definition.description,
-                "dimension": definition.dimension,
-                "severity": definition.severity,
-            }
-            for code, definition in sorted(RETRIEVAL_FINDING_CATALOG.items())
-        },
-    }
+class Inspector(Protocol):
+    """The local inspection entry point one assessment profile grades bodies with."""
+
+    def __call__(
+        self,
+        path: str | Path,
+        publisher: PublisherRef | None = None,
+        *,
+        as_of: date,
+    ) -> InspectionRecord: ...
+
+
+def _assessment_policy_fingerprint(
+    profile_name: str, policy_version: str, inspection_fingerprint: str
+) -> str:
+    """One profile's complete assessment policy, hashed.
+
+    Every key below except the three parameters is shared across profiles; the JSON profile's
+    inputs are byte-identical to the fingerprint the committed cohorts were published under.
+    """
+    return _digest(
+        {
+            "assessment_policy_version": policy_version,
+            "automation_barrier_http_statuses": sorted(_AUTOMATION_BARRIER_HTTP_STATUSES),
+            "coverage_fields": (
+                "targeted",
+                "network_attempted",
+                "verified_body_available",
+                "inspection_performed",
+                "inspection_scan_completed",
+            ),
+            "comparison_scope_fields": (
+                "publisher_type",
+                "profile",
+                "url_provenance",
+                "assessment_policy_fingerprint",
+                "retrieval_policy_fingerprint",
+                "as_of",
+            ),
+            "invalid_url_rule": "finding-only-for-observed-unsafe-redirect-v2",
+            "inspection_fingerprint": inspection_fingerprint,
+            "prior_evidence_join": "forbidden-v1",
+            "profile": profile_name,
+            "publisher_failures": sorted(status.value for status in _PUBLISHER_FAILURES),
+            "local_or_policy_ambiguity": sorted(
+                status.value for status in _LOCAL_OR_POLICY_AMBIGUITY
+            ),
+            "success_statuses": sorted(status.value for status in _SUCCESS_STATUSES),
+            "success_rule": "matching-digest-size-post-inspection-rehash-v1",
+            "url_publication": "userinfo-query-fragment-redacted-with-exact-hash-v2",
+            "retrieval_findings": {
+                code: {
+                    "citations": definition.citations,
+                    "description": definition.description,
+                    "dimension": definition.dimension,
+                    "severity": definition.severity,
+                }
+                for code, definition in sorted(RETRIEVAL_FINDING_CATALOG.items())
+            },
+        }
+    )
+
+
+@dataclass(frozen=True)
+class AssessmentProfile:
+    """One implemented file format: its name, policy identity, and local inspector."""
+
+    name: str
+    policy_version: str
+    inspection_fingerprint: str
+    policy_fingerprint: str
+    inspect: Inspector
+
+    def __post_init__(self) -> None:
+        expected = _assessment_policy_fingerprint(
+            self.name, self.policy_version, self.inspection_fingerprint
+        )
+        if self.policy_fingerprint != expected:
+            raise ValueError("assessment profile fingerprint does not match its fields")
+
+
+def _profile(
+    name: str, policy_version: str, fingerprint: str, inspect: Inspector
+) -> AssessmentProfile:
+    return AssessmentProfile(
+        name=name,
+        policy_version=policy_version,
+        inspection_fingerprint=fingerprint,
+        policy_fingerprint=_assessment_policy_fingerprint(name, policy_version, fingerprint),
+        inspect=inspect,
+    )
+
+
+def _inspect_json(
+    path: str | Path, publisher: PublisherRef | None = None, *, as_of: date
+) -> InspectionRecord:
+    # Dispatch through the module attribute at call time so tests can substitute it.
+    return inspect_hospital_file(path, publisher, as_of=as_of)
+
+
+def _inspect_csv(
+    path: str | Path, publisher: PublisherRef | None = None, *, as_of: date
+) -> InspectionRecord:
+    return inspect_hospital_csv_file(path, publisher, as_of=as_of)
+
+
+JSON_PROFILE = _profile(_PROFILE, ASSESSMENT_POLICY_VERSION, INSPECTION_FINGERPRINT, _inspect_json)
+CSV_PROFILE = _profile(
+    "cms-hospital-csv-v3",
+    "cms-hospital-csv-v3-scorecard-v1",
+    CSV_INSPECTION_FINGERPRINT,
+    _inspect_csv,
 )
+
+ASSESSMENT_PROFILES: Mapping[str, AssessmentProfile] = MappingProxyType(
+    {profile.name: profile for profile in (JSON_PROFILE, CSV_PROFILE)}
+)
+_PROFILES_BY_FINGERPRINT: Mapping[str, AssessmentProfile] = MappingProxyType(
+    {profile.policy_fingerprint: profile for profile in ASSESSMENT_PROFILES.values()}
+)
+
+ASSESSMENT_POLICY_FINGERPRINT = JSON_PROFILE.policy_fingerprint
 
 
 @dataclass(frozen=True)
@@ -320,9 +412,10 @@ class FileAssessment:
     fetch: FetchOutcome
     retrieval_policy: RetrievalPolicyEvidence
     as_of: date
-    inspection: FileInspection | None
+    inspection: InspectionRecord | None
     scorecard: FileScorecard
     operational_problems: tuple[str, ...] = ()
+    profile: AssessmentProfile = JSON_PROFILE
 
     @property
     def findings(self) -> tuple[Finding, ...]:
@@ -346,8 +439,8 @@ class FileAssessment:
         """The complete scope that must match before assessments are compared."""
         return {
             "as_of": self.as_of.isoformat(),
-            "assessment_policy_fingerprint": ASSESSMENT_POLICY_FINGERPRINT,
-            "profile": _PROFILE,
+            "assessment_policy_fingerprint": self.profile.policy_fingerprint,
+            "profile": self.profile.name,
             "publisher_type": self.subject.publisher_type.value,
             "retrieval_policy_fingerprint": self.retrieval_policy.fingerprint,
             "url_provenance": self.subject.url_provenance.value,
@@ -369,7 +462,7 @@ class FileAssessment:
     def _identity_dict(self) -> dict[str, object]:
         return {
             "as_of": self.as_of.isoformat(),
-            "assessment_policy_fingerprint": ASSESSMENT_POLICY_FINGERPRINT,
+            "assessment_policy_fingerprint": self.profile.policy_fingerprint,
             "inspection_source_sha256": (
                 self.inspection.source_sha256 if self.inspection is not None else None
             ),
@@ -384,12 +477,12 @@ class FileAssessment:
         retrieval = _fetch_evidence(self.fetch)
         return {
             "as_of": self.as_of.isoformat(),
-            "assessment_policy_fingerprint": ASSESSMENT_POLICY_FINGERPRINT,
-            "assessment_policy_version": ASSESSMENT_POLICY_VERSION,
+            "assessment_policy_fingerprint": self.profile.policy_fingerprint,
+            "assessment_policy_version": self.profile.policy_version,
             "comparison_scope": self.comparison_scope,
             "coverage": self.coverage,
             "inspection": _inspection_evidence(self.inspection),
-            "inspection_fingerprint": INSPECTION_FINGERPRINT,
+            "inspection_fingerprint": self.profile.inspection_fingerprint,
             "observed_at": self.fetch.attempted_at,
             "operational_problems": list(self.operational_problems),
             "retrieval": retrieval,
@@ -492,17 +585,30 @@ class AssessmentRegistry:
             raise AssessmentRegistryError(f"could not read assessment registry: {exc}") from exc
 
 
+def _require_profile_consistency(
+    subject: AssessmentSubject,
+    inspection: InspectionRecord | None,
+    profile: AssessmentProfile,
+) -> None:
+    if subject.publisher_type is not PublisherType.HOSPITAL:
+        raise ValueError("only the hospital assessment profile is implemented")
+    if isinstance(inspection, FileInspection) and profile is not JSON_PROFILE:
+        raise ValueError("a JSON inspection can only be attached under the JSON profile")
+    if isinstance(inspection, CsvFileInspection) and profile is not CSV_PROFILE:
+        raise ValueError("a CSV inspection can only be attached under the CSV profile")
+
+
 def compose_file_assessment(
     subject: AssessmentSubject,
     fetch: FetchOutcome,
     *,
     retrieval_policy: RetrievalPolicyEvidence,
-    inspection: FileInspection | None = None,
+    inspection: InspectionRecord | None = None,
     operational_problems: tuple[str, ...] = (),
+    profile: AssessmentProfile = JSON_PROFILE,
 ) -> FileAssessment:
     """Purely compose one fetch outcome and an optional verified local inspection."""
-    if subject.publisher_type is not PublisherType.HOSPITAL:
-        raise ValueError("only the hospital assessment profile is implemented")
+    _require_profile_consistency(subject, inspection, profile)
     if fetch.url != subject.requested_url:
         raise ValueError("fetch URL does not match the assessment subject")
     as_of = _attempt_date(fetch.attempted_at)
@@ -534,6 +640,7 @@ def compose_file_assessment(
         inspection=inspection,
         scorecard=scorecard,
         operational_problems=tuple(_bounded_problem(problem) for problem in operational_problems),
+        profile=profile,
     )
 
 
@@ -548,6 +655,7 @@ def assess_hospital_url(
     sleep: Sleeper = time.sleep,
     backoff: Backoff | None = None,
     clock: Clock | None = None,
+    profile: AssessmentProfile = JSON_PROFILE,
 ) -> FileAssessment:
     """Fetch, inspect when possible, compose, and durably append exactly one scorecard."""
     if subject.publisher_type is not PublisherType.HOSPITAL:
@@ -562,14 +670,14 @@ def assess_hospital_url(
         backoff=backoff,
         clock=clock,
     )
-    inspection: FileInspection | None = None
+    inspection: InspectionRecord | None = None
     problems: list[str] = []
     if fetch.ok:
         if fetch.path is None or fetch.content_sha256 is None or fetch.size_bytes is None:
             problems.append("successful fetch evidence is missing path, digest, or size")
         else:
             try:
-                candidate = inspect_hospital_file(
+                candidate = profile.inspect(
                     fetch.path,
                     subject.publisher,
                     as_of=_attempt_date(fetch.attempted_at),
@@ -606,6 +714,7 @@ def assess_hospital_url(
         ),
         inspection=inspection,
         operational_problems=tuple(problems),
+        profile=profile,
     )
     registry.append(assessment)
     return assessment
@@ -732,7 +841,7 @@ def _retrievability(
 
 
 def _integrated_scorecard(
-    retrievability: DimensionResult, inspection: FileInspection | None
+    retrievability: DimensionResult, inspection: InspectionRecord | None
 ) -> FileScorecard:
     if inspection is None:
         unavailable_note = "No verified local body was available for this retrieval attempt."
@@ -799,7 +908,7 @@ def _fetch_evidence(fetch: FetchOutcome) -> dict[str, object]:
     return evidence
 
 
-def _inspection_evidence(inspection: FileInspection | None) -> dict[str, object] | None:
+def _inspection_evidence(inspection: InspectionRecord | None) -> dict[str, object] | None:
     if inspection is None:
         return None
     evidence: dict[str, object] = dict(inspection.to_dict())
@@ -964,9 +1073,10 @@ def _verify_policy_context(record: Mapping[str, object]) -> None:
     for key in ("assessment_policy_fingerprint", "inspection_fingerprint"):
         if not _is_digest(record.get(key)):
             raise ValueError(f"{key} must be a SHA-256 digest")
-    if record.get("assessment_policy_fingerprint") == ASSESSMENT_POLICY_FINGERPRINT and (
-        policy_version != ASSESSMENT_POLICY_VERSION
-        or record.get("inspection_fingerprint") != INSPECTION_FINGERPRINT
+    known = _PROFILES_BY_FINGERPRINT.get(str(record.get("assessment_policy_fingerprint")))
+    if known is not None and (
+        policy_version != known.policy_version
+        or record.get("inspection_fingerprint") != known.inspection_fingerprint
     ):
         raise ValueError("current assessment policy context does not match its known components")
 
@@ -1010,10 +1120,13 @@ def _verify_comparison_scope(
     scope: Mapping[str, object],
     policy_fingerprint: str,
 ) -> None:
+    known = _PROFILES_BY_FINGERPRINT.get(str(record.get("assessment_policy_fingerprint")))
     expected_scope = {
         "as_of": record.get("as_of"),
         "assessment_policy_fingerprint": record.get("assessment_policy_fingerprint"),
-        "profile": _PROFILE,
+        # An unknown policy fingerprint keeps the historical expectation: only records written
+        # under a fingerprint this code knows may claim a different profile name.
+        "profile": known.name if known is not None else _PROFILE,
         "publisher_type": subject.get("publisher_type"),
         "retrieval_policy_fingerprint": policy_fingerprint,
         "url_provenance": subject.get("url_provenance"),

@@ -13,11 +13,19 @@ from typing import cast
 from mrf_honest.cohort import build_comparison
 from mrf_honest.fetch import FetchPolicy, default_open, fetch_url
 from mrf_honest.inspect import FileInspection, explain_finding, inspect_hospital_file
+from mrf_honest.inspect_csv import (
+    CsvFileInspection,
+    explain_csv_finding,
+    inspect_hospital_csv_file,
+)
 from mrf_honest.lakehouse import LakehouseScopeRefusal, ingest_hospital_file, query_file_profile
 from mrf_honest.politeness import Politeness
 from mrf_honest.registry import Registry, discover_domain
 from mrf_honest.scorecard import (
+    CSV_PROFILE,
+    JSON_PROFILE,
     RETRIEVAL_FINDING_CATALOG,
+    AssessmentProfile,
     AssessmentRegistry,
     AssessmentSubject,
     FileAssessment,
@@ -27,6 +35,10 @@ from mrf_honest.scorecard import (
 )
 from mrf_honest.site import DEFAULT_ORIGIN, render_site
 from mrf_honest.types import PublisherRef
+
+#: CLI names for the implemented assessment profiles; the JSON profile stays the default so
+#: every existing invocation keeps its meaning.
+_CLI_PROFILES: dict[str, AssessmentProfile] = {"json": JSON_PROFILE, "csv": CSV_PROFILE}
 
 _SUCCESS = 0
 _FAILURE = 1
@@ -69,17 +81,26 @@ def _emit_mapping_human(payload: dict[str, object]) -> None:
         print(f"{key}: {rendered}")
 
 
-def _emit_inspection_human(inspection: FileInspection) -> None:
+def _emit_inspection_human(inspection: FileInspection | CsvFileInspection) -> None:
     completion = "complete" if inspection.scan_completed else "incomplete"
     print(f"file: {inspection.source_path}")
     print(f"sha256: {inspection.source_sha256}")
     print(f"as_of: {inspection.as_of.isoformat()}")
     print(f"scan: {completion}")
-    print(
-        "counts: "
-        f"items={inspection.item_count}, codes={inspection.code_count}, "
-        f"charge_groups={inspection.charge_group_count}, payer_rates={inspection.payer_rate_count}"
-    )
+    if isinstance(inspection, CsvFileInspection):
+        print(
+            "counts: "
+            f"layout={inspection.layout}, rows={inspection.row_count}, "
+            f"items={inspection.item_count}, codes={inspection.code_count}, "
+            f"payer_rates={inspection.payer_rate_count}"
+        )
+    else:
+        print(
+            "counts: "
+            f"items={inspection.item_count}, codes={inspection.code_count}, "
+            f"charge_groups={inspection.charge_group_count}, "
+            f"payer_rates={inspection.payer_rate_count}"
+        )
     print("dimensions:")
     for dimension in inspection.scorecard.dimensions:
         note = f" — {dimension.note}" if dimension.note else ""
@@ -120,7 +141,10 @@ def _run_inspect(args: argparse.Namespace) -> int:
     as_of = cast(date | None, args.as_of) or date.today()
     if args.output_format == "human":
         print(f"Inspecting {args.file} ...", file=sys.stderr)
-    inspection = inspect_hospital_file(
+    inspect = (
+        inspect_hospital_csv_file if cast(str, args.profile) == "csv" else inspect_hospital_file
+    )
+    inspection = inspect(
         cast(Path, args.file),
         publisher,
         as_of=as_of,
@@ -258,6 +282,7 @@ def _run_scorecard(args: argparse.Namespace) -> int:
         policy=policy,
         politeness=_politeness(policy),
         registry=AssessmentRegistry(cast(Path, args.registry)),
+        profile=_CLI_PROFILES[cast(str, args.profile)],
     )
     if args.output_format == "json":
         _emit_json(assessment.to_dict())
@@ -325,10 +350,13 @@ def _run_explain(args: argparse.Namespace) -> int:
         definition = explain_finding(code)
     except KeyError as exc:
         try:
-            definition = RETRIEVAL_FINDING_CATALOG[code]
+            definition = explain_csv_finding(code)
         except KeyError:
-            message = str(exc.args[0]) if exc.args else "unknown finding code"
-            raise ValueError(message) from exc
+            try:
+                definition = RETRIEVAL_FINDING_CATALOG[code]
+            except KeyError:
+                message = str(exc.args[0]) if exc.args else "unknown finding code"
+                raise ValueError(message) from exc
     _emit_json(
         {
             "citations": list(definition.citations),
@@ -354,6 +382,12 @@ def _build_parser() -> argparse.ArgumentParser:
     inspect_parser.add_argument("file", type=Path, metavar="FILE")
     inspect_parser.add_argument("--publisher-id")
     inspect_parser.add_argument("--as-of", type=_iso_date)
+    inspect_parser.add_argument(
+        "--profile",
+        choices=tuple(_CLI_PROFILES),
+        default="json",
+        help="which CMS v3 file format the target claims to be (default: json)",
+    )
     inspect_parser.add_argument(
         "--format", dest="output_format", choices=("human", "json"), default="human"
     )
@@ -412,6 +446,12 @@ def _build_parser() -> argparse.ArgumentParser:
     scorecard_parser.add_argument("--registry", type=Path, required=True)
     scorecard_parser.add_argument("--cache-dir", type=Path, required=True)
     scorecard_parser.add_argument("--contact", required=True)
+    scorecard_parser.add_argument(
+        "--profile",
+        choices=tuple(_CLI_PROFILES),
+        default="json",
+        help="which CMS v3 file format the target claims to be (default: json)",
+    )
     scorecard_parser.add_argument("--max-bytes", type=_positive_int, default=_DEFAULT_MAX_BYTES)
     scorecard_parser.add_argument(
         "--format", dest="output_format", choices=("human", "json"), default="human"

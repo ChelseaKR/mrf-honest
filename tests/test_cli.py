@@ -388,12 +388,14 @@ def test_scorecard_persists_explicit_subject_and_only_local_failures_are_nonzero
         policy: object,
         politeness: object,
         registry: object,
+        profile: object,
     ) -> _AssessmentResult:
         observed.update(
             subject=subject,
             cache_dir=cache_dir,
             policy=policy,
             registry=registry,
+            profile=profile,
         )
         return _AssessmentResult(
             {
@@ -445,6 +447,7 @@ def test_scorecard_persists_explicit_subject_and_only_local_failures_are_nonzero
     assert observed["cache_dir"] == cache_dir
     assert observed["registry"].path == registry_path  # type: ignore[attr-defined]
     assert observed["policy"].max_bytes == 4096  # type: ignore[attr-defined]
+    assert observed["profile"].name == "cms-hospital-json-v3"  # type: ignore[attr-defined]
 
 
 def test_grade_is_a_scorecard_alias(
