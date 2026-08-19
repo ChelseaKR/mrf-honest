@@ -31,6 +31,7 @@ from mrf_honest.politeness import Politeness
 from mrf_honest.types import Backoff, Clock, Opener, ResponseLike, Sleeper
 
 __all__ = [
+    "PROBE_SAMPLE_BYTES",
     "Backoff",
     "CacheMetadata",
     "Clock",
@@ -38,11 +39,13 @@ __all__ = [
     "FetchPolicy",
     "FetchStatus",
     "Opener",
+    "ProbeOutcome",
     "ResponseLike",
     "Sleeper",
     "cache_metadata_path",
     "default_open",
     "fetch_url",
+    "probe_url",
 ]
 
 _DEFAULT_CHUNK_SIZE = 64 * 1024
@@ -1165,3 +1168,212 @@ def fetch_url(  # noqa: C901 - each branch is a distinct structured terminal out
     if last_outcome is None:  # pragma: no cover - policy validation guarantees at least one pass
         raise RuntimeError("fetch attempt loop did not run")
     return last_outcome
+
+
+# --- the format probe -------------------------------------------------------------------------
+
+
+#: How many leading bytes one probe asks for. Enough to see a BOM, a JSON opener, a ZIP local
+#: file header, an HTML doctype, or the CMS CSV general-element header row.
+PROBE_SAMPLE_BYTES = 4_096
+
+_HTML_MARKERS = (b"<!doctype", b"<html")
+_CSV_GENERAL_HEADER_PREFIX = b"hospital_name"
+
+
+@dataclass(frozen=True)
+class ProbeOutcome:
+    """The complete, serializable result of one bounded format probe.
+
+    A probe answers one narrow question in kilobytes: *what kind of document does this URL
+    serve?* It exists because the 2026-08-19 cohort had to download 669,479,338 bytes to learn
+    that four extensionless targets were CSV (docs/ROADMAP.md). It is classification evidence
+    for routing a target to an assessment profile; it is never a grading input, it never touches
+    the cache, and a probe that fails says nothing about the publisher.
+    """
+
+    url: str
+    attempted_at: str
+    status: str
+    http_status: int | None = None
+    final_url: str | None = None
+    content_type: str | None = None
+    declared_size: int | None = None
+    bytes_sampled: int = 0
+    range_honored: bool | None = None
+    sniffed: str | None = None
+    starts_with_csv_general_header: bool | None = None
+    sample_sha256: str | None = None
+    error: str | None = None
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "url": self.url,
+            "attempted_at": self.attempted_at,
+            "status": self.status,
+            "http_status": self.http_status,
+            "final_url": self.final_url,
+            "content_type": self.content_type,
+            "declared_size": self.declared_size,
+            "bytes_sampled": self.bytes_sampled,
+            "range_honored": self.range_honored,
+            "sniffed": self.sniffed,
+            "starts_with_csv_general_header": self.starts_with_csv_general_header,
+            "sample_sha256": self.sample_sha256,
+            "error": self.error,
+        }
+
+
+def _sniff_sample(sample: bytes) -> tuple[str, bool]:
+    """Classify leading bytes by what they are, not by what a header claims they are."""
+    body = sample.removeprefix(b"\xef\xbb\xbf")
+    if not body.strip():
+        return "empty", False
+    if body.startswith((b"PK\x03\x04", b"PK\x05\x06", b"PK\x07\x08")):
+        return "zip", False
+    if body.startswith(b"\x1f\x8b"):
+        return "gzip", False
+    stripped = body.lstrip()
+    if stripped.startswith((b"{", b"[")):
+        return "json", False
+    if stripped[:64].lower().startswith(_HTML_MARKERS):
+        return "html", False
+    if b"\x00" in body:
+        return "binary", False
+    try:
+        text = body.decode("utf-8")
+    except UnicodeDecodeError:
+        text = body.decode("latin-1")
+    header_like = text.lstrip().lstrip('"').lower().startswith("hospital_name")
+    return "text", header_like
+
+
+def _declared_total_size(headers: Mapping[str, str], http_status: int) -> int | None:
+    content_range = _header(headers, "Content-Range")
+    if content_range is not None:
+        _, _, total = content_range.partition("/")
+        total = total.strip()
+        if total.isdigit():
+            return int(total)
+        return None
+    if http_status == 200:
+        return _content_length(headers)
+    return None
+
+
+def _consume_probe_response(
+    url: str, attempted_at: str, response: ResponseLike, sample_bytes: int
+) -> ProbeOutcome:
+    final_problem = _url_problem(response.geturl())
+    if final_problem is not None:
+        return ProbeOutcome(
+            url=url,
+            attempted_at=attempted_at,
+            status="invalid_url",
+            http_status=response.status,
+            final_url=response.geturl(),
+            content_type=_declared_content_type(response.headers),
+            error=f"unsafe redirect target: {final_problem}",
+        )
+    sample = response.read(sample_bytes)
+    sniffed, header_like = _sniff_sample(sample)
+    return ProbeOutcome(
+        url=url,
+        attempted_at=attempted_at,
+        status="probed",
+        http_status=response.status,
+        final_url=response.geturl(),
+        content_type=_declared_content_type(response.headers),
+        declared_size=_declared_total_size(response.headers, response.status),
+        bytes_sampled=len(sample),
+        range_honored=response.status == 206,
+        sniffed=sniffed,
+        starts_with_csv_general_header=header_like,
+        sample_sha256=hashlib.sha256(sample).hexdigest(),
+    )
+
+
+def probe_url(
+    url: str,
+    *,
+    policy: FetchPolicy,
+    politeness: Politeness,
+    opener: Opener | None = None,
+    clock: Clock | None = None,
+    sample_bytes: int = PROBE_SAMPLE_BYTES,
+) -> ProbeOutcome:
+    """Classify what one URL serves with a single bounded ranged request.
+
+    The request asks for the first ``sample_bytes`` bytes and identity encoding. A server that
+    ignores the Range header is read up to the same bound and the connection is closed, so the
+    load stays a sample either way; ``range_honored`` records which happened. robots.txt is
+    consulted first exactly as for a full retrieval, with no override.
+    """
+    if sample_bytes <= 0:
+        raise ValueError("sample_bytes must be positive")
+    attempted_at = _timestamp(clock or _utc_now)
+    problem = _url_problem(url)
+    if problem is not None:
+        return ProbeOutcome(url=url, attempted_at=attempted_at, status="invalid_url", error=problem)
+
+    decision = politeness.clear_to_fetch(url)
+    if not decision.allowed:
+        return ProbeOutcome(
+            url=url,
+            attempted_at=attempted_at,
+            status="robots_disallowed",
+            http_status=decision.http_status,
+            error=f"{decision.status.value}: {decision.reason} ({decision.robots_url})",
+        )
+
+    headers = {
+        "User-Agent": policy.identifying_user_agent,
+        "Accept-Encoding": "identity",
+        "Range": f"bytes=0-{sample_bytes - 1}",
+    }
+    politeness.wait_turn(url, crawl_delay_seconds=decision.crawl_delay_seconds)
+    response: ResponseLike | None = None
+    try:
+        # S310 is addressed by _url_problem immediately above; only HTTPS reaches this point.
+        request = Request(url, headers=headers, method="GET")  # noqa: S310
+        response = (opener or default_open)(request, timeout=policy.timeout_seconds)
+        return _consume_probe_response(url, attempted_at, response, sample_bytes)
+    except _UnsafeRedirectError as exc:
+        try:
+            return ProbeOutcome(
+                url=url,
+                attempted_at=attempted_at,
+                status="invalid_url",
+                http_status=exc.code,
+                final_url=exc.target,
+                error=str(exc.reason),
+            )
+        finally:
+            exc.close()
+    except HTTPError as exc:
+        try:
+            return ProbeOutcome(
+                url=url,
+                attempted_at=attempted_at,
+                status="http_error",
+                http_status=exc.code,
+                content_type=_declared_content_type(dict(exc.headers.items())),
+                error=f"HTTP {exc.code}: {exc.reason}",
+            )
+        finally:
+            exc.close()
+    except (TimeoutError, HTTPException, OSError, UnicodeError, ValueError) as exc:
+        cause = exc.reason if isinstance(exc, URLError) else exc
+        if _is_certificate_failure(cause):
+            return ProbeOutcome(
+                url=url,
+                attempted_at=attempted_at,
+                status="tls_verification_failed",
+                error=f"certificate verification failed: {cause}",
+            )
+        return ProbeOutcome(
+            url=url, attempted_at=attempted_at, status="network_error", error=str(cause)
+        )
+    finally:
+        if response is not None:
+            response.close()
