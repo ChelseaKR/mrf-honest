@@ -59,7 +59,11 @@ def test_committed_comparison_is_reproducible_from_committed_inputs(
         json.loads(path.read_text(encoding="utf-8"))
         for path in sorted((COHORTS / f"{prefix}.ingest").glob("*.json"))
     ]
-    assert ingest_results, f"no ingest evidence committed for cohort {prefix}"
+    profile = str(committed["cohort"]["comparison_scope"]["profile"])
+    if profile == "cms-hospital-json-v3":
+        # The warehouse implements the JSON profile only; a JSON cohort committed without its
+        # ingest evidence would silently re-derive with every warehouse column blank.
+        assert ingest_results, f"no ingest evidence committed for cohort {prefix}"
 
     rebuilt = build_comparison(
         registry.records(),
@@ -85,16 +89,40 @@ def test_the_perf_baseline_counts_the_pages_that_are_actually_rendered(tmp_path:
     Lighthouse job enumerates pages from the render and never reads that sentence, so nothing
     could notice. These two numbers are read, and drift now fails a build.
     """
-    comparison = json.loads(PUBLISHED[-1].read_text(encoding="utf-8"))
+    comparisons = _rendered_comparisons()
     baseline = json.loads((ROOT / "perf" / "baseline.json").read_text(encoding="utf-8"))
     out = tmp_path / "site"
-    render_site(comparison, out)
-    assert baseline["meta"]["file_pages"] == len(cast(list[object], comparison["files"])), (
-        "perf/baseline.json counts a different number of file pages than the cohort has"
+    render_site(comparisons, out)
+    file_rows = sum(len(cast(list[object], c["files"])) for c in comparisons)
+    assert baseline["meta"]["file_pages"] == file_rows, (
+        "perf/baseline.json counts a different number of file pages than the cohorts have"
     )
     assert baseline["meta"]["pages_audited"] == len(list(out.rglob("*.html"))), (
         "perf/baseline.json counts a different number of pages than the render produces"
     )
+
+
+def _rendered_comparisons() -> list[dict[str, object]]:
+    """The comparisons the publish workflow renders: the newest of each profile, JSON first.
+
+    This mirrors the selection in .github/workflows/pages.yml so the audited surface and the
+    deployed surface are the same set of pages.
+    """
+    newest: dict[str, tuple[str, str, Path]] = {}
+    for path in PUBLISHED:
+        document = json.loads(path.read_text(encoding="utf-8"))
+        cohort = cast(dict[str, object], document["cohort"])
+        scope = cast(dict[str, object], cohort["comparison_scope"])
+        profile = str(scope["profile"])
+        key = (str(cohort["as_of"]), path.name, path)
+        if profile not in newest or key > newest[profile]:
+            newest[profile] = key
+    order = ["cms-hospital-json-v3", "cms-hospital-csv-v3"]
+    ordered = [p for p in order if p in newest] + sorted(set(newest) - set(order))
+    return [
+        cast(dict[str, object], json.loads(newest[profile][2].read_text(encoding="utf-8")))
+        for profile in ordered
+    ]
 
 
 @pytest.mark.parametrize("comparison_path", PUBLISHED, ids=lambda path: path.name)
@@ -307,4 +335,65 @@ def test_the_readme_lead_states_the_cohort_the_comparison_actually_contains() ->
     )
     assert claimed(r"([\d,]+) of the cohort files are contracted", "the warehouse count") == (
         contracted
+    )
+
+
+def test_every_drawn_facility_is_accounted_for_across_both_profile_cohorts() -> None:
+    """The two 2026-08-19 cohorts together must cover the one committed draw exactly.
+
+    The frame promised that every drawn facility is published or explained. With two profile
+    cohorts that promise could silently break in a new way: a facility could be excluded from
+    the JSON cohort as CSV-retrievable and then never appear in the CSV cohort, vanishing in
+    the seam between the two documents. This walks the seam: every CSV-retrievable format
+    exclusion of the JSON cohort is a declared target of the CSV cohort, every declared target
+    is a published row there, and nothing is graded twice.
+    """
+    json_path = COHORTS / "2026-08-19.comparison.json"
+    csv_path = COHORTS / "2026-08-19-csv.comparison.json"
+    if not (json_path.exists() and csv_path.exists()):
+        pytest.skip("the paired 2026-08-19 profile cohorts are not both published")
+    json_cohort = json.loads(json_path.read_text(encoding="utf-8"))
+    csv_cohort = json.loads(csv_path.read_text(encoding="utf-8"))
+    csv_manifest = json.loads((COHORTS / "2026-08-19-csv.json").read_text(encoding="utf-8"))
+
+    targets = cast(
+        list[dict[str, object]],
+        cast(dict[str, object], csv_manifest["discovery"])["targets"],
+    )
+    target_by_ccn = {str(target["ccn"]): target for target in targets}
+    assert len(target_by_ccn) == len(targets), "duplicate ccn in the CSV cohort targets"
+
+    csv_slugs = {str(row["slug"]) for row in cast(list[dict[str, object]], csv_cohort["files"])}
+    json_slugs = {str(row["slug"]) for row in cast(list[dict[str, object]], json_cohort["files"])}
+    assert not csv_slugs & json_slugs, "a subject appears as a row in both profile cohorts"
+
+    for target in targets:
+        slug = f"{target['publisher_id']}/{target['location_id']}"
+        assert slug in csv_slugs, (
+            f"declared CSV target {slug} (ccn {target['ccn']}) has no published row; a target "
+            "may fail or be stated, but it may never vanish"
+        )
+    assert len(csv_slugs) == len(targets), (
+        "the CSV cohort publishes rows that no declared target explains"
+    )
+
+    csv_retrievable = 0
+    for entry in cast(list[dict[str, object]], json_cohort["exclusions"]):
+        if entry.get("basis") != "format_outside_profile":
+            continue
+        ccn = str(entry["id"]).removeprefix("ccn-")
+        reason = str(entry.get("reason"))
+        if "zip" in reason.rsplit("—", 1)[-1]:
+            assert ccn not in target_by_ccn, (
+                f"ZIP publication ccn {ccn} must stay an exclusion, not become a CSV target"
+            )
+            continue
+        csv_retrievable += 1
+        assert ccn in target_by_ccn, (
+            f"facility ccn {ccn} was excluded as CSV-retrievable but is not a CSV cohort "
+            "target; it vanished in the seam between the two cohorts"
+        )
+    assert csv_retrievable == len(targets), (
+        "the CSV cohort's target count disagrees with the sibling cohort's CSV-retrievable "
+        "exclusions"
     )
