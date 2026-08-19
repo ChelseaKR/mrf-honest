@@ -749,6 +749,7 @@ def _parse_period(value: str | None, book: _FindingBook) -> date | None:
             month, day, year = (int(part) for part in slash.groups())
             return date(year, month, day)
     except ValueError:
+        # A shape that matched but is not a real calendar date falls through to the finding.
         pass
     book.add(
         "CMS_CSV_LAST_UPDATED_ON_INVALID",
@@ -1161,37 +1162,37 @@ def _tall_payer_facts(row: _Row) -> _PayerFacts:
     dollar = row.get("standard_charge|negotiated_dollar")
     percentage = row.get("standard_charge|negotiated_percentage")
     algorithm = row.get("standard_charge|negotiated_algorithm")
-    any_charge = not (_is_blank(dollar) and _is_blank(percentage) and _is_blank(algorithm))
+    has_any_charge = not (_is_blank(dollar) and _is_blank(percentage) and _is_blank(algorithm))
     methodology = row.get("standard_charge|methodology").strip().casefold()
     generic_notes = row.has("additional_generic_notes")
     count_value = row.get("count")
-    derived = not (_is_blank(percentage) and _is_blank(algorithm))
+    is_derived = not (_is_blank(percentage) and _is_blank(algorithm))
     percentiles_present = all(
         row.has(name) for name in ("median_amount", "10th_percentile", "90th_percentile")
     )
     count_is_zero = count_value.strip() == "0"
     valid_methodology = methodology in ACCEPTED_METHODOLOGIES
     return _PayerFacts(
-        any_charge=any_charge,
+        any_charge=has_any_charge,
         any_dollar=not _is_blank(dollar),
-        context_missing=any_charge
+        context_missing=has_any_charge
         and not (row.has("payer_name") and row.has("plan_name") and bool(methodology)),
         payer_named_without_charge=(row.has("payer_name") or row.has("plan_name"))
-        and not any_charge,
+        and not has_any_charge,
         other_without_notes=methodology == "other" and not generic_notes,
-        derived_missing_count=derived and _is_blank(count_value),
-        derived_missing_percentiles=derived
+        derived_missing_count=is_derived and _is_blank(count_value),
+        derived_missing_percentiles=is_derived
         and not _is_blank(count_value)
         and not count_is_zero
         and not percentiles_present,
-        zero_count_without_notes=derived and count_is_zero and not generic_notes,
+        zero_count_without_notes=is_derived and count_is_zero and not generic_notes,
         invalid_count=not _is_blank(count_value) and not _is_valid_count(count_value),
         invalid_methodology=bool(methodology) and not valid_methodology,
         methodologies=(methodology,) if valid_methodology else (),
         dollar_cells=0 if _is_blank(dollar) else 1,
         percentage_cells=0 if _is_blank(percentage) else 1,
         algorithm_cells=0 if _is_blank(algorithm) else 1,
-        payer_entries=1 if any_charge or row.has("payer_name") or row.has("plan_name") else 0,
+        payer_entries=1 if has_any_charge or row.has("payer_name") or row.has("plan_name") else 0,
     )
 
 
@@ -1199,11 +1200,11 @@ def _wide_combo_facts(row: _Row, combo: str, generic_notes: bool) -> _PayerFacts
     dollar = row.wide_value(combo, "standard_charge|negotiated_dollar")
     percentage = row.wide_value(combo, "standard_charge|negotiated_percentage")
     algorithm = row.wide_value(combo, "standard_charge|negotiated_algorithm")
-    any_charge = not (_is_blank(dollar) and _is_blank(percentage) and _is_blank(algorithm))
+    has_any_charge = not (_is_blank(dollar) and _is_blank(percentage) and _is_blank(algorithm))
     methodology = row.wide_value(combo, "standard_charge|methodology").strip().casefold()
     notes = generic_notes or not _is_blank(row.wide_value(combo, "additional_payer_notes"))
     count_value = row.wide_value(combo, "count")
-    derived = not (_is_blank(percentage) and _is_blank(algorithm))
+    is_derived = not (_is_blank(percentage) and _is_blank(algorithm))
     percentiles_present = all(
         not _is_blank(row.wide_value(combo, name))
         for name in ("median_amount", "10th_percentile", "90th_percentile")
@@ -1211,24 +1212,24 @@ def _wide_combo_facts(row: _Row, combo: str, generic_notes: bool) -> _PayerFacts
     count_is_zero = count_value.strip() == "0"
     valid_methodology = methodology in ACCEPTED_METHODOLOGIES
     return _PayerFacts(
-        any_charge=any_charge,
+        any_charge=has_any_charge,
         any_dollar=not _is_blank(dollar),
-        context_missing=any_charge and not bool(methodology),
+        context_missing=has_any_charge and not bool(methodology),
         payer_named_without_charge=False,
         other_without_notes=methodology == "other" and not notes,
-        derived_missing_count=derived and _is_blank(count_value),
-        derived_missing_percentiles=derived
+        derived_missing_count=is_derived and _is_blank(count_value),
+        derived_missing_percentiles=is_derived
         and not _is_blank(count_value)
         and not count_is_zero
         and not percentiles_present,
-        zero_count_without_notes=derived and count_is_zero and not notes,
+        zero_count_without_notes=is_derived and count_is_zero and not notes,
         invalid_count=not _is_blank(count_value) and not _is_valid_count(count_value),
         invalid_methodology=bool(methodology) and not valid_methodology,
         methodologies=(methodology,) if valid_methodology else (),
         dollar_cells=0 if _is_blank(dollar) else 1,
         percentage_cells=0 if _is_blank(percentage) else 1,
         algorithm_cells=0 if _is_blank(algorithm) else 1,
-        payer_entries=1 if any_charge else 0,
+        payer_entries=1 if has_any_charge else 0,
     )
 
 
