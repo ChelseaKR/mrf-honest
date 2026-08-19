@@ -9,6 +9,34 @@ no version tags yet; until the first dated release (phase 5 of
 
 ### Fixed
 
+- **A download that stopped early was published as a hospital's unreadable file.** CPython's
+  `http.client` does not raise `IncompleteRead` when a length-delimited response ends early:
+  `HTTPResponse.read(amt)` returns `b""` and closes the connection, with a source comment saying
+  that raising there "might break compatibility". The fetcher read that as end-of-body, so a
+  partial file was hashed, installed in the content-addressed cache with the server's `ETag`,
+  recorded as `fetched`, and inspected — where the truncated JSON produced a
+  `JSON_STREAM_INCOMPLETE` **conformance** error and, through the grade policy, an `F` reading
+  "the standard_charge_information array could not be streamed to completion; content that could
+  not be read is treated as failed, not passed". Measured on the composition path: a body cut to
+  60% of its declared length graded `F` with that sentence, byte-identical to the `F` an HTML
+  landing page and a zero-byte body earn. That is a dated, spec-cited, false statement about a
+  named hospital's document, written from a download this project did not finish, and
+  `cohort.py`'s own rule is that a local limit is never attributed to a publisher. It also
+  persisted: the truncated blob carried the server's validators, so the next conditional request
+  would 304 and revalidate the truncation instead of re-fetching. The declared `Content-Length`
+  is now compared against the bytes that actually arrived. A disagreement in either direction is
+  a `network_error` — retried, like the connection reset it is, and never installed in the cache
+  — whose stated reason names both counts, e.g. "the response body ended after 41 of the
+  883973507 bytes the server declared in Content-Length". `Content-Length` counts wire bytes, so
+  gzip is compared before decoding, and a gzip stream that ends before its trailer is now
+  reported as the short transfer it is rather than as an invalid encoding, which was a permanent
+  unretried `content_error` blaming the publisher's file. Per RFC 9112 § 6.1 a declared length
+  beside a `Transfer-Encoding` header means nothing, so it is now ignored on both sides of the
+  read: such a response was previously refused as `too_large` before a byte was read whenever the
+  meaningless number happened to exceed the size ceiling. Written up, with a dated `HEAD`-only
+  measurement of how the six real cohort endpoints frame their responses and therefore how much of
+  the cohort the guard covers, in
+  [docs/findings/truncated-transfer-attribution-2026-08-18.md](docs/findings/truncated-transfer-attribution-2026-08-18.md).
 - **A published file page stated an absence of contract evidence without its reason.**
   Cedars-Sinai's page said the file "was not loaded into the contracted warehouse for this
   cohort, so no contract evidence exists for it" and stopped there. The cause was this

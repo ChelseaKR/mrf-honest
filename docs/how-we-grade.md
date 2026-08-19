@@ -56,6 +56,7 @@ The scorecard maps every terminal fetch status explicitly:
 |---|---|
 | `fetched` or verified `not_modified`, with matching body digest and size and a completed local inspection | `OBSERVED` |
 | HTTP, network, or decoded-content failure | `FINDINGS`, retaining status, HTTP status when available, attempt count, time, final URL, and bounded cause |
+| A 200 whose body is shorter or longer than the `Content-Length` the server declared | `network_error`, so `FINDINGS` naming both byte counts — never a body. `http.client` does not raise on a length-delimited response that ends early, so an unchecked truncation would be inspected as though it were the whole document and published as a conformance error against the publisher. The check is skipped when a `Transfer-Encoding` header makes the declared length meaningless (RFC 9112 § 6.1), and a gzip stream that stops before its trailer is reported this way rather than as an encoding fault when the declared length shows the transfer was cut short |
 | Invalid or unsafe redirect target observed after a request began | `FINDINGS` |
 | Malformed, non-credential URL reported as `invalid_url` before a network attempt | `NOT_ASSESSED`; caller provenance alone cannot attribute invalid input to the publisher |
 | Configured decoded-size limit (`too_large`) | `NOT_ASSESSED`; a project limit is not a publisher availability finding |

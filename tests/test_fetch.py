@@ -65,6 +65,38 @@ class BrokenResponse(FakeResponse):
         raise OSError("connection reset")
 
 
+class ShortResponse(FakeResponse):
+    """A length-delimited response that stops early without raising.
+
+    This is not a contrived double. CPython's ``http.client.HTTPResponse.read(amt)`` returns
+    ``b""`` and closes the connection when a length-delimited body ends early rather than
+    raising ``IncompleteRead``, so a truncated download really does look like this from above.
+    """
+
+    def __init__(
+        self,
+        body: bytes,
+        *,
+        delivered: int,
+        declared: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+        final_url: str = "https://example.test/prices.json",
+    ) -> None:
+        headers = {"Content-Length": str(len(body) if declared is None else declared)}
+        headers.update(extra_headers or {})
+        super().__init__(body, headers=headers, final_url=final_url)
+        self.delivered = delivered
+
+    def read(self, amount: int = -1) -> bytes:
+        self.read_calls += 1
+        if amount < 0:
+            amount = self.delivered - self.position
+        end = min(self.position + amount, self.delivered)
+        result = self.body[self.position : end]
+        self.position += len(result)
+        return result
+
+
 class FakeOpener:
     def __init__(self, *results: ResponseLike | Exception) -> None:
         self.results = list(results)
@@ -226,6 +258,129 @@ def test_declared_and_streamed_size_overruns_are_named(tmp_path: Path) -> None:
     assert declared.read_calls == 0
     assert streamed_outcome.status is FetchStatus.TOO_LARGE
     assert not list((tmp_path / ".tmp").iterdir())
+
+
+def test_a_body_shorter_than_its_declared_length_is_not_a_fetched_file(tmp_path: Path) -> None:
+    body = b'{"standard_charge_information":[{"description":"Example"}]}'
+    response = ShortResponse(body, delivered=20)
+    outcome = fetch_url(
+        "https://example.test/prices.json",
+        tmp_path,
+        politeness=robots_fixtures.politeness(),
+        policy=policy(max_bytes=1024),
+        opener=FakeOpener(response),
+        clock=clock,
+    )
+    assert outcome.status is FetchStatus.NETWORK_ERROR
+    assert not outcome.ok
+    assert outcome.path is None
+    # Both numbers are in the reason, because this sentence is published verbatim as the
+    # retrievability finding on a page that names a hospital.
+    assert outcome.error == (
+        f"the response body ended after 20 of the {len(body)} bytes the server declared in "
+        "Content-Length"
+    )
+    # The partial bytes must not survive anywhere: a cached truncated blob plus the server's
+    # ETag would let a later 304 revalidate the truncation into a permanent record.
+    assert not cache_metadata_path(tmp_path, "https://example.test/prices.json").exists()
+    assert [path for path in tmp_path.rglob("*") if path.is_file()] == []
+
+
+def test_a_transfer_that_ends_early_is_retried_before_it_is_recorded(tmp_path: Path) -> None:
+    body = b"0123456789"
+    opener = FakeOpener(ShortResponse(body, delivered=4), FakeResponse(body))
+    outcome = fetch_url(
+        "https://example.test/prices.json",
+        tmp_path,
+        politeness=robots_fixtures.politeness(),
+        policy=policy(retries=1, backoff_seconds=0.0),
+        opener=opener,
+        sleep=lambda _seconds: None,
+        clock=clock,
+    )
+    assert outcome.status is FetchStatus.FETCHED
+    assert outcome.attempts == 2
+    assert outcome.path is not None and outcome.path.read_bytes() == body
+
+
+def test_a_body_longer_than_its_declared_length_is_not_a_fetched_file(tmp_path: Path) -> None:
+    outcome = fetch_url(
+        "https://example.test/prices.json",
+        tmp_path,
+        politeness=robots_fixtures.politeness(),
+        policy=policy(retries=0),
+        opener=FakeOpener(ShortResponse(b"0123456789", delivered=10, declared=4)),
+        clock=clock,
+    )
+    assert outcome.status is FetchStatus.NETWORK_ERROR
+    assert outcome.error == (
+        "the response body carried 10 bytes against the 4 the server declared in Content-Length"
+    )
+
+
+def test_a_declared_length_is_ignored_when_the_transfer_is_chunked(tmp_path: Path) -> None:
+    # RFC 9112 section 6.1: Transfer-Encoding overrides Content-Length, and http.client drops
+    # the declared length outright. Trusting it here would do two wrong things to a chunked
+    # file: refuse it as oversized before reading a byte (the declared 99999 is above this
+    # policy's 1024 ceiling), and then call the body that did arrive truncated.
+    outcome = fetch_url(
+        "https://example.test/prices.json",
+        tmp_path,
+        politeness=robots_fixtures.politeness(),
+        policy=policy(),
+        opener=FakeOpener(
+            FakeResponse(
+                b"0123456789",
+                headers={"Content-Length": "99999", "Transfer-Encoding": "chunked"},
+            )
+        ),
+        clock=clock,
+    )
+    assert outcome.status is FetchStatus.FETCHED
+    assert outcome.path is not None and outcome.path.read_bytes() == b"0123456789"
+
+
+def test_a_declared_length_is_compared_against_the_wire_body_not_the_decoded_one(
+    tmp_path: Path,
+) -> None:
+    body = b"abcdefghij" * 8
+    encoded = gzip.compress(body)
+    assert len(encoded) != len(body)
+    complete = fetch_url(
+        "https://example.test/prices.json.gz",
+        tmp_path,
+        politeness=robots_fixtures.politeness(),
+        policy=policy(max_bytes=1024),
+        opener=FakeOpener(
+            FakeResponse(
+                encoded,
+                headers={"Content-Length": str(len(encoded))},
+                final_url="https://example.test/prices.json.gz",
+            )
+        ),
+        clock=clock,
+    )
+    cut = fetch_url(
+        "https://example.test/cut.json.gz",
+        tmp_path,
+        politeness=robots_fixtures.politeness(),
+        policy=policy(max_bytes=1024, retries=0),
+        opener=FakeOpener(
+            ShortResponse(
+                encoded,
+                delivered=len(encoded) - 5,
+                final_url="https://example.test/cut.json.gz",
+            )
+        ),
+        clock=clock,
+    )
+    assert complete.status is FetchStatus.FETCHED
+    assert complete.path is not None and complete.path.read_bytes() == body
+    # The gzip trailer check would also catch this one; the point is which cause is reported,
+    # because "the download stopped early" and "the file is not valid gzip" are different
+    # statements about a publisher.
+    assert cut.status is FetchStatus.NETWORK_ERROR
+    assert "Content-Length" in (cut.error or "")
 
 
 def test_gzip_is_decoded_incrementally_and_bounded_after_decoding(tmp_path: Path) -> None:
