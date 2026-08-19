@@ -289,7 +289,8 @@ class Inspector(Protocol):
         publisher: PublisherRef | None = None,
         *,
         as_of: date,
-    ) -> InspectionRecord: ...
+    ) -> InspectionRecord:
+        """Inspect one verified local body and return its serializable record."""
 
 
 def _assessment_policy_fingerprint(

@@ -1244,7 +1244,9 @@ def _sniff_sample(sample: bytes) -> tuple[str, bool]:
         text = body.decode("utf-8")
     except UnicodeDecodeError:
         text = body.decode("latin-1")
-    header_like = text.lstrip().lstrip('"').lower().startswith("hospital_name")
+    header_like = (
+        text.lstrip().lstrip('"').lower().startswith(_CSV_GENERAL_HEADER_PREFIX.decode("ascii"))
+    )
     return "text", header_like
 
 
