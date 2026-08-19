@@ -53,14 +53,32 @@ jobs:
 
       # The same command and the same committed data the publish workflow uses, so this job
       # audits the bytes a visitor actually receives rather than a preview built differently.
-      - name: Render the site from the newest committed comparison
+      - name: Render the site from the newest committed comparison of each profile
         shell: bash
         run: |
           set -euo pipefail
-          comparison="$(ls data/cohorts/*.comparison.json | sort | tail -n 1)"
-          echo "rendering from ${comparison}"
+          python - > /tmp/render-list.txt <<'PY'
+          import glob, json
+          newest: dict[str, tuple[str, str]] = {}
+          for path in sorted(glob.glob("data/cohorts/*.comparison.json")):
+              document = json.load(open(path))
+              cohort = document["cohort"]
+              profile = str(cohort["comparison_scope"]["profile"])
+              key = (str(cohort["as_of"]), path)
+              if profile not in newest or key > newest[profile]:
+                  newest[profile] = key
+          order = ["cms-hospital-json-v3", "cms-hospital-csv-v3"]
+          ordered = [p for p in order if p in newest] + sorted(set(newest) - set(order))
+          for profile in ordered:
+              print(newest[profile][1])
+          PY
+          args=()
+          while read -r comparison; do
+            echo "rendering from ${comparison}"
+            args+=(--comparison "${comparison}")
+          done < /tmp/render-list.txt
           python -m mrf_honest.cli site \
-            --comparison "${comparison}" --out site \
+            "${args[@]}" --out site \
             --origin "https://chelseakr.github.io/mrf-honest"
 
       - name: Serve it

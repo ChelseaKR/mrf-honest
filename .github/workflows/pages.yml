@@ -36,47 +36,71 @@ jobs:
       # there does not stop this one from deploying. A publish job that renders a comparison
       # nobody re-derived can ship numbers the code no longer produces, so the check lives on
       # the deploy path too.
-      - name: Re-derive the newest comparison and require a byte-for-byte match
+      - name: Re-derive every committed comparison and require a byte-for-byte match
         shell: bash
         run: |
           set -euo pipefail
-          comparison="$(ls data/cohorts/*.comparison.json | sort | tail -n 1)"
-          prefix="${comparison%.comparison.json}"
-          for input in "${prefix}.assessments.jsonl" "${prefix}.json" "${prefix}.ingest"; do
-            if [ ! -e "${input}" ]; then
-              echo "::error title=Cohort input missing::${comparison} cannot be re-derived: ${input} is not committed."
+          for comparison in data/cohorts/*.comparison.json; do
+            prefix="${comparison%.comparison.json}"
+            for input in "${prefix}.assessments.jsonl" "${prefix}.json"; do
+              if [ ! -e "${input}" ]; then
+                echo "::error title=Cohort input missing::${comparison} cannot be re-derived: ${input} is not committed."
+                exit 1
+              fi
+            done
+            # Warehouse ingest evidence exists only for cohorts whose profile the warehouse
+            # implements. A cohort re-derived without evidence it was published with cannot
+            # pass the byte comparison below, so a missing directory is not a separate error.
+            args=()
+            if [ -d "${prefix}.ingest" ]; then
+              for evidence in "${prefix}.ingest"/*.json; do
+                [ -e "${evidence}" ] || continue
+                args+=(--ingest-result "${evidence}")
+              done
+            fi
+            generated_at="$(python -c "import json,sys;print(json.load(open(sys.argv[1]))['generated_at'])" "${comparison}")"
+            python -m mrf_honest.cli compare \
+              --assessments "${prefix}.assessments.jsonl" \
+              --manifest "${prefix}.json" \
+              ${args[@]+"${args[@]}"} \
+              --generated-at "${generated_at}" \
+              --format json > /tmp/rederived.json
+            if ! cmp -s "${comparison}" /tmp/rederived.json; then
+              echo "::error title=Comparison is stale::${comparison} is not what mrf-honest compare derives from its committed inputs. The site would publish numbers the code no longer produces. Regenerate the comparison and commit it."
               exit 1
             fi
+            echo "re-derived ${comparison} byte-for-byte"
           done
-          args=()
-          for evidence in "${prefix}.ingest"/*.json; do
-            args+=(--ingest-result "${evidence}")
-          done
-          if [ "${#args[@]}" -eq 0 ]; then
-            echo "::error title=No ingest evidence::${prefix}.ingest/ holds no evidence documents; the warehouse column of the comparison cannot be re-derived."
-            exit 1
-          fi
-          generated_at="$(python -c "import json,sys;print(json.load(open(sys.argv[1]))['generated_at'])" "${comparison}")"
-          python -m mrf_honest.cli compare \
-            --assessments "${prefix}.assessments.jsonl" \
-            --manifest "${prefix}.json" \
-            "${args[@]}" \
-            --generated-at "${generated_at}" \
-            --format json > /tmp/rederived.json
-          if ! cmp -s "${comparison}" /tmp/rederived.json; then
-            echo "::error title=Comparison is stale::${comparison} is not what mrf-honest compare derives from its committed inputs. The site would publish numbers the code no longer produces. Regenerate the comparison and commit it."
-            exit 1
-          fi
-          echo "re-derived ${comparison} byte-for-byte"
 
-      - name: Render the site from the newest committed comparison
+      - name: Render the site from the newest committed comparison of each profile
         shell: bash
         run: |
           set -euo pipefail
-          comparison="$(ls data/cohorts/*.comparison.json | sort | tail -n 1)"
-          echo "rendering from ${comparison}"
+          # One section per assessment profile, each from its newest committed cohort, JSON
+          # profile first. Selection reads each document's own comparison scope rather than
+          # trusting a filename convention.
+          python - > /tmp/render-list.txt <<'PY'
+          import glob, json
+          newest: dict[str, tuple[str, str]] = {}
+          for path in sorted(glob.glob("data/cohorts/*.comparison.json")):
+              document = json.load(open(path))
+              cohort = document["cohort"]
+              profile = str(cohort["comparison_scope"]["profile"])
+              key = (str(cohort["as_of"]), path)
+              if profile not in newest or key > newest[profile]:
+                  newest[profile] = key
+          order = ["cms-hospital-json-v3", "cms-hospital-csv-v3"]
+          ordered = [p for p in order if p in newest] + sorted(set(newest) - set(order))
+          for profile in ordered:
+              print(newest[profile][1])
+          PY
+          args=()
+          while read -r comparison; do
+            echo "rendering from ${comparison}"
+            args+=(--comparison "${comparison}")
+          done < /tmp/render-list.txt
           python -m mrf_honest.cli site \
-            --comparison "${comparison}" \
+            "${args[@]}" \
             --out site \
             --origin "https://chelseakr.github.io/mrf-honest"
       - name: Check the rendered site says what the data says
@@ -87,26 +111,29 @@ jobs:
           test -f site/how-we-grade/index.html
           test -f site/sitemap.xml
           test -f site/404.html
-          comparison="$(ls data/cohorts/*.comparison.json | sort | tail -n 1)"
-          targeted="$(python -c "import json,sys;print(json.load(open(sys.argv[1]))['summary']['targeted'])" "${comparison}")"
-          grep -Fq "<strong>${targeted}</strong> machine-readable files" site/index.html
           grep -Fq 'Sitemap: https://chelseakr.github.io/mrf-honest/sitemap.xml' site/robots.txt
-          # Every graded file gets its own page, or the index links somewhere that 404s. The
-          # count check above passes on a render that emitted no file pages at all.
-          python -c "import json,sys;print('\n'.join(row['slug'] for row in json.load(open(sys.argv[1]))['files']))" \
-            "${comparison}" > /tmp/slugs.txt
-          rendered=0
-          while read -r slug; do
-            [ -n "${slug}" ] || continue
-            if [ ! -f "site/hospital/${slug}/index.html" ]; then
-              echo "::error title=Missing file page::${slug} is a row in ${comparison} but site/hospital/${slug}/index.html was not rendered."
-              exit 1
-            fi
-            grep -Fq "hospital/${slug}/" site/index.html
-            rendered=$((rendered + 1))
-          done < /tmp/slugs.txt
-          if [ "${rendered}" -ne "${targeted}" ]; then
-            echo "::error title=Page count disagrees with the data::${rendered} file pages checked against ${targeted} targeted rows."
+          total_rendered=0
+          total_targeted=0
+          while read -r comparison; do
+            targeted="$(python -c "import json,sys;print(json.load(open(sys.argv[1]))['summary']['targeted'])" "${comparison}")"
+            grep -Fq "<strong>${targeted}</strong> machine-readable files" site/index.html
+            total_targeted=$((total_targeted + targeted))
+            # Every graded file gets its own page, or the index links somewhere that 404s. The
+            # count check above passes on a render that emitted no file pages at all.
+            python -c "import json,sys;print('\n'.join(row['slug'] for row in json.load(open(sys.argv[1]))['files']))" \
+              "${comparison}" > /tmp/slugs.txt
+            while read -r slug; do
+              [ -n "${slug}" ] || continue
+              if [ ! -f "site/hospital/${slug}/index.html" ]; then
+                echo "::error title=Missing file page::${slug} is a row in ${comparison} but site/hospital/${slug}/index.html was not rendered."
+                exit 1
+              fi
+              grep -Fq "hospital/${slug}/" site/index.html
+              total_rendered=$((total_rendered + 1))
+            done < /tmp/slugs.txt
+          done < /tmp/render-list.txt
+          if [ "${total_rendered}" -ne "${total_targeted}" ]; then
+            echo "::error title=Page count disagrees with the data::${total_rendered} file pages checked against ${total_targeted} targeted rows."
             exit 1
           fi
       - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0

@@ -8,9 +8,9 @@
       "node": "26.7.0",
       "python": "3.12"
     },
-    "scope": "Every page the 2026-08-19 cohort renders: the index, how-we-grade, one page per graded file, and 404.html. Every score below is the minimum observed across all of them, not an average and not the best page. Re-measured when the cohort grew from 6 files to 17: the counts here describe pages that were actually audited, so growing a cohort without re-running the audit fails `make verify` rather than shipping a figure measured over a smaller site.",
-    "pages_audited": 20,
-    "file_pages": 17,
+    "scope": "Every page the published cohorts render: the index, how-we-grade, one page per file row of the 2026-08-19 JSON cohort (17) and the 2026-08-19 CSV cohort (25), and 404.html. Every score below is the minimum observed across all of them, not an average and not the best page. Re-measured when the site grew from 6 file pages to 17, and re-audited on the publish path when it grew to 42: the counts here describe pages that are actually audited, so growing a cohort without the audit passing fails the deploy rather than shipping a figure measured over a smaller site.",
+    "pages_audited": 45,
+    "file_pages": 42,
     "k6": "N/A. There is no server: the published artifact is static files on GitHub Pages, so there is no request-latency budget to measure. PERFORMANCE-STANDARD section 1's p95 rows are null below rather than silently absent."
   },
   "floors": {
@@ -24,7 +24,7 @@
     "best-practices": 1.0,
     "seo": 1.0,
     "performance": 1.0,
-    "max_total_transfer_bytes": 34938,
+    "max_total_transfer_bytes": 52404,
     "max_requests_per_page": 1,
     "p95_ms": null,
     "llm_first_token_ms": null,
@@ -42,7 +42,7 @@
   },
   "notes": [
     "The accessibility floor is 1.0, not the standard's 0.90. ACCESSIBILITY-STANDARD section 1 says a repository that declares a higher floor enforces the higher value. On a static site with no JavaScript there is no honest reason for a 0.99: every point below 100 is a specific element a specific person cannot use.",
-    "max_total_transfer_bytes rose from 12,197 to 34,938 when the cohort grew from 6 graded files to 17. The heaviest page is the index, and it is heavier for the reason the cohort exists: it now carries 17 file cards and 37 recorded exclusions, each naming the origin checked and what was found there. That is content, not weight -- the request count is still 1 and there is still no script, stylesheet, font, image, or third party on any page -- and it remains well inside the 61,440-byte document budget in perf/resource-budget.json. The number is refreshed rather than ratcheted because it is a measurement of the artifact, not a target.",
+    "max_total_transfer_bytes rose from 12,197 to 34,938 when the cohort grew from 6 graded files to 17, and to 52,404 when the CSV cohort added its section: the heaviest page is still the index, now carrying two clearly scoped cohort sections, 42 file cards, and every recorded exclusion with its cross-reference. That is content, not weight -- the request count is still 1 and there is still no script, stylesheet, font, image, or third party on any page -- and it remains inside the 61,440-byte document budget in perf/resource-budget.json. The number is refreshed rather than ratcheted because it is a measurement of the artifact, not a target.",
     "These were measured after two real defects were fixed. Before the fix the index scored 0.98 on accessibility (axe heading-order: the file cards' h3 followed h1 with no h2) and every file page carrying a warning finding scored 0.95 (axe color-contrast: the FINDINGS chip was 4.28:1 against its wash, below the 4.5:1 of SC 1.4.3). Both shipped publicly because the portfolio registry recorded this repository as having no HTML surface, so the accessibility gates were scoped out of a site that was already live."
   ]
 }
