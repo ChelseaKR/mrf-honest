@@ -1,6 +1,6 @@
 {
   "meta": {
-    "commit": "e8d5d6ab5dc9ffe55f33abf7fcd7f5a4b45bdb94",
+    "commit": "116ded9368585f82de38cd7ae4421d320a140e9a",
     "date": "2026-08-19",
     "environment": "macOS 25.4.0 arm64, headless Chrome via lighthouse 12, site served by python -m http.server on loopback",
     "tools": {
