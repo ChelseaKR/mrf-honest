@@ -456,6 +456,14 @@ def _run_narrate(args: argparse.Namespace) -> int:
         _emit_json(narration.to_dict())
         return _SUCCESS
     print(f"{narration.subject}: grade {narration.grade}")
+    if narration.refusal is not None:
+        # Nothing was generated, so the AI-generated label would describe text that does not
+        # exist. The refusal is the whole output, with the same provenance line as a narration.
+        print(narration.refusal + ".")
+        if narration.uncited_sources:
+            print(f"Sources not retained in the corpus: {', '.join(narration.uncited_sources)}")
+        print(f"Model: {narration.model} (not called). Prompt version: {narration.prompt_version}.")
+        return _SUCCESS
     print(narration.label)
     print()
     for number, claim in enumerate(narration.claims, start=1):

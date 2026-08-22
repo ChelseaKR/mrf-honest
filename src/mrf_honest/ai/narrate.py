@@ -7,6 +7,12 @@ passages from the documents the record's own findings cite, it must quote
 them verbatim for every claim, and a claim whose quote does not occur in the
 named document is withheld and counted. The result is labeled AI-generated
 and says what the verification does and does not establish.
+
+A record that offers the model nothing to quote is not narrated at all. When
+the findings cite no retained document, or there are no findings, every claim
+the model could write would be withheld for lack of a citation, so the call is
+refused before it is made, and the refusal is recorded in the narration's
+provenance instead of a model name and a token count that bought nothing.
 """
 
 from __future__ import annotations
@@ -94,14 +100,22 @@ class Narration:
     prompt_version: str
     input_tokens: int
     output_tokens: int
+    #: Why the model was not called, or ``None`` when it was. Provenance, not prose: a
+    #: narration with a refusal has no claims, no withheld claims, and zero tokens.
+    refusal: str | None = None
 
     @property
     def withheld_count(self) -> int:
         return len(self.withheld)
 
+    @property
+    def model_called(self) -> bool:
+        return self.refusal is None
+
     def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
         payload["withheld_count"] = self.withheld_count
+        payload["model_called"] = self.model_called
         return payload
 
 
@@ -326,6 +340,29 @@ def _verify(raw: Any, offered: Mapping[str, Passage], corpus: CorpusIndex) -> Cl
     )
 
 
+REFUSAL_NO_FINDINGS = (
+    "not narrated: the record carries no findings, so no source passage could be offered "
+    "and the model was not called"
+)
+REFUSAL_NO_RETAINED_SOURCE = (
+    "not narrated: none of the documents the findings cite is retained in the corpus, so no "
+    "source passage could be offered and the model was not called"
+)
+
+
+def refusal_reason(
+    findings: Sequence[Mapping[str, Any]], passages: Sequence[Passage]
+) -> str | None:
+    """Why a model call would produce nothing showable, or ``None`` if it might.
+
+    Every claim must quote an offered passage. With no passage to offer, every claim is
+    withheld for lack of a citation, so calling the model spends tokens to say nothing.
+    """
+    if passages:
+        return None
+    return REFUSAL_NO_FINDINGS if not findings else REFUSAL_NO_RETAINED_SOURCE
+
+
 def narrate(
     record: Mapping[str, Any],
     *,
@@ -333,7 +370,11 @@ def narrate(
     provider: Provider,
     language: str = "en",
 ) -> Narration:
-    """Explain one assessment record; the grade comes from ``grade_assessment``."""
+    """Explain one assessment record; the grade comes from ``grade_assessment``.
+
+    Returns a narration with ``refusal`` set, no claims, and no model call when the record
+    offers nothing the model could quote (:func:`refusal_reason`).
+    """
     if language not in LANGUAGES:
         raise NarrationError(f"language must be one of {', '.join(LANGUAGES)}")
     if "scorecard" not in record or "subject" not in record:
@@ -342,6 +383,26 @@ def narrate(
     findings = _finding_rows(record)
     passages, unresolved = grounding_passages(findings, corpus)
     offered = {p.passage_id: p for p in passages}
+    refusal = refusal_reason(findings, passages)
+    if refusal is not None:
+        return Narration(
+            language=language,
+            subject=_subject_name(record),
+            grade=graded.grade,
+            grade_reason=graded.reason,
+            finding_codes=tuple(str(f.get("code")) for f in findings),
+            claims=(),
+            withheld=(),
+            offered_passage_ids=(),
+            uncited_sources=tuple(unresolved),
+            label=LABEL[language],
+            provider=provider.name,
+            model=provider.model,
+            prompt_version=PROMPT_VERSION,
+            input_tokens=0,
+            output_tokens=0,
+            refusal=refusal,
+        )
     completion = provider.complete_json(
         system=_SYSTEM_PROMPT,
         user=_user_prompt(
