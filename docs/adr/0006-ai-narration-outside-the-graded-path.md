@@ -45,6 +45,10 @@ record in plain language and is kept outside the graded path by construction:
   catalog description. Every claim must cite passage IDs with verbatim quotes; the layer checks
   each quote against the whole retained document after typography, case, and whitespace folding,
   with a minimum length. A claim with any citation that does not verify is withheld and counted.
+  A record that offers no passage at all — no findings, or findings citing only documents the
+  corpus does not retain — is refused before the model is called, with the reason recorded in
+  the narration's provenance, because every claim would be withheld and the call would spend
+  tokens to say nothing (#26).
 - **Labeled, and honest about what verification means.** Output carries a label stating that the
   grade and findings were computed without a model, that a verified citation proves the passage
   exists and says those words, not that the sentence is a correct reading of the regulation, and

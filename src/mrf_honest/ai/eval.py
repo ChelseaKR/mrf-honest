@@ -60,6 +60,8 @@ def score_record(
         ],
         "input_tokens": narration.input_tokens,
         "output_tokens": narration.output_tokens,
+        "model_called": narration.model_called,
+        "refusal": narration.refusal,
     }
 
 
@@ -80,6 +82,10 @@ def summarize(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
             else None
         ),
         "mean_claims_shown_per_record": round(shown / len(rows), 2) if rows else None,
+        # Records the layer declined to narrate because no passage could be offered. They are
+        # counted in ``records`` and generate nothing, so they lower the mean above; they are
+        # named here so a reader does not read that as the model having been called and failed.
+        "records_refused_before_model_call": sum(1 for r in rows if r.get("model_called") is False),
     }
 
 
