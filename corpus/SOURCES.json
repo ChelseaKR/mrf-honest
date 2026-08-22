@@ -1,0 +1,64 @@
+{
+  "description": "Authoritative texts that the finding catalog cites, retained so that a generated explanation can be checked against the words of the source rather than against a model's memory. Each record maps the citation URL used in findings to the local copy. These are works of the United States Government (17 U.S.C. 105) and are reproduced without modification; they are evidence inputs, not project-authored work.",
+  "retrieved_on": "2026-08-21",
+  "sources": [
+    {
+      "source_id": "cfr-45-part-180",
+      "label": "45 CFR Part 180, Hospital Price Transparency (eCFR, point-in-time 2026-08-20)",
+      "citation_urls": [
+        "https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-E/part-180/subpart-B/section-180.50"
+      ],
+      "fetched_from": "https://www.ecfr.gov/api/versioner/v1/full/2026-08-20/title-45.xml?part=180",
+      "local_copy": "corpus/cfr/45-cfr-part-180.xml",
+      "format": "ecfr-xml",
+      "sha256": "f8230c7f80a06d4faa19fd4d2a1f542613713a6b1c303271db58f9b637822acd",
+      "note": "The eCFR versioner API returns the part as of its most recent issue date; 2026-08-21 was rejected as past that date, so 2026-08-20 is the point in time recorded here."
+    },
+    {
+      "source_id": "cms-json-data-dictionary",
+      "label": "CMS Hospital Price Transparency JSON data dictionary (documentation/JSON/README.md)",
+      "citation_urls": [
+        "https://github.com/CMSgov/hospital-price-transparency/blob/master/documentation/JSON/README.md",
+        "https://github.com/CMSgov/hospital-price-transparency/blob/master/documentation/JSON/schemas/V3.0.0_Hospital_price_transparency_schema.json"
+      ],
+      "fetched_from": "https://raw.githubusercontent.com/CMSgov/hospital-price-transparency/master/documentation/JSON/README.md",
+      "local_copy": "corpus/cms/json-data-dictionary.md",
+      "format": "markdown",
+      "sha256": "7bcd9fa270e29efd8d9dc4049724923ec04365980cb773759dd403478e928a14",
+      "repository_commit": "5333564a710f",
+      "note": "Findings that cite the V3.0.0 JSON schema file resolve to this dictionary, which is the prose that defines the same fields; the schema JSON itself is not retained here."
+    },
+    {
+      "source_id": "cms-csv-data-dictionary",
+      "label": "CMS Hospital Price Transparency CSV data dictionary (documentation/CSV/README.md)",
+      "citation_urls": [
+        "https://github.com/CMSgov/hospital-price-transparency/blob/master/documentation/CSV/README.md",
+        "https://github.com/CMSgov/hospital-price-transparency/blob/master/documentation/CSV/templates/V3.0.0_Tall_CSV_Format_Template.csv",
+        "https://github.com/CMSgov/hospital-price-transparency/blob/master/documentation/CSV/templates/V3.0.0_Wide_CSV_Format_Template.csv"
+      ],
+      "fetched_from": "https://raw.githubusercontent.com/CMSgov/hospital-price-transparency/master/documentation/CSV/README.md",
+      "local_copy": "corpus/cms/csv-data-dictionary.md",
+      "format": "markdown",
+      "sha256": "5129da0141428d689f79110a10a95607581ee3bef81fb0d937a6d39a6bf39dcc",
+      "repository_commit": "5333564a710f",
+      "note": "Findings that cite the Tall or Wide CSV template resolve to this dictionary, which describes both layouts; the template files are not retained here."
+    },
+    {
+      "source_id": "cms-how-to-read-data-dictionary",
+      "label": "CMS guide: how to read the data dictionary (documentation/HOW_TO_READ_DATA_DICTIONARY.md)",
+      "citation_urls": [],
+      "fetched_from": "https://raw.githubusercontent.com/CMSgov/hospital-price-transparency/master/documentation/HOW_TO_READ_DATA_DICTIONARY.md",
+      "local_copy": "corpus/cms/how-to-read-data-dictionary.md",
+      "format": "markdown",
+      "sha256": "c9a116bbe13d5a9d34fa9cd79926eb089a51d8430450d73ea58a5143b61cac40",
+      "repository_commit": "5333564a710f",
+      "note": "Context for reading the dictionaries; no finding cites it directly."
+    }
+  ],
+  "not_retained": [
+    {
+      "citation_url": "https://www.cms.gov/files/document/hpt-policy-faqs-june-2026.pdf",
+      "reason": "PDF; cited by MRF_AUTOMATION_BARRIER_OBSERVED only. A claim that relies on it cannot be verified against this corpus and is withheld."
+    }
+  ]
+}

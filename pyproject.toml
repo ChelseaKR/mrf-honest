@@ -24,6 +24,11 @@ mrf-honest = "mrf_honest.cli:main"
 lakehouse = [
     "duckdb>=1.4,<2",
 ]
+# AI narration outside the graded path (ADR 0006): the public Anthropic SDK
+# only; nothing in inspection, scoring, comparison, or the site imports it.
+ai = [
+    "anthropic[bedrock]>=0.125",
+]
 
 [dependency-groups]
 dev = [

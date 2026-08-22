@@ -138,7 +138,8 @@ not a phase-3 claim.
 Same house rules as the rest of the portfolio, non-negotiable:
 
 - `make verify`: ruff with security rules, mypy strict, pytest with a branch-coverage floor
-- Deterministic core; no model anywhere in the grading or comparison path
+- Deterministic core; no model anywhere in the grading or comparison path (the optional
+  narration layer of ADR 0006 reads a finished grade and cannot change it)
 - Property-based tests on the statistical layer specifically
 - Every published number traceable to a query and a source file
 - Zero fabricated figures, including in the README

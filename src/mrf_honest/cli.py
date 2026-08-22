@@ -384,6 +384,48 @@ def _run_explain(args: argparse.Namespace) -> int:
     return _SUCCESS
 
 
+def _run_narrate(args: argparse.Namespace) -> int:
+    """Narrate one assessment record with verified citations (ADR 0006).
+
+    The provider and the corpus are imported here, not at module import, so
+    the rest of the CLI keeps its standard-library-only boundary.
+    """
+    from mrf_honest.ai.corpus import CorpusIndex
+    from mrf_honest.ai.narrate import narrate
+    from mrf_honest.ai.provider import provider_from_env
+
+    records_path = cast(Path, args.assessments)
+    index = cast(int, args.index)
+    lines = [line for line in records_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    if index < 0 or index >= len(lines):
+        raise ValueError(f"--index must be between 0 and {len(lines) - 1} for {records_path}")
+    record = json.loads(lines[index])
+    corpus = CorpusIndex.load(cast(Path, args.root))
+    narration = narrate(
+        record, corpus=corpus, provider=provider_from_env(), language=cast(str, args.language)
+    )
+    if cast(bool, args.json):
+        _emit_json(narration.to_dict())
+        return _SUCCESS
+    print(f"{narration.subject}: grade {narration.grade}")
+    print(narration.label)
+    print()
+    for number, claim in enumerate(narration.claims, start=1):
+        print(f"{number}. {claim.text}")
+        for citation in claim.citations:
+            print(f'   - {citation.source_label} ({citation.passage_id}): "{citation.quote}"')
+    if narration.withheld_count:
+        print()
+        print(
+            f"{narration.withheld_count} statement(s) withheld because a citation did not "
+            "verify against the committed source text."
+        )
+    if narration.uncited_sources:
+        print(f"Sources not retained in the corpus: {', '.join(narration.uncited_sources)}")
+    print(f"Model: {narration.model}. Prompt version: {narration.prompt_version}.")
+    return _SUCCESS
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="mrf-honest",
@@ -526,6 +568,21 @@ def _build_parser() -> argparse.ArgumentParser:
     explain_parser = commands.add_parser("explain", help="explain a quality finding code")
     explain_parser.add_argument("finding_code", metavar="FINDING_CODE")
     explain_parser.set_defaults(handler=_run_explain)
+
+    narrate_parser = commands.add_parser(
+        "narrate",
+        help="explain one graded file in plain language with citations verified against corpus/",
+    )
+    narrate_parser.add_argument(
+        "--assessments", type=Path, required=True, help="JSON Lines assessment records"
+    )
+    narrate_parser.add_argument("--index", type=int, default=0, help="which record (0-based)")
+    narrate_parser.add_argument("--language", choices=("en", "es"), default="en")
+    narrate_parser.add_argument(
+        "--root", type=Path, default=Path("."), help="repository root holding corpus/"
+    )
+    narrate_parser.add_argument("--json", action="store_true", help="emit the full record")
+    narrate_parser.set_defaults(handler=_run_narrate)
 
     return parser
 

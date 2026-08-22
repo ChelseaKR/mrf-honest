@@ -1,0 +1,280 @@
+<?xml version="1.0"?>
+<DIV5 N="180" TYPE="PART" VOLUME="2" hierarchy_metadata="{&amp;quot;path&amp;quot;:&amp;quot;/on/_SUBSTITUTE_DATE_/title-45/part-180&amp;quot;,&amp;quot;citation&amp;quot;:&amp;quot;45 CFR Part 180&amp;quot;}">
+<HEAD>PART 180&#x2014;HOSPITAL PRICE TRANSPARENCY
+</HEAD>
+<AUTH>
+<HED>Authority:</HED><PSPACE>42 U.S.C. 300gg-18, 42 U.S.C. 1302.
+</PSPACE></AUTH>
+<SOURCE>
+<HED>Source:</HED><PSPACE>84 FR 65602, Nov. 27, 2019, unless otherwise noted.
+</PSPACE></SOURCE>
+<DIV6 N="A" TYPE="SUBPART" VOLUME="2" hierarchy_metadata="{&amp;quot;path&amp;quot;:&amp;quot;/on/_SUBSTITUTE_DATE_/title-45/part-180/subpart-A&amp;quot;,&amp;quot;citation&amp;quot;:&amp;quot;45 CFR Part 180 Subpart A&amp;quot;}">
+<HEAD>Subpart A&#x2014;General Provisions</HEAD>
+<DIV8 N="180.10" TYPE="SECTION" hierarchy_metadata="{&quot;path&quot;:&quot;/on/_SUBSTITUTE_DATE_/title-45/section-180.10&quot;,&quot;citation&quot;:&quot;45 CFR 180.10&quot;}">
+<HEAD>&#xA7; 180.10 Basis and scope.</HEAD>
+<P>This part implements section 2718(e) of the Public Health Service (PHS) Act, which requires each hospital operating within the United States, for each year, to establish, update, and make public a list of the hospital's standard charges for items and services provided by the hospital, including for diagnosis-related groups (DRGs) established under section 1886(d)(4) of the Social Security Act. This part also implements section 2718(b)(3) of the PHS Act, to the extent that section authorizes CMS to promulgate regulations for enforcing section 2718(e). This part also implements section 1102(a) of the Social Security Act, which authorizes the Secretary to make and publish rules and regulations, not inconsistent with that Act, as may be necessary to the efficient administration of the functions for which the Secretary is charged under that Act.</P>
+</DIV8>
+
+<DIV8 N="180.20" TYPE="SECTION" hierarchy_metadata="{&quot;path&quot;:&quot;/on/_SUBSTITUTE_DATE_/title-45/section-180.20&quot;,&quot;citation&quot;:&quot;45 CFR 180.20&quot;}">
+<HEAD>&#xA7; 180.20 Definitions.</HEAD>
+<P>The following definitions apply to this part, unless specified otherwise:</P>
+<P><I>Ancillary service</I> means an item or service a hospital customarily provides as part of or in conjunction with a shoppable primary service.</P>
+<P><I>Chargemaster (Charge Description Master or CDM)</I> means the list of all individual items and services maintained by a hospital for which the hospital has established a charge.</P>
+<P><I>CMS template</I> means a CSV format or JSON schema that CMS makes available for purposes of compliance with &#xA7; 180.40(a).</P>
+<P><I>De-identified maximum negotiated charge</I> means the highest charge that a hospital has negotiated with all third party payers for an item or service.</P>
+<P><I>De-identified minimum negotiated charge</I> means the lowest charge that a hospital has negotiated with all third party payers for an item or service.</P>
+<P><I>Discounted cash price</I> means the charge that applies to an individual who pays cash (or cash equivalent) for a hospital item or service.</P>
+<P><I>Encode</I> means to convert hospital standard charge information into a machine-readable format that complies with &#xA7; 180.50(c)(2).</P>
+<P><I>Estimated allowed amount</I> means the average dollar amount that the hospital has historically received from a third party payer for an item or service.</P>
+<P><I>Gross charge</I> means the charge for an individual item or service that is reflected on a hospital's chargemaster, absent any discounts.</P>
+<P><I>Hospital</I> means an institution in any State in which State or applicable local law provides for the licensing of hospitals, that is licensed as a hospital pursuant to such law or is approved, by the agency of such State or locality responsible for licensing hospitals, as meeting the standards established for such licensing. For purposes of this definition, a State includes each of the several States, the District of Columbia, Puerto Rico, the Virgin Islands, Guam, American Samoa, and the Northern Mariana Islands.</P>
+<P><I>Items and services</I> means all items and services, including individual items and services and service packages, that could be provided by a hospital to a patient in connection with an inpatient admission or an outpatient department visit for which the hospital has established a standard charge. Examples include, but are not limited to, the following:</P>
+<P>(1) Supplies and procedures.</P>
+<P>(2) Room and board.</P>
+<P>(3) Use of the facility and other items (generally described as facility fees).</P>
+<P>(4) Services of employed physicians and non-physician practitioners (generally reflected as professional charges).</P>
+<P>(5) Any other items or services for which a hospital has established a standard charge.</P>
+<P><I>Machine-readable file</I> means a single digital file that is in a machine-readable format.</P>
+<P><I>Machine-readable format</I> means a digital representation of data or information in a file that can be imported or read into a computer system for further processing.</P>
+<P><I>Payer-specific negotiated charge</I> means the charge that a hospital has negotiated with a third party payer for an item or service.</P>
+<P><I>Median allowed amount</I> means the median of the total allowed amounts the hospital has historically received from a third party payer for an item or service for a time period no less than 12 months and no longer than 15 months prior to posting the machine-readable file. Should the calculated median fall between two observed allowed amounts, the median allowed amount is the next highest observed value.</P>
+<P><I>Ninetieth (90th) percentile allowed amount</I> means the 90th percentile of the total allowed amounts the hospital has historically received from a third party payer for an item or service for a time period no less than 12 months and no longer than 15 months prior to posting the machine-readable file. Should the calculated percentile fall between two observed allowed amounts, the 90th percentile allowed amount is the next highest observed value.</P>
+<P><I>Service package</I> means an aggregation of individual items and services into a single service with a single charge.</P>
+<P><I>Shoppable service</I> means a service that can be scheduled by a healthcare consumer in advance.</P>
+<P><I>Standard charge</I> means the regular rate established by the hospital for an item or service provided to a specific group of paying patients. This includes all of the following as defined under this section:</P>
+<P>(1) Gross charge.</P>
+<P>(2) Payer-specific negotiated charge.</P>
+<P>(3) De-identified minimum negotiated charge.</P>
+<P>(4) De-identified maximum negotiated charge.</P>
+<P>(5) Discounted cash price.</P>
+<P><I>State forensic hospital</I> means a public psychiatric hospital that provides treatment for individuals who are in the custody of penal authorities.</P>
+<P><I>Tenth (10th) percentile allowed amount</I> means the 10th percentile of the total allowed amounts the hospital has historically received from a third party payer for an item or service for a time period no less than 12 months and no longer than 15 months prior to posting the machine-readable file. Should the calculated percentile fall between two observed allowed amounts, the 10th percentile allowed amount is the next highest observed value.</P>
+<P><I>Third party payer</I> means an entity that is, by statute, contract, or agreement, legally responsible for payment of a claim for a healthcare item or service.</P>
+<CITA TYPE="N">[84 FR 65602, Nov. 27, 2019, as amended at 86 FR 63998, Nov. 16, 2021; 88 FR 82184, Nov. 22, 2023; 90 FR 54087, Nov. 25, 2025]
+</CITA>
+</DIV8>
+
+<DIV8 N="180.30" TYPE="SECTION" hierarchy_metadata="{&quot;path&quot;:&quot;/on/_SUBSTITUTE_DATE_/title-45/section-180.30&quot;,&quot;citation&quot;:&quot;45 CFR 180.30&quot;}">
+<HEAD>&#xA7; 180.30 Applicability.</HEAD>
+<P>(a) <I>General applicability.</I> Except as provided in paragraph (b) of this section, the requirements of this part apply to hospitals as defined at &#xA7; 180.20.</P>
+<P>(b) <I>Exception.</I> Federal and State hospitals are deemed by CMS to be in compliance with the requirements of this part including but not limited to:</P>
+<P>(1) Federally owned hospital facilities, including facilities operated by the U.S. Department of Veterans Affairs and Military Treatment Facilities operated by the U.S. Department of Defense.</P>
+<P>(2) Hospitals operated by an Indian Health Program as defined in section 4(12) of the Indian Health Care Improvement Act.</P>
+<P>(3) State forensic hospitals that provide treatment exclusively to individuals who are in the custody of penal authorities.</P>
+<P>(c) <I>Online availability.</I> Unless otherwise stated, hospital charge information must be made public electronically via the internet.</P>
+<CITA TYPE="N">[84 FR 65602, Nov. 27, 2019, as amended at 86 FR 63998, Nov. 16, 2021]
+</CITA>
+</DIV8>
+
+</DIV6>
+<DIV6 N="B" TYPE="SUBPART" VOLUME="2" hierarchy_metadata="{&amp;quot;path&amp;quot;:&amp;quot;/on/_SUBSTITUTE_DATE_/title-45/part-180/subpart-B&amp;quot;,&amp;quot;citation&amp;quot;:&amp;quot;45 CFR Part 180 Subpart B&amp;quot;}">
+<HEAD>Subpart B&#x2014;Public Disclosure Requirements</HEAD>
+<DIV8 N="180.40" TYPE="SECTION" hierarchy_metadata="{&quot;path&quot;:&quot;/on/_SUBSTITUTE_DATE_/title-45/section-180.40&quot;,&quot;citation&quot;:&quot;45 CFR 180.40&quot;}">
+<HEAD>&#xA7; 180.40 General requirements.</HEAD>
+<P>A hospital must make public the following:</P>
+<P>(a) A machine-readable file containing a list of all standard charges for all items and services as provided in &#xA7; 180.50.</P>
+<P>(b) A consumer-friendly list of standard charges for a limited set of shoppable services as provided in &#xA7; 180.60.</P>
+</DIV8>
+
+<DIV8 N="180.50" TYPE="SECTION" hierarchy_metadata="{&quot;path&quot;:&quot;/on/_SUBSTITUTE_DATE_/title-45/section-180.50&quot;,&quot;citation&quot;:&quot;45 CFR 180.50&quot;}">
+<HEAD>&#xA7; 180.50 Requirements for making public hospital standard charges for all items and services.</HEAD>
+<P>(a) <I>General rules.</I> (1) A hospital must establish, update, and make public a list of all standard charges for all items and services online in the form and manner specified in this section.</P>
+<P>(2) Each hospital location operating under a single hospital license (or approval) that has a different set of standard charges than the other location(s) operating under the same hospital license (or approval) must separately make public the standard charges applicable to that location.</P>
+<P>(3) Each hospital must:</P>
+<P>(i) Beginning January 1, 2024 through December 31, 2025, make a good faith effort to ensure that the standard charge information encoded in the machine-readable file is true, accurate, and complete as of the date indicated in the machine-readable file.</P>
+<P>(ii) Beginning January 1, 2024 through December 31, 2025, affirm in its machine-readable file that, to the best of its knowledge and belief, the hospital has included all applicable standard charge information in accordance with the requirements of this section, and that the information encoded is true, accurate, and complete as of the date indicated in the machine-readable file.</P>
+<P>(iii) Beginning January 1, 2026, attest in its machine-readable file the following: To the best of its knowledge and belief, this hospital has included all applicable standard charge information in accordance with the requirements of 45 CFR 180.50, and the information encoded is true, accurate, and complete as of the date in the file. This hospital has included all payer-specific negotiated charges in dollars that can be expressed as a dollar amount. For payer-specific negotiated charges that cannot be expressed as a dollar amount in the machine-readable file or not knowable in advance, the hospital attests that the payer-specific negotiated charge is based on a contractual algorithm, percentage or formula that precludes the provision of a dollar amount and has provided all necessary information available to the hospital for the public to be able to derive the dollar amount, including, but not limited to, the specific fee schedule or components referenced in such percentage, algorithm or formula.</P>
+<P>(iv) Beginning January 1, 2026, encode the name of the hospital chief executive officer, president, or senior official designated to oversee the encoding of true, accurate, and complete data as directed in in paragraph (a)(3)(iii) of this section.</P>
+<P>(b) <I>Required data elements.</I> (1) Prior to July 1, 2024, a hospital must include all of the following corresponding data elements in its list of standard charges, as applicable:</P>
+<P>(i) Description of each item or service provided by the hospital.</P>
+<P>(ii) Gross charge that applies to each individual item or service when provided in, as applicable, the hospital inpatient setting and outpatient department setting.</P>
+<P>(iii) Payer-specific negotiated charge that applies to each item or service when provided in, as applicable, the hospital inpatient setting and outpatient department setting. Each payer-specific negotiated charge must be clearly associated with the name of the third party payer and plan.</P>
+<P>(iv) De-identified minimum negotiated charge that applies to each item or service when provided in, as applicable, the hospital inpatient setting and outpatient department setting.</P>
+<P>(v) De-identified maximum negotiated charge that applies to each item or service when provided in, as applicable, the hospital inpatient setting and outpatient department setting.</P>
+<P>(vi) Discounted cash price that applies to each item or service when provided in, as applicable, the hospital inpatient setting and outpatient department setting.</P>
+<P>(vii) Any code used by the hospital for purposes of accounting or billing for the item or service, including, but not limited to, the Current Procedural Terminology (CPT) code, the Healthcare Common Procedure Coding System (HCPCS) code, the Diagnosis Related Group (DRG), the National Drug Code (NDC), or other common payer identifier.</P>
+<P>(2) Unless otherwise specified in this paragraph (b)(2), beginning July 1, 2024, each hospital must encode in its machine-readable file all standard charge information, as applicable, for each of the following required data elements:</P>
+<P>(i) General data elements, including:</P>
+<P>(A) Hospital name, license number, location name(s) and address(es) under the single hospital license to which the list of standard charges applies, and beginning January 1, 2026, Type 2 (organizational) National Provider Identifier(s) (NPI). Location name(s) and address(es) must include, at minimum, all inpatient facilities and stand-alone emergency departments; and</P>
+<P>(B) The version number of the CMS template and the date of most recent update to the standard charge information in the machine-readable file.</P>
+<P>(ii) Each type of standard charge as defined at &#xA7; 180.20 (gross charge, discounted cash price, payer-specific negotiated charge, de-identified minimum negotiated charge, and de-identified maximum negotiated charge) and, for payer-specific negotiated charges, the following additional data elements:</P>
+<P>(A) Payer and plan names; plan(s) may be indicated as categories (such as &#x201C;all PPO plans&#x201D;) when the established payer-specific negotiated charges are applicable to each plan in the indicated category;</P>
+<P>(B) Method used to establish the standard charge; and</P>
+<P>(C) Whether the standard charge indicated should be interpreted by the user as a dollar amount, or if the standard charge is based on a percentage or algorithm. If the standard charge is based on a percentage or algorithm, the machine-readable file (MRF) must also describe the percentage or algorithm that determines the dollar amount for the item or service, and</P>
+<P>(<I>1</I>) Beginning January 1, 2025 through December 31, 2025, calculate and encode an estimated allowed amount in dollars for that item or service; and</P>
+<P>(<I>2</I>) Beginning January 1, 2026, calculate and encode the tenth (10th) percentile allowed amount, the median allowed amount, and the ninetieth (90th) percentile allowed amount in dollars for that item or service. Hospitals must also calculate and encode the total number of allowed amount remittances that were used to calculate the 10th percentile allowed amount, median allowed amount, and 90th percentile allowed amount.</P>
+<P>(iii) A description of the item or service that corresponds to the standard charge established by the hospital, including:</P>
+<P>(A) A general description of the item or service;</P>
+<P>(B) Whether the item or service is provided in connection with an inpatient admission or an outpatient department visit; and</P>
+<P>(C) Beginning January 1, 2025, for drugs, the drug unit and type of measurement.</P>
+<P>(iv) Coding information, including:</P>
+<P>(A) Any code(s) used by the hospital for purposes of accounting or billing for the item or service;</P>
+<P>(B) Corresponding code type(s). Such code types may include, but are not limited to, the CPT code, the HCPCS code, the DRG, the NDC, Revenue Center Codes (RCC), or other common payer identifier; and</P>
+<P>(C) Beginning January 1, 2025, any modifier(s) that may change the standard charge that corresponds to a hospital item or service, including a description of the modifier and how it changes the standard charge.</P>
+<P>(c) <I>Format.</I> (1) Prior to July 1, 2024, the information described in paragraph (b)(1) of this section must be published in a single digital file that is in a machine-readable format.</P>
+<P>(2) Beginning July 1, 2024, the hospital's machine-readable file must conform to a CMS template layout, data specifications, and data dictionary for purposes of making public the standard charge information required under paragraph (b)(2) of this section.</P>
+<P>(d) <I>Location and accessibility.</I> (1) A hospital must select a publicly available website for purposes of making public the standard charge information required under paragraph (b) of this section.</P>
+<P>(2) The standard charge information must be displayed in a prominent manner and clearly identified with the hospital location with which the standard charge information is associated.</P>
+<P>(3) The hospital must ensure that the standard charge information is easily accessible, without barriers, including but not limited to ensuring the information is accessible:</P>
+<P>(i) Free of charge;</P>
+<P>(ii) Without having to establish a user account or password;</P>
+<P>(iii) Without having to submit personal identifying information (PII); and</P>
+<P>(iv) To automated searches and direct file downloads through a link posted on a publicly available website.</P>
+<P>(4) The machine-readable file and standard charge information contained in that machine-readable file must be digitally searchable.</P>
+<P>(5) The machine-readable file must use the following naming convention specified by CMS, specifically: &lt;ein&gt;_&lt;hospital-name&gt;_standardcharges. [json|csv].</P>
+<P>(6) Beginning January 1, 2024, the hospital must ensure that the public website it selects to host its machine-readable file establishes and maintains, in the form and manner specified by CMS:</P>
+<P>(i) A .txt file in the root folder that includes:</P>
+<P>(A) The hospital location name that corresponds to the machine-readable file;</P>
+<P>(B) The source page URL that hosts the machine-readable file;</P>
+<P>(C) A direct link to the machine-readable file (the machine-readable file URL); and</P>
+<P>(D) Hospital point of contact information.</P>
+<P>(ii) A link in the footer on its website, including but not limited to the homepage, that is labeled &#x201C;Price Transparency&#x201D; and links directly to the publicly available web page that hosts the link to the machine-readable file.</P>
+<P>(e) <I>Frequency of updates.</I> The hospital must update the standard charge information described in paragraph (b) of this section at least once annually.</P>
+<CITA TYPE="N">[84 FR 65602, Nov. 27, 2019, as amended at 86 FR 63998, Nov. 16, 2021; 88 FR 82184, Nov. 22, 2023; 90 FR 54087, Nov. 25, 2025]
+</CITA>
+</DIV8>
+
+<DIV8 N="180.60" TYPE="SECTION" hierarchy_metadata="{&quot;path&quot;:&quot;/on/_SUBSTITUTE_DATE_/title-45/section-180.60&quot;,&quot;citation&quot;:&quot;45 CFR 180.60&quot;}">
+<HEAD>&#xA7; 180.60 Requirements for displaying shoppable services in a consumer-friendly manner.</HEAD>
+<P>(a) <I>General rules.</I> (1) A hospital must make public the standard charges identified in paragraphs (b)(3) through (6) of this section, for as many of the 70 CMS-specified shoppable services that are provided by the hospital, and as many additional hospital-selected shoppable services as is necessary for a combined total of at least 300 shoppable services.</P>
+<P>(i) In selecting a shoppable service for purposes of this section, a hospital must consider the rate at which it provides and bills for that shoppable service.</P>
+<P>(ii) If a hospital does not provide 300 shoppable services, the hospital must make public the information specified in paragraph (b) of this section for as many shoppable services as it provides.</P>
+<P>(2) A hospital is deemed by CMS to meet the requirements of this section if the hospital maintains an internet-based price estimator tool which meets the following requirements.</P>
+<P>(i) Provides estimates for as many of the 70 CMS-specified shoppable services that are provided by the hospital, and as many additional hospital-selected shoppable services as is necessary for a combined total of at least 300 shoppable services.</P>
+<P>(ii) Allows healthcare consumers to, at the time they use the tool, obtain an estimate of the amount they will be obligated to pay the hospital for the shoppable service.</P>
+<P>(iii) Is prominently displayed on the hospital's website and accessible to the public without charge and without having to register or establish a user account or password.</P>
+<P>(b) <I>Required data elements.</I> A hospital must include, as applicable, all of the following corresponding data elements when displaying its standard charges (identified in paragraphs (b)(3) through (6) of this section) for its list of shoppable services selected under paragraph (a)(1) of this section:</P>
+<P>(1) A plain-language description of each shoppable service.</P>
+<P>(2) An indicator when one or more of the CMS-specified shoppable services are not offered by the hospital.</P>
+<P>(3) The payer-specific negotiated charge that applies to each shoppable service (and to each ancillary service, as applicable). Each list of payer-specific negotiated charges must be clearly associated with the name of the third party payer and plan.</P>
+<P>(4) The discounted cash price that applies to each shoppable service (and corresponding ancillary services, as applicable). If the hospital does not offer a discounted cash price for one or more shoppable services (or corresponding ancillary services), the hospital must list its undiscounted gross charge for the shoppable service (and corresponding ancillary services, as applicable).</P>
+<P>(5) The de-identified minimum negotiated charge that applies to each shoppable service (and to each corresponding ancillary service, as applicable).</P>
+<P>(6) The de-identified maximum negotiated charge that applies to each shoppable service (and to each corresponding ancillary service, as applicable).</P>
+<P>(7) The location at which the shoppable service is provided, including whether the standard charges identified in paragraphs (b)(3) through (6) of this section for the shoppable service apply at that location to the provision of that shoppable service in the inpatient setting, the outpatient department setting, or both.</P>
+<P>(8) Any primary code used by the hospital for purposes of accounting or billing for the shoppable service, including, as applicable, the Current Procedural Terminology (CPT) code, the Healthcare Common Procedure Coding System (HCPCS) code, the Diagnosis Related Group (DRG), or other common service billing code.</P>
+<P>(c) <I>Format.</I> A hospital has discretion to choose a format for making public the information described in paragraph (b) of this section online.</P>
+<P>(d) <I>Location and accessibility of online data.</I> (1) A hospital must select an appropriate publicly available internet location for purposes of making public the information described in paragraph (b) of this section.</P>
+<P>(2) The information must be displayed in a prominent manner that identifies the hospital location with which the information is associated.</P>
+<P>(3) The shoppable services information must be easily accessible, without barriers, including but not limited to ensuring the information is:</P>
+<P>(i) Free of charge.</P>
+<P>(ii) Accessible without having to register or establish a user account or password.</P>
+<P>(iii) Accessible without having to submit personal identifying information (PII).</P>
+<P>(iv) Searchable by service description, billing code, and payer.</P>
+<P>(e) <I>Frequency.</I> The hospital must update the standard charge information described in paragraph (b) of this section at least once annually. The hospital must clearly indicate the date that the information was most recently updated.</P>
+</DIV8>
+
+</DIV6>
+<DIV6 N="C" TYPE="SUBPART" VOLUME="2" hierarchy_metadata="{&amp;quot;path&amp;quot;:&amp;quot;/on/_SUBSTITUTE_DATE_/title-45/part-180/subpart-C&amp;quot;,&amp;quot;citation&amp;quot;:&amp;quot;45 CFR Part 180 Subpart C&amp;quot;}">
+<HEAD>Subpart C&#x2014;Monitoring and Penalties for Noncompliance</HEAD>
+<DIV8 N="180.70" TYPE="SECTION" hierarchy_metadata="{&quot;path&quot;:&quot;/on/_SUBSTITUTE_DATE_/title-45/section-180.70&quot;,&quot;citation&quot;:&quot;45 CFR 180.70&quot;}">
+<HEAD>&#xA7; 180.70 Monitoring and enforcement.</HEAD>
+<P>(a) <I>Monitoring and assessment.</I> (1) CMS evaluates whether a hospital has complied with the requirements under &#xA7;&#xA7; 180.40, 180.50, and 180.60.</P>
+<P>(2) CMS may use methods to monitor and assess hospital compliance with the requirements under this part, including, but not limited to, the following, as appropriate:</P>
+<P>(i) CMS' evaluation of complaints made by individuals or entities to CMS.</P>
+<P>(ii) CMS review of individuals' or entities' analysis of noncompliance.</P>
+<P>(iii) CMS audit and comprehensive review.</P>
+<P>(iv) Requiring submission of certification by an authorized hospital official as to the accuracy and completeness of the standard charge information in the machine-readable file.</P>
+<P>(v) Requiring submission of additional documentation as may be necessary to make a determination of hospital compliance.</P>
+<P>(b) <I>Actions to address hospital noncompliance.</I> If CMS concludes that the hospital is noncompliant with one or more of the requirements of &#xA7; 180.40, &#xA7; 180.50, or &#xA7; 180.60, CMS may take any of the following actions, which generally, but not necessarily, will occur in the following order:</P>
+<P>(1) Provide a written warning notice to the hospital of the specific violation(s). CMS will require that a hospital submit an acknowledgement of receipt of the warning notice in the form and manner, and by the deadline, specified in the notice of violation issued by CMS to the hospital.</P>
+<P>(2) Request a corrective action plan from the hospital if its noncompliance constitutes a material violation of one or more requirements, according to &#xA7; 180.80.</P>
+<P>(3) Impose a civil monetary penalty on the hospital and publicize the penalty on a CMS website according to &#xA7; 180.90 if the hospital fails to respond to CMS' request to submit a corrective action plan or comply with the requirements of a corrective action plan.</P>
+<P>(c) <I>Actions to address noncompliance of hospitals in health systems.</I> In the event CMS takes an action to address hospital noncompliance (as specified in paragraph (b) of this section) and the hospital is determined by CMS to be part of a health system, CMS may notify health system leadership of the action and may work with health system leadership to address similar deficiencies for hospitals across the health system.</P>
+<P>(d) <I>Publicizing assessments, compliance actions, and outcomes.</I> CMS may publicize on its website information related to the following:</P>
+<P>(1) CMS' assessment of a hospital's compliance.</P>
+<P>(2) Any compliance action taken against a hospital, the status of such compliance action, or the outcome of such compliance action.</P>
+<P>(3) Notifications sent to health system leadership.</P>
+<CITA TYPE="N">[84 FR 65602, Nov. 27, 2019, as amended at 88 FR 82185, Nov. 22, 2023]
+</CITA>
+</DIV8>
+
+<DIV8 N="180.80" TYPE="SECTION" hierarchy_metadata="{&quot;path&quot;:&quot;/on/_SUBSTITUTE_DATE_/title-45/section-180.80&quot;,&quot;citation&quot;:&quot;45 CFR 180.80&quot;}">
+<HEAD>&#xA7; 180.80 Corrective action plans.</HEAD>
+<P>(a) <I>Material violations requiring a corrective action plan.</I> CMS determines if a hospital's noncompliance with the requirements of this part constitutes material violation(s) requiring a corrective action plan. A material violation may include, but is not limited to, the following:</P>
+<P>(1) A hospital's failure to make public its standard charges required by &#xA7; 180.40.</P>
+<P>(2) A hospital's failure to make public its standard charges in the form and manner required under &#xA7;&#xA7; 180.50 and 180.60.</P>
+<P>(b) <I>Notice of violation.</I> CMS may request that a hospital submit a corrective action plan, specified in a notice of violation issued by CMS to a hospital.</P>
+<P>(c) <I>Compliance with corrective action plan requests and corrective actions.</I> (1) A hospital required to submit a corrective action plan must do so, in the form and manner, and by the deadline, specified in the notice of violation issued by CMS to the hospital and must comply with the requirements of the corrective action plan.</P>
+<P>(2) A hospital's corrective action plan must specify elements including, but not limited to:</P>
+<P>(i) The corrective actions or processes the hospital will take to address the deficiency or deficiencies identified by CMS.</P>
+<P>(ii) The timeframe by which the hospital will complete the corrective action.</P>
+<P>(3) A corrective action plan is subject to CMS review and approval.</P>
+<P>(4) After CMS' review and approval of a hospital's corrective action plan, CMS may monitor and evaluate the hospital's compliance with the corrective actions.</P>
+<P>(d) <I>Noncompliance with corrective action plan requests and requirements.</I> (1) A hospital's failure to respond to CMS' request to submit a corrective action plan includes failure to submit a corrective action plan in the form, manner, or by the deadline, specified in a notice of violation issued by CMS to the hospital.</P>
+<P>(2) A hospital's failure to comply with the requirements of a corrective action plan includes failure to correct violation(s) within the specified timeframes.</P>
+</DIV8>
+
+<DIV8 N="180.90" TYPE="SECTION" hierarchy_metadata="{&quot;path&quot;:&quot;/on/_SUBSTITUTE_DATE_/title-45/section-180.90&quot;,&quot;citation&quot;:&quot;45 CFR 180.90&quot;}">
+<HEAD>&#xA7; 180.90 Civil monetary penalties.</HEAD>
+<P>(a) <I>Basis for imposing civil monetary penalties.</I> CMS may impose a civil monetary penalty on a hospital identified as noncompliant according to &#xA7; 180.70, and that fails to respond to CMS' request to submit a corrective action plan or comply with the requirements of a corrective action plan as described in &#xA7; 180.80(d).</P>
+<P>(b) <I>Notice of imposition of a civil monetary penalty.</I> (1) If CMS imposes a penalty in accordance with this part, CMS provides a written notice of imposition of a civil monetary penalty to the hospital via certified mail or another form of traceable carrier.</P>
+<P>(2) This notice to the hospital may include, but is not limited to, the following:</P>
+<P>(i) The basis for the hospital's noncompliance, including, but not limited to, the following:</P>
+<P>(A) CMS' determination as to which requirement(s) the hospital has violated.</P>
+<P>(B) The hospital's failure to respond to CMS' request to submit a corrective action plan or comply with the requirements of a corrective action plan, as described in &#xA7; 180.80(d).</P>
+<P>(ii) CMS' determination as to the effective date for the violation(s). This date is the latest date of the following:</P>
+<P>(A) The first day the hospital is required to meet the requirements of this part.</P>
+<P>(B) If a hospital previously met the requirements of this part but did not update the information annually as required, the date 12 months after the date of the last annual update specified in information posted by the hospital.</P>
+<P>(C) A date determined by CMS, such as one resulting from monitoring and assessment activities specified in &#xA7; 180.70, or development of a corrective action plan as specified in &#xA7; 180.80.</P>
+<P>(iii) The amount of the penalty as of the date of the notice.</P>
+<P>(iv) A statement that a civil monetary penalty may continue to be imposed for continuing violation(s).</P>
+<P>(v) Payment instructions.</P>
+<P>(vi) Intent to publicize the hospital's noncompliance and CMS' determination to impose a civil monetary penalty on the hospital for noncompliance with the requirements of this part by posting the notice of imposition of a civil monetary penalty on a CMS website.</P>
+<P>(vii) A statement of the hospital's right to a hearing according to subpart D of this part.</P>
+<P>(viii) A statement that the hospital's failure to request a hearing within 30 calendar days of the issuance of the notice permits the imposition of the penalty, and any subsequent penalties pursuant to continuing violations, without right of appeal in accordance with &#xA7; 180.110.</P>
+<P>(3) If the civil monetary penalty is upheld, in part, by a final and binding decision according to subpart D of this part, CMS will issue a modified notice of imposition of a civil monetary penalty, to conform to the adjudicated finding.</P>
+<P>(c) <I>Amount of the civil monetary penalty.</I> (1) CMS may impose a civil monetary penalty upon a hospital for a violation of each requirement of this part.</P>
+<P>(2) CMS determines the daily dollar amount for a civil monetary penalty for which a hospital may be subject as follows:</P>
+<P>(i) For each day during Calendar Year 2021 that a hospital is determined by CMS to be out of compliance, the maximum daily dollar amount for a civil monetary penalty to which the hospital may be subject is $300. Even if the hospital is in violation of multiple discrete requirements of this part, the maximum total sum that a single hospital may be assessed per day is $300.</P>
+<P>(ii) Beginning January 1, 2022, for each day a hospital is determined by CMS to be out of compliance:</P>
+<P>(A) For a hospital with a number of beds equal to or less than 30, the maximum daily dollar civil monetary penalty amount to which it may be subject is $300, even if the hospital is in violation of multiple discrete requirements of this part.</P>
+<P>(B) For a hospital with at least 31 and up to and including 550 beds, the maximum daily dollar civil monetary penalty amount to which it may be subject is the number of beds times $10, even if the hospital is in violation of multiple discrete requirements of this part.</P>
+<P>(C) For a hospital with a number of beds greater than 550, the maximum daily dollar civil monetary penalty amount to which it may be subject is $5,500, even if the hospital is in violation of multiple discrete requirements of this part.</P>
+<P>(D)(<I>1</I>) CMS will use the most recently available, finalized Medicare hospital cost report to determine the number of beds for a Medicare-enrolled hospital, for purposes of determining the maximum daily dollar civil monetary penalty amount under paragraph (c)(2) of this section.</P>
+<P>(<I>2</I>) If the number of beds for the hospital cannot be determined according to paragraph (c)(2)(ii)(D)(<I>1</I>) of this section, CMS will request that the hospital provide documentation of its number of beds, in a form and manner and by the deadline prescribed by CMS in a written notice provided to the hospital. Should the hospital fail to provide CMS with this documentation in the prescribed form and manner, and by the specified deadline, CMS will impose on the hospital the maximum daily dollar civil monetary penalty amount according to paragraph (c)(2)(ii)(C) of this section.</P>
+<P>(3) The amount of the civil monetary penalty will be adjusted annually using the multiplier determined by OMB for annually adjusting civil monetary penalty amounts under part 102 of this title.</P>
+<P>(4) Except as provided in this paragraph, the amount of a civil monetary penalty is reduced by 35 percent if the hospital submits a written notice to CMS requesting to waive its right to a hearing under &#xA7; 180.100 within 30-calendar days of the date of the notice of imposition of the civil monetary penalty. A hospital that receives a 35 percent reduction in a civil monetary penalty under this paragraph is not eligible to receive a 35 percent reduction for any subsequent civil monetary penalties imposed pursuant to continuing violations according to &#xA7; 180.90(f) and also waives its right to appeal under &#xA7; 180.100 any subsequent civil monetary penalties imposed for such continuing violations. A hospital is not eligible to request that CMS reduce the amount of a civil monetary penalty by 35 percent in accordance with this paragraph if&#x2014;</P>
+<P>(i) The hospital does not request to waive its right to a hearing in accordance with this paragraph; or</P>
+<P>(ii) CMS imposed the CMP because the hospital failed to make public an MRF as required at &#xA7; 180.40(a) or failed to make public a consumer-friendly list of standard charges as required at &#xA7; 180.40(b).</P>
+<P>(d) <I>Timing of payment of civil monetary penalty.</I> (1) A hospital that does not meet the criteria to receive a reduction to the civil monetary penalty that had been imposed upon it as set forth in paragraph (c)(4) of this section must pay the civil monetary penalty in full within 60 calendar days after the date of the notice of imposition of a civil monetary penalty from CMS under paragraph (b) of this section.</P>
+<P>(2) A hospital that meets the criteria to receive a reduction to the civil monetary penalty that had been imposed upon it as set forth in paragraph (c)(4) of this section must pay the civil monetary penalty, as reduced in accordance with paragraph (c)(4) of this section, within 60 calendar days after the date of the notice of imposition of a civil monetary penalty from CMS under paragraph (b) of this section.</P>
+<P>(3) In the event a hospital requests a hearing, pursuant to subpart D of this part, the hospital must pay the amount in full within 60 calendar days after the date of a final and binding decision, according to subpart D of this part, to uphold, in whole or in part, the civil monetary penalty.</P>
+<P>(4) If the 60th calendar day described in paragraphs (d)(1) and (2) of this section is a weekend or a Federal holiday, then the timeframe is extended until the end of the next business day.</P>
+<P>(e) <I>Posting of notice.</I> (1) CMS will post the notice of imposition of a civil monetary penalty described in paragraphs (b) and (f) of this section on a CMS website.</P>
+<P>(2) In the event that a hospital elects to request a hearing, pursuant to subpart D of this part:</P>
+<P>(i) CMS will indicate in its posting, under paragraph (e)(1) of this section, that the civil monetary penalty is under review.</P>
+<P>(ii) If the civil monetary penalty is upheld, in whole, by a final and binding decision according to subpart D of this part, CMS will maintain the posting of the notice of imposition of a civil monetary penalty on a CMS website.</P>
+<P>(iii) If the civil monetary penalty is upheld, in part, by a final and binding decision according to subpart D of this part, CMS will issue a modified notice of imposition of a civil monetary penalty according to paragraph (b)(3) of this section, to conform to the adjudicated finding. CMS will make this modified notice public on a CMS website.</P>
+<P>(iv) If the civil monetary penalty is overturned in full by a final and binding decision according to subpart D of this part, CMS will remove the notice of imposition of a civil monetary penalty from a CMS website.</P>
+<P>(f) <I>Continuing violations.</I> CMS may issue subsequent notice(s) of imposition of a civil monetary penalty, according to paragraph (b) of this section, that result from the same instance(s) of noncompliance.</P>
+<CITA TYPE="N">[84 FR 65602, Nov. 27, 2019, as amended at 86 FR 63998, Nov. 16, 2021; 88 FR 82185, Nov. 22, 2023; 90 FR 54088, Nov. 25, 2025]
+</CITA>
+</DIV8>
+
+</DIV6>
+<DIV6 N="D" TYPE="SUBPART" VOLUME="2" hierarchy_metadata="{&amp;quot;path&amp;quot;:&amp;quot;/on/_SUBSTITUTE_DATE_/title-45/part-180/subpart-D&amp;quot;,&amp;quot;citation&amp;quot;:&amp;quot;45 CFR Part 180 Subpart D&amp;quot;}">
+<HEAD>Subpart D&#x2014;Appeals of Civil Monetary Penalties</HEAD>
+<DIV8 N="180.100" TYPE="SECTION" hierarchy_metadata="{&quot;path&quot;:&quot;/on/_SUBSTITUTE_DATE_/title-45/section-180.100&quot;,&quot;citation&quot;:&quot;45 CFR 180.100&quot;}">
+<HEAD>&#xA7; 180.100 Appeal of penalty.</HEAD>
+<P>(a) A hospital upon which CMS has imposed a penalty under this part may appeal that penalty in accordance with subpart D of part 150 of this title, except as specified in paragraph (b) of this section.</P>
+<P>(b) For purposes of applying subpart D of part 150 of this title to appeals of civil monetary penalties under this part:</P>
+<P>(1) Civil money penalty means a civil monetary penalty according to &#xA7; 180.90.</P>
+<P>(2) Respondent means a hospital that received a notice of imposition of a civil monetary penalty according to &#xA7; 180.90(b).</P>
+<P>(3) References to a notice of assessment or proposed assessment, or notice of proposed determination of civil monetary penalties, are considered to be references to the notice of imposition of a civil monetary penalty specified in &#xA7; 180.90(b).</P>
+<P>(4) Under &#xA7; 150.417(b) of this title, in deciding whether the amount of a civil money penalty is reasonable, the ALJ may only consider evidence of record relating to the following:</P>
+<P>(i) The hospital's posting(s) of its standard charges, if available.</P>
+<P>(ii) Material the hospital timely previously submitted to CMS (including with respect to corrective actions and corrective action plans).</P>
+<P>(iii) Material CMS used to monitor and assess the hospital's compliance according to &#xA7; 180.70(a)(2).</P>
+<P>(5) The ALJ's consideration of evidence of acts other than those at issue in the instant case under &#xA7; 150.445(g) of this title does not apply.</P>
+</DIV8>
+
+<DIV8 N="180.110" TYPE="SECTION" hierarchy_metadata="{&quot;path&quot;:&quot;/on/_SUBSTITUTE_DATE_/title-45/section-180.110&quot;,&quot;citation&quot;:&quot;45 CFR 180.110&quot;}">
+<HEAD>&#xA7; 180.110 Failure to request a hearing.</HEAD>
+<P>(a) If a hospital does not request a hearing within 30 calendar days of the issuance of the notice of imposition of a civil monetary penalty described in &#xA7; 180.90(b), CMS may impose the civil monetary penalty indicated in such notice and may impose additional penalties pursuant to continuing violations according to &#xA7; 180.90(f) without right of appeal in accordance with this part.</P>
+<P>(1) If the 30th calendar day described in this paragraph (a) is a weekend or a Federal holiday, then the timeframe is extended until the end of the next business day.</P>
+<P>(2) [Reserved]</P>
+<P>(b) The hospital has no right to appeal a penalty with respect to which it has not requested a hearing in accordance with &#xA7; 150.405 of this title, unless the hospital can show good cause, as determined at &#xA7; 150.405(b) of this title, for failing to timely exercise its right to a hearing.</P>
+</DIV8>
+
+</DIV6>
+</DIV5>
