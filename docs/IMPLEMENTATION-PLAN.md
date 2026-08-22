@@ -126,8 +126,10 @@ not a phase-3 claim.
       documented limits
 - [ ] CI: quality/build gates are committed with SHA-pinned actions and initial hosted branch/PR
       runs were observed green; scheduled refresh remains open
-- [ ] A claim and correction flow, non-adversarial, honoring removal requests without demanding
-      proof
+- [x] A claim and correction flow, non-adversarial, honoring removal requests without demanding
+      proof: `.github/ISSUE_TEMPLATE/remove-or-dispute.yml`, linked from the README
+      (2026-08-22). The form is the door; a correction is re-derived from committed evidence
+      and a removal becomes a stated exclusion rather than a deletion
 - [ ] A write-up in the pattern of `docs/payer-verifiability.md`, **including a section on what
       this project got wrong**
 

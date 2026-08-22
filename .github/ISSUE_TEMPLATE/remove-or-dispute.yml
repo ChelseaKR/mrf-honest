@@ -1,0 +1,83 @@
+name: Dispute a finding or remove a file page
+description: Ask us to correct a finding about your hospital's file, or take the page down
+title: "[dispute] "
+labels: ["cohort", "dispute"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This project grades public, CMS-mandated machine-readable files and takes a
+        non-adversarial posture. A grade describes one published file under one stated policy
+        on one date; it is not a statement about your hospital, your prices, or your legal
+        compliance. If a finding is wrong, or you would rather the page not be listed, say so
+        and we will correct or remove it. You do not have to prove anything first.
+
+        A removal is honored and recorded: the row becomes a stated exclusion with the reason
+        given, so the cohort's count does not quietly shrink and nobody else is graded in your
+        place. A correction that changes a grade is re-derived from the committed evidence and
+        published with the change noted.
+  - type: input
+    id: page
+    attributes:
+      label: Which page
+      description: The file page on the site, or the publisher and location it names.
+      placeholder: https://chelseakr.github.io/mrf-honest/hospital/<publisher>/<location>/
+    validations:
+      required: true
+  - type: input
+    id: file_url
+    attributes:
+      label: The file URL as your hospital publishes it
+      description: >
+        The machine-readable file's URL from your cms-hpt.txt. The page records the URL that was
+        requested and the SHA-256 of what came back; if the file at this URL has changed since
+        the assessment date, say so below.
+      placeholder: https://www.example-hospital.org/prices/123456789_example-hospital_standardcharges.csv
+    validations:
+      required: false
+  - type: dropdown
+    id: request
+    attributes:
+      label: What are you asking for
+      options:
+        - Correct a finding
+        - Remove the page
+        - Something else
+    validations:
+      required: true
+  - type: input
+    id: finding_code
+    attributes:
+      label: Finding code disputed
+      description: >
+        The code as it appears on the page, if a specific finding is wrong. Every code is
+        defined on the how-we-grade page with the clause it cites.
+      placeholder: CMS_CSV_PAYER_WITHOUT_CHARGE
+    validations:
+      required: false
+  - type: textarea
+    id: clause
+    attributes:
+      label: The clause you read differently
+      description: >
+        If the dispute is about what the rule or data dictionary requires, quote the passage of
+        45 CFR § 180.50 or the CMS data dictionary you are relying on. Findings cite their
+        source; a reading we got wrong is fixed in the catalog, not just on your page.
+    validations:
+      required: false
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence, if you have it
+      description: >
+        Optional. A row or field from the file, the file's last_updated_on, the output of
+        `mrf-honest scorecard` run against your own copy, or anything else that shows what the
+        page got wrong. Please do not paste anything that is not already public in the file.
+    validations:
+      required: false
+  - type: textarea
+    id: detail
+    attributes:
+      label: Details
+    validations:
+      required: true

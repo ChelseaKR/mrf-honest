@@ -9,6 +9,20 @@ no version tags yet; until the first dated release (phase 5 of
 
 ### Added
 
+- **A door for hospitals named on a page (2026-08-22).** `.github/ISSUE_TEMPLATE/` did not
+  exist, so a publisher whose file page carried an **F** had no stated way to dispute a finding
+  or ask for the page to come down. `remove-or-dispute.yml` asks for the page, the file URL as
+  the hospital's own `cms-hpt.txt` publishes it, the finding code disputed, the rule or
+  data-dictionary clause read differently, and optional evidence — nothing is required to be
+  proved first. It states what happens next: a correction is re-derived from the committed
+  evidence and published with the change noted, and a removal becomes a recorded exclusion
+  with its reason so the cohort's count does not quietly shrink. `config.yml` links the
+  how-we-grade page, the written-up findings, and `SECURITY.md`; bug and feature forms are the
+  portfolio's usual shape adapted to MRF terms, and the feature form names the two written
+  non-goals (ranking, pricing advice) up front. The README's "What a grade is, and is not"
+  section links the form, and phase 5's claim-and-correction item in
+  `docs/IMPLEMENTATION-PLAN.md` is checked.
+
 - **AI narration outside the graded path (ADR 0006, 2026-08-21).** `mrf-honest narrate` explains
   one already-graded assessment record in English or Spanish. The grade and findings are inputs
   the model cannot change; it is shown only passages from the documents the record's own

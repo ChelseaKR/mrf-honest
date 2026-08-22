@@ -152,6 +152,17 @@ size ceiling are all **not graded**, because from one attempt none of them is di
 from a problem on this end. An **A** means the implemented checks emitted nothing; it is
 not the official CMS validator and not a certificate of validity.
 
+**If a page names your hospital's file and something on it is wrong, there is a door.** The
+[dispute-or-remove issue form](https://github.com/ChelseaKR/mrf-honest/issues/new?template=remove-or-dispute.yml)
+asks for the page, the file URL as your `cms-hpt.txt` publishes it, the finding code disputed,
+and the clause you read differently; evidence is welcome and never required. A correction is
+re-derived from the committed evidence and published with the change noted. A removal is
+honored and recorded as a stated exclusion with the reason given, so the cohort's count does
+not quietly shrink and no one else is graded in your place. This is the claim-and-correction
+flow [docs/IMPLEMENTATION-PLAN.md](docs/IMPLEMENTATION-PLAN.md) lists under phase 5, opened
+before the rest of that phase because a page that names a hospital with an **F** should not
+exist without one.
+
 ## Why this shape
 
 Two reasons, and the second one is the honest one.

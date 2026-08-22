@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: How grades are calculated
+    url: https://chelseakr.github.io/mrf-honest/how-we-grade/
+    about: Every finding code emitted, what it checks, and the rule or data-dictionary clause it cites
+  - name: Written-up findings with evidence
+    url: https://github.com/ChelseaKR/mrf-honest/tree/master/docs/findings
+    about: Each finding re-derives from the committed assessment records; what this project got wrong is recorded there too
+  - name: Report a security vulnerability privately
+    url: https://github.com/ChelseaKR/mrf-honest/blob/master/SECURITY.md
+    about: Do not open a public issue for exploitable details
