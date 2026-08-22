@@ -9,6 +9,26 @@ no version tags yet; until the first dated release (phase 5 of
 
 ### Added
 
+- **AI narration outside the graded path (ADR 0006, 2026-08-21).** `mrf-honest narrate` explains
+  one already-graded assessment record in English or Spanish. The grade and findings are inputs
+  the model cannot change; it is shown only passages from the documents the record's own
+  findings cite, every claim must quote them verbatim, and `mrf_honest.ai.corpus` verifies each
+  quote against the retained copy before the claim is shown, withholding and counting the
+  rest. `corpus/SOURCES.json` retains 45 CFR Part 180 (eCFR XML, point in time 2026-08-20) and
+  the CMS JSON and CSV data dictionaries (commit `5333564a710f`) with hashes and retrieval
+  dates, and records that the CMS policy FAQ PDF is not retained. The `anthropic` SDK arrives
+  as an optional `ai` extra that only this layer imports; the standard-library boundary of
+  ADR 0002 holds for everything on the graded path. `python -m mrf_honest.ai.eval` measures
+  grounding; two recorded runs on Amazon Bedrock `global.anthropic.claude-sonnet-4-6` are
+  committed under `evals/ai/results/`: the 17 records of the 2026-08-19 JSON cohort produced 95
+  claims, 91 shown (95.8%), 4 withheld (three altered quotes, one uncited statement); 8 records
+  of the 2026-08-19 CSV cohort produced 48 claims, 39 shown (81.3%), 9 withheld, eight of them
+  uncited statements about files that could not be graded and one a quote with a dropped word. A verified citation proves the passage exists, not that the sentence reads it
+  correctly; no person has reviewed the prompt or the Spanish output. `README.md`,
+  `docs/RESPONSIBLE-TECH-AUDITS.md`, and `docs/IMPLEMENTATION-PLAN.md` now say "no model on the
+  graded path" rather than "no model component"; `docs/ROADMAP.md`'s audited dependency count
+  moves from 51 to 71.
+
 - **The majority format is graded, not excluded: a CSV assessment profile and its first real
   cohort (2026-08-19).** Two thirds of the random draw publish CSV rather than JSON, and until
   now every one was a recorded exclusion — the letter distribution described hospitals that

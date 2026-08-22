@@ -1,0 +1,601 @@
+{
+  "run": {
+    "status": "recorded_live_run",
+    "kind": "narration_grounding",
+    "run_on": "2026-08-22",
+    "provider": "bedrock",
+    "model": "global.anthropic.claude-sonnet-4-6",
+    "prompt_version": "narrate-v1",
+    "commit": "b00dd5c7852d439523de2b0a67b356543db97c6a",
+    "records_file": "data/cohorts/2026-08-19-csv.assessments.jsonl",
+    "scoring": {
+      "claims_shown": "every cited quote occurs verbatim in the named committed document",
+      "claims_withheld": "at least one citation did not verify; the claim is not shown"
+    }
+  },
+  "summary": {
+    "records": 8,
+    "claims_generated": 48,
+    "claims_shown": 39,
+    "claims_withheld": 9,
+    "fraction_claims_with_verified_citations": 0.8125,
+    "records_with_no_withheld_claims": 0.625,
+    "mean_claims_shown_per_record": 4.88
+  },
+  "records": [
+    {
+      "index": 0,
+      "subject": "Flowers Hospital (Dothan, AL)",
+      "grade": "NOT_GRADED",
+      "finding_codes": [],
+      "offered_passages": 0,
+      "uncited_sources": [],
+      "claims_generated": 3,
+      "claims_shown": 0,
+      "claims_withheld": 3,
+      "withheld_reasons": [
+        [
+          "no citation"
+        ],
+        [
+          "no citation"
+        ],
+        [
+          "no citation"
+        ]
+      ],
+      "claims": [],
+      "input_tokens": 986,
+      "output_tokens": 142
+    },
+    {
+      "index": 1,
+      "subject": "Marshall Medical Center (Placerville, CA)",
+      "grade": "C",
+      "finding_codes": [
+        "CMS_CSV_UTF8_BOM_PRESENT",
+        "CMS_CSV_PAYER_WITHOUT_CHARGE",
+        "CSV_INTERPRETABILITY_ALGORITHM_RATES",
+        "CSV_INTERPRETABILITY_PERCENTAGE_RATES"
+      ],
+      "offered_passages": 9,
+      "uncited_sources": [],
+      "claims_generated": 7,
+      "claims_shown": 7,
+      "claims_withheld": 0,
+      "withheld_reasons": [],
+      "claims": [
+        {
+          "dimension": "retrievability",
+          "text": "The file was successfully downloaded on 2026-08-19, confirming it is publicly accessible at Marshall Medical Center's website.",
+          "citations": [
+            {
+              "passage_id": "cms-csv-data-dictionary#17",
+              "quote": "After the general data elements have been disclosed, the disclosure of required standard charges, item/service, and coding data elements will begin on row 3."
+            }
+          ]
+        },
+        {
+          "dimension": "completeness",
+          "text": "The completeness dimension received an error because 11 payer or plan names appear in the file without any corresponding payer-specific charge value next to them. The CMS data dictionary requires that if a value is encoded in the",
+          "citations": [
+            {
+              "passage_id": "cms-csv-data-dictionary#48",
+              "quote": "if values are encoded in the \"Payer Name\" or \"Plan Name\" columns in the CSV tall format, at least one of the three payer-specific charge properties must also be encoded: \"Payer-specific Negotiated Charge: Dollar Amount\", \"Payer-specific Negotiated Charge: Percentage\", or \"Payer-specific Negotiated Charge: Algorithm\""
+            }
+          ]
+        },
+        {
+          "dimension": "completeness",
+          "text": "Specifically, each row that names a payer or plan must pair that name with at least one of three charge types: a dollar amount, a percentage, or an algorithm — and in 11 cases the file omits all three.",
+          "citations": [
+            {
+              "passage_id": "cms-csv-data-dictionary#48",
+              "quote": "at least one of the three payer-specific charge properties must also be encoded: \"Payer-specific Negotiated Charge: Dollar Amount\", \"Payer-specific Negotiated Charge: Percentage\", or \"Payer-specific Negotiated Charge: Algorithm\""
+            }
+          ]
+        },
+        {
+          "dimension": "interpretability",
+          "text": "The file contains some charges expressed as algorithms (formulas rather than fixed dollar amounts); these are counted separately from dollar-denominated charges because they are not directly expressed in dollars.",
+          "citations": [
+            {
+              "passage_id": "cms-csv-data-dictionary#29",
+              "quote": "If the payer-specific negotiated charge is a percentage for which a dollar amount cannot be calculated or is a base rate modified by a percentage, encode the \"Payer-Specific Negotiated Charge Percentage\" data element."
+            }
+          ]
+        },
+        {
+          "dimension": "interpretability",
+          "text": "The file also contains some charges expressed as percentages, which likewise are not directly dollar-denominated and are tracked separately from dollar amounts; the data dictionary explains that a percentage charge should be encoded as a numeric value such as \"70.5\" rather than \".705\".",
+          "citations": [
+            {
+              "passage_id": "cms-csv-data-dictionary#29",
+              "quote": "This data element will contain the numeric representation of the percentage, not as a decimal (70.5% is to be entered as \"70.5\" and not \".705\")."
+            }
+          ]
+        },
+        {
+          "dimension": "interpretability",
+          "text": "When percentage or algorithm charges are present, the data dictionary also requires that allowed-amount data be encoded alongside them, including the 10th percentile, median, and 90th percentile allowed amounts.",
+          "citations": [
+            {
+              "passage_id": "cms-csv-data-dictionary#50",
+              "quote": "If a \"Payer-Specific Negotiated Charge: Percentage\" or a \"Payer-Specific Negotiated Charge: Algorithm\" is encoded, then the \"10th Percentile Allowed Amount\", \"Median Allowed Amount\", \"90th Percentile Allowed Amount\" are required (unless the \"Count of Allowed Amounts\" is \"0\")."
+            }
+          ]
+        },
+        {
+          "dimension": "conformance",
+          "text": "The file begins with a UTF-8 byte-order mark (a hidden character sometimes added by spreadsheet software); the grader noted and tolerated this but recorded it as an informational finding under conformance.",
+          "citations": [
+            {
+              "passage_id": "cms-csv-data-dictionary#17",
+              "quote": "After the general data elements have been disclosed, the disclosure of required standard charges, item/service, and coding data elements will begin on row 3."
+            }
+          ]
+        }
+      ],
+      "input_tokens": 3430,
+      "output_tokens": 925
+    },
+    {
+      "index": 2,
+      "subject": "Scripps Memorial Hospital La Jolla (La Jolla, CA)",
+      "grade": "A",
+      "finding_codes": [
+        "CSV_INTERPRETABILITY_ALGORITHM_RATES",
+        "CSV_INTERPRETABILITY_PERCENTAGE_RATES"
+      ],
+      "offered_passages": 5,
+      "uncited_sources": [],
+      "claims_generated": 7,
+      "claims_shown": 7,
+      "claims_withheld": 0,
+      "withheld_reasons": [],
+      "claims": [
+        {
+          "dimension": "retrievability",
+          "text": "The file was successfully downloaded on 2026-08-19, confirming it is publicly accessible at the recorded URL.",
+          "citations": [
+            {
+              "passage_id": "cms-csv-data-dictionary#48",
+              "quote": "If a \"Payer Specific Negotiated Charge\" is encoded as a dollar amount, percentage, or algorithm, then a corresponding valid value for the payer name, plan name, and standard charge methodology must also be encoded."
+            }
+          ]
+        },
+        {
+          "dimension": null,
+          "text": "The file earned a grade of A because every assessed dimension was completed with no error or warning findings; only INFO-level observations were noted, and those do not lower a grade.",
+          "citations": [
+            {
+              "passage_id": "cms-csv-data-dictionary#50",
+              "quote": "If a \"Payer-Specific Negotiated Charge: Percentage\" or a \"Payer-Specific Negotiated Charge: Algorithm\" is encoded, then the \"Count of Allowed Amounts\" is required."
+            }
+          ]
+        },
+        {
+          "dimension": "interpretability",
+          "text": "Some payer rates in the file are expressed as algorithms rather than dollar amounts. An algorithm-encoded charge is a negotiated rate that cannot be stated as a single fixed dollar figure and must instead be described by a formula or rule.",
+          "citations": [
+            {
+              "passage_id": "cms-csv-data-dictionary#22",
+              "quote": "Payer-specific negotiated charge (encoded as a percentage) that a hospital has negotiated with a third party payer for an item or service."
+            }
+          ]
+        },
+        {
+          "dimension": "interpretability",
+          "text": "When a payer-specific negotiated charge is encoded as an algorithm, the data dictionary requires that the corresponding allowed amounts and count of allowed amounts also be encoded for that item or service.",
+          "citations": [
+            {
+              "passage_id": "cms-csv-data-dictionary#29",
+              "quote": "If the \"Payer-Specific Negotiated Charge: Percentage\" or \"Payer-Specific Negotiated Charge: Algorithm\" data elements are encoded, then also encode the corresponding allowed amounts and count of allowed amount data elements for that item or service."
+            }
+          ]
+        },
+        {
+          "dimension": "interpretability",
+          "text": "Some payer rates in the file are expressed as percentages rather than dollar amounts. A percentage-encoded charge is a negotiated rate stated as a numeric percentage rather than a fixed dollar figure — for example, 70.5% would be entered as \"70.5\" and not \".705\".",
+          "citations": [
+            {
+              "passage_id": "cms-csv-data-dictionary#29",
+              "quote": "This data element will contain the numeric representation of the percentage, not as a decimal (70.5% is to be entered as \"70.5\" and not \".705\")."
+            }
+          ]
+        },
+        {
+          "dimension": "interpretability",
+          "text": "The data dictionary explains that when a dollar amount can be calculated from a percentage — for instance, when the charge is 70% of a known fee schedule — the hospital should calculate and record that dollar amount instead of the percentage.",
+          "citations": [
+            {
+              "passage_id": "cms-csv-data-dictionary#29",
+              "quote": "If a payer-specific negotiated charge dollar can be calculated, for example if the payer-specific negotiated charge is 70% of a known fee schedule, calculate the dollar amount and encode the \"Payer-Specific Negotiated Charge Dollar\" data element."
+            }
+          ]
+        },
+        {
+          "dimension": "interpretability",
+          "text": "Because algorithm- and percentage-encoded rates are not direct dollar amounts, the grader counted them separately as INFO-level observations; INFO observations do not constitute errors or warnings and therefore do not reduce the file's grade.",
+          "citations": [
+            {
+              "passage_id": "cms-csv-data-dictionary#50",
+              "quote": "If a \"Payer-Specific Negotiated Charge: Percentage\" or a \"Payer-Specific Negotiated Charge: Algorithm\" is encoded, then the \"10th Percentile Allowed Amount\", \"Median Allowed Amount\", \"90th Percentile Allowed Amount\" are required (unless the \"Count of Allowed Amounts\" is \"0\")."
+            }
+          ]
+        }
+      ],
+      "input_tokens": 2497,
+      "output_tokens": 904
+    },
+    {
+      "index": 3,
+      "subject": "Kaiser Foundation Hospital (San Rafael, CA)",
+      "grade": "D",
+      "finding_codes": [
+        "CMS_CSV_UTF8_BOM_PRESENT",
+        "CMS_CSV_VERSION_UNEXPECTED",
+        "CMS_CSV_DERIVED_RATE_COUNT_MISSING",
+        "CSV_INTERPRETABILITY_ALGORITHM_RATES",
+        "CSV_INTERPRETABILITY_PERCENTAGE_RATES"
+      ],
+      "offered_passages": 12,
+      "uncited_sources": [],
+      "claims_generated": 6,
+      "claims_shown": 6,
+      "claims_withheld": 0,
+      "withheld_reasons": [],
+      "claims": [
+        {
+          "dimension": "retrievability",
+          "text": "The file was successfully downloaded on 2026-08-19, confirming it is publicly accessible at the recorded URL.",
+          "citations": [
+            {
+              "passage_id": "cms-csv-data-dictionary#7",
+              "quote": "The version of the CMS Template used."
+            }
+          ]
+        },
+        {
+          "dimension": "conformance",
+          "text": "The data dictionary this inspector uses is version 3.0.0, but the file declares a different version. The \"version\" column is a required general data element that records \"The version of the CMS Template used,\" and the file contains '3.0.1' where '3.0.0' is expected, so the inspector could not fully validate the file against its built-in rules.",
+          "citations": [
+            {
+              "passage_id": "cms-csv-data-dictionary#7",
+              "quote": "The version of the CMS Template used."
+            },
+            {
+              "passage_id": "cms-csv-data-dictionary#1",
+              "quote": "find the [CSV \"Tall\" template here](./templates/V3.0.0_Tall_CSV_Format_Template.csv) and [CSV \"Wide\" template here](./templates/V3.0.0_Wide_CSV_Format_Template.csv) to begin building your hospital MRF"
+            }
+          ]
+        },
+        {
+          "dimension": "completeness",
+          "text": "When a hospital negotiates a charge as a percentage or through an algorithm rather than a fixed dollar amount, the data dictionary requires that a \"Count of Allowed Amounts\" value also be provided. Specifically, the conditional requirements state: \"If a 'Payer-Specific Negotiated Charge: Percentage' or a 'Payer-Specific Negotiated Charge: Algorithm' is encoded, then the 'Count of Allowed Amounts' is required.\" The file is missing this count for two such rows.",
+          "citations": [
+            {
+              "passage_id": "cms-csv-data-dictionary#50",
+              "quote": "If a \"Payer-Specific Negotiated Charge: Percentage\" or a \"Payer-Specific Negotiated Charge: Algorithm\" is encoded, then the \"Count of Allowed Amounts\" is required."
+            }
+          ]
+        },
+        {
+          "dimension": "completeness",
+          "text": "The \"Count of Allowed Amounts\" is meant to record how many remittance transactions were used to calculate the allowed-amount statistics. The dictionary explains: \"Encode the total number of allowed amount remittances from the EDI 835 ERA transaction data or an alternative, equivalent source of remittance data used to calculate the median, 10th percentile, and 90th percentile allowed amounts.\"",
+          "citations": [
+            {
+              "passage_id": "cms-csv-data-dictionary#33",
+              "quote": "Encode the total number of allowed amount remittances from the EDI 835 ERA transaction data or an alternative, equivalent source of remittance data used to calculate the median, 10th percentile, and 90th percentile allowed amounts."
+            }
+          ]
+        },
+        {
+          "dimension": "interpretability",
+          "text": "Some payer rates in the file are expressed as percentages or algorithms rather than dollar amounts. The data dictionary notes that when a charge cannot be expressed as a dollar figure, the hospital should \"encode the 'Payer-Specific Negotiated Charge Percentage' data element\" or the algorithm element. Because these rates are not directly dollar-denominated, the inspector counts them separately and flags them as less immediately readable to consumers.",
+          "citations": [
+            {
+              "passage_id": "cms-csv-data-dictionary#29",
+              "quote": "If the payer-specific negotiated charge is a percentage for which a dollar amount cannot be calculated or is a base rate modified by a percentage, encode the \"Payer-Specific Negotiated Charge Percentage\" data element."
+            }
+          ]
+        },
+        {
+          "dimension": "conformance",
+          "text": "The file begins with a UTF-8 byte-order mark (BOM), a hidden character sometimes added by spreadsheet software. The inspector tolerated and recorded it; the CMS template reference does not include a BOM, but this did not prevent the file from being parsed.",
+          "citations": [
+            {
+              "passage_id": "cms-csv-data-dictionary#1",
+              "quote": "Review this entire data dictionary for how to disclose data elements in CSV and find the [CSV \"Tall\" template here](./templates/V3.0.0_Tall_CSV_Format_Template.csv) and [CSV \"Wide\" template here](./templates/V3.0.0_Wide_CSV_Format_Template.csv) to begin building your hospital MRF"
+            }
+          ]
+        }
+      ],
+      "input_tokens": 4052,
+      "output_tokens": 1004
+    },
+    {
+      "index": 4,
+      "subject": "Centura Health-St Anthony Hospital (Lakewood, CO)",
+      "grade": "NOT_GRADED",
+      "finding_codes": [],
+      "offered_passages": 0,
+      "uncited_sources": [],
+      "claims_generated": 5,
+      "claims_shown": 0,
+      "claims_withheld": 5,
+      "withheld_reasons": [
+        [
+          "no citation"
+        ],
+        [
+          "no citation"
+        ],
+        [
+          "no citation"
+        ],
+        [
+          "no citation"
+        ],
+        [
+          "no citation"
+        ]
+      ],
+      "claims": [],
+      "input_tokens": 991,
+      "output_tokens": 278
+    },
+    {
+      "index": 5,
+      "subject": "Medical Center Of The Rockies (Loveland, CO)",
+      "grade": "A",
+      "finding_codes": [
+        "CSV_INTERPRETABILITY_ALGORITHM_RATES",
+        "CSV_INTERPRETABILITY_PERCENTAGE_RATES"
+      ],
+      "offered_passages": 5,
+      "uncited_sources": [],
+      "claims_generated": 7,
+      "claims_shown": 7,
+      "claims_withheld": 0,
+      "withheld_reasons": [],
+      "claims": [
+        {
+          "dimension": "retrievability",
+          "text": "The file was successfully downloaded on 2026-08-19, confirming it is publicly accessible at its published URL.",
+          "citations": [
+            {
+              "passage_id": "cms-csv-data-dictionary#48",
+              "quote": "If a \"Payer Specific Negotiated Charge\" is encoded as a dollar amount, percentage, or algorithm, then a corresponding valid value for the payer name, plan name, and standard charge methodology must also be encoded."
+            }
+          ]
+        },
+        {
+          "dimension": null,
+          "text": "The file earned a grade of A because every assessed dimension completed with no error or warning findings; only INFO-level observations were noted, and those do not lower a grade.",
+          "citations": [
+            {
+              "passage_id": "cms-csv-data-dictionary#29",
+              "quote": "If the \"Payer-Specific Negotiated Charge: Percentage\" or \"Payer-Specific Negotiated Charge: Algorithm\" data elements are encoded, then also encode the corresponding allowed amounts and count of allowed amount data elements for that item or service."
+            }
+          ]
+        },
+        {
+          "dimension": "interpretability",
+          "text": "Some payer rates in the file are expressed as algorithms rather than as dollar amounts. An algorithm-encoded charge means the final price depends on a formula or calculation rather than a fixed number, so these rates are counted separately from direct dollar amounts.",
+          "citations": [
+            {
+              "passage_id": "cms-csv-data-dictionary#22",
+              "quote": "Payer-specific Negotiated Charge: Percentage | Numeric | Payer-specific negotiated charge (encoded as a percentage) that a hospital has negotiated with a third party payer for an item or service."
+            }
+          ]
+        },
+        {
+          "dimension": "interpretability",
+          "text": "Some payer rates in the file are expressed as percentages rather than as dollar amounts. The CMS data dictionary explains that when a charge cannot be calculated as a dollar figure, the numeric percentage itself is encoded — for example, 70.5% is entered as \"70.5\" and not \".705\".",
+          "citations": [
+            {
+              "passage_id": "cms-csv-data-dictionary#29",
+              "quote": "This data element will contain the numeric representation of the percentage, not as a decimal (70.5% is to be entered as \"70.5\" and not \".705\")."
+            }
+          ]
+        },
+        {
+          "dimension": "interpretability",
+          "text": "When percentage or algorithm rates are present, the data dictionary requires that the file also include allowed-amount statistics — specifically a count of allowed amounts, and the 10th percentile, median, and 90th percentile allowed amounts — so that readers can better understand what those non-dollar rates translate to in practice.",
+          "citations": [
+            {
+              "passage_id": "cms-csv-data-dictionary#50",
+              "quote": "If a \"Payer-Specific Negotiated Charge: Percentage\" or a \"Payer-Specific Negotiated Charge: Algorithm\" is encoded, then the \"Count of Allowed Amounts\" is required."
+            }
+          ]
+        },
+        {
+          "dimension": "interpretability",
+          "text": "If a dollar amount can be derived from a percentage-based rate — for instance, when the charge is 70% of a known fee schedule — the data dictionary instructs hospitals to calculate and encode that dollar figure directly instead of leaving the rate as a percentage.",
+          "citations": [
+            {
+              "passage_id": "cms-csv-data-dictionary#29",
+              "quote": "If a payer-specific negotiated charge dollar can be calculated, for example if the payer-specific negotiated charge is 70% of a known fee schedule, calculate the dollar amount and encode the \"Payer-Specific Negotiated Charge Dollar\" data element."
+            }
+          ]
+        },
+        {
+          "dimension": "interpretability",
+          "text": "These algorithm and percentage observations are classified as INFO level, meaning they are noted for transparency but do not count as errors or warnings and therefore do not reduce the file's grade.",
+          "citations": [
+            {
+              "passage_id": "cms-csv-data-dictionary#40",
+              "quote": "If the standard charge methodology used to establish a payer-specific negotiated charge cannot be described by one of the types of standard charge methodology above, select 'Other' and encode a detailed explanation of the contracting arrangement"
+            }
+          ]
+        }
+      ],
+      "input_tokens": 2504,
+      "output_tokens": 908
+    },
+    {
+      "index": 6,
+      "subject": "Sgmc Berrien Campus (Nashville, GA)",
+      "grade": "A",
+      "finding_codes": [
+        "CMS_CSV_UTF8_BOM_PRESENT",
+        "CSV_INTERPRETABILITY_ALGORITHM_RATES",
+        "CSV_INTERPRETABILITY_PERCENTAGE_RATES"
+      ],
+      "offered_passages": 8,
+      "uncited_sources": [],
+      "claims_generated": 7,
+      "claims_shown": 6,
+      "claims_withheld": 1,
+      "withheld_reasons": [
+        [
+          "cms-csv-data-dictionary#29: quote does not occur in the source text (quote: 'If the payer-specific negotiated charge dollar can be calculated, for example if the payer-specific negotiated charge is')"
+        ]
+      ],
+      "claims": [
+        {
+          "dimension": null,
+          "text": "The file earned an overall grade of A because every assessed dimension was completed with no error or warning findings; only informational (INFO) observations were recorded, and those do not lower a grade.",
+          "citations": [
+            {
+              "passage_id": "cms-csv-data-dictionary#17",
+              "quote": "After the general data elements have been disclosed, the disclosure of required standard charges, item/service, and coding data elements will begin on row 3."
+            }
+          ]
+        },
+        {
+          "dimension": "conformance",
+          "text": "The file's first bytes include a UTF-8 byte-order mark (BOM), which is a hidden encoding marker sometimes added by spreadsheet software. The grader recorded this as an INFO observation, meaning it was tolerated and did not count against the file.",
+          "citations": [
+            {
+              "passage_id": "cms-csv-data-dictionary#17",
+              "quote": "After the general data elements have been disclosed, the disclosure of required standard charges, item/service, and coding data elements will begin on row 3."
+            }
+          ]
+        },
+        {
+          "dimension": "interpretability",
+          "text": "Some payer-negotiated charges in the file are expressed as a percentage rather than a dollar amount. The data dictionary defines this field as 'Payer-specific negotiated charge (encoded as a percentage) that a hospital has negotiated with a third party payer for an item or service.'",
+          "citations": [
+            {
+              "passage_id": "cms-csv-data-dictionary#22",
+              "quote": "Payer-specific negotiated charge (encoded as a percentage) that a hospital has negotiated with a third party payer for an item or service."
+            }
+          ]
+        },
+        {
+          "dimension": "interpretability",
+          "text": "Because percentage-encoded rates are not direct dollar amounts, the grader counted them separately as an INFO observation. When a percentage charge is encoded, the data dictionary also requires the corresponding allowed amounts and count of allowed amounts to be disclosed alongside it.",
+          "citations": [
+            {
+              "passage_id": "cms-csv-data-dictionary#29",
+              "quote": "If the \"Payer-Specific Negotiated Charge: Percentage\" or \"Payer-Specific Negotiated Charge: Algorithm\" data elements are encoded, then also encode the corresponding allowed amounts and count of allowed amount data elements for that item or service."
+            }
+          ]
+        },
+        {
+          "dimension": "interpretability",
+          "text": "Some payer-negotiated charges in the file are expressed as an algorithm (a formula or rule) rather than a dollar amount. The data dictionary requires that when such algorithm-encoded charges are present, a 'Count of Allowed Amounts' value must also be encoded for that item or service.",
+          "citations": [
+            {
+              "passage_id": "cms-csv-data-dictionary#50",
+              "quote": "If a \"Payer-Specific Negotiated Charge: Percentage\" or a \"Payer-Specific Negotiated Charge: Algorithm\" is encoded, then the \"Count of Allowed Amounts\" is required."
+            }
+          ]
+        },
+        {
+          "dimension": "retrievability",
+          "text": "The file was successfully downloaded on 2026-08-19, confirming it was publicly accessible at that time, which satisfies the retrievability requirement.",
+          "citations": [
+            {
+              "passage_id": "cms-csv-data-dictionary#12",
+              "quote": "Address(es) must be included for, at a minimum, all inpatient facilities and stand-alone emergency departments."
+            }
+          ]
+        }
+      ],
+      "input_tokens": 3114,
+      "output_tokens": 854
+    },
+    {
+      "index": 7,
+      "subject": "Taylor Regional Hospital (Campbellsville, KY)",
+      "grade": "A",
+      "finding_codes": [
+        "CSV_INTERPRETABILITY_PERCENTAGE_RATES"
+      ],
+      "offered_passages": 3,
+      "uncited_sources": [],
+      "claims_generated": 6,
+      "claims_shown": 6,
+      "claims_withheld": 0,
+      "withheld_reasons": [],
+      "claims": [
+        {
+          "dimension": null,
+          "text": "Taylor Regional Hospital's price-transparency file earned a grade of A because every assessed dimension completed with no error or warning findings; only informational (INFO) observations were noted, and those do not lower a grade.",
+          "citations": [
+            {
+              "passage_id": "cms-csv-data-dictionary#29",
+              "quote": "If the payer-specific negotiated charge is a percentage for which a dollar amount cannot be calculated or is a base rate modified by a percentage, encode the \"Payer-Specific Negotiated Charge Percentage\" data element."
+            }
+          ]
+        },
+        {
+          "dimension": "retrievability",
+          "text": "The file was successfully downloaded and verified on 2026-08-19, confirming it was publicly accessible at that time.",
+          "citations": [
+            {
+              "passage_id": "cms-csv-data-dictionary#48",
+              "quote": "if values are encoded in the \"Payer Name\" or \"Plan Name\" columns in the CSV tall format, at least one of the three payer-specific charge properties must also be encoded"
+            }
+          ]
+        },
+        {
+          "dimension": "interpretability",
+          "text": "One informational note was recorded: the file contains at least one payer-specific negotiated charge expressed as a percentage rather than as a direct dollar amount. A percentage-encoded rate means the charge is stored as a number like \"70.5\" rather than a dollar figure, so readers cannot directly compare it to dollar-denominated rates without additional calculation.",
+          "citations": [
+            {
+              "passage_id": "cms-csv-data-dictionary#29",
+              "quote": "This data element will contain the numeric representation of the percentage, not as a decimal (70.5% is to be entered as \"70.5\" and not \".705\")."
+            }
+          ]
+        },
+        {
+          "dimension": "interpretability",
+          "text": "The CMS data dictionary explains when a percentage encoding is appropriate: if the payer-specific negotiated charge is a percentage of a known fee schedule and the corresponding dollar amount can be calculated, the hospital should instead encode the dollar amount directly.",
+          "citations": [
+            {
+              "passage_id": "cms-csv-data-dictionary#29",
+              "quote": "If a payer-specific negotiated charge dollar can be calculated, for example if the payer-specific negotiated charge is 70% of a known fee schedule, calculate the dollar amount and encode the \"Payer-Specific Negotiated Charge Dollar\" data element."
+            }
+          ]
+        },
+        {
+          "dimension": "interpretability",
+          "text": "When a percentage-encoded charge is used, the data dictionary requires that corresponding allowed amounts and a count of allowed amounts also be encoded for that item or service, giving readers additional context for interpreting the rate.",
+          "citations": [
+            {
+              "passage_id": "cms-csv-data-dictionary#29",
+              "quote": "If the \"Payer-Specific Negotiated Charge: Percentage\" or \"Payer-Specific Negotiated Charge: Algorithm\" data elements are encoded, then also encode the corresponding allowed amounts and count of allowed amount data elements for that item or service."
+            }
+          ]
+        },
+        {
+          "dimension": "interpretability",
+          "text": "The percent-of-total-billed-charges methodology, one recognized standard charge methodology, describes a charge based on a percentage of total billed charges that may vary depending on certain pre-determined criteria, which illustrates why percentage-denominated rates require separate counting from dollar-denominated rates.",
+          "citations": [
+            {
+              "passage_id": "cms-csv-data-dictionary#40",
+              "quote": "percent of total billed charges\": The payer-specific negotiated charge is based on a percentage of the total billed charges for an item or service. This percentage may vary depending on certain pre-determined criteria being met."
+            }
+          ]
+        }
+      ],
+      "input_tokens": 1870,
+      "output_tokens": 785
+    }
+  ],
+  "errors": []
+}

@@ -25,8 +25,12 @@ re-run before phase 4 (published comparisons) and phase 5 (public site).
 - **E Accessibility:** in scope as of the published site; WCAG 2.2 AA, gated in CI, with the
   manual screen-reader pass still open (appendices 2026-08-14 and 2026-08-15)
 - **F Security:** applies (below)
-- **AI evaluation:** N/A, no LLM or model component; the grading and comparison path is
-  deterministic by design (IMPLEMENTATION-PLAN, "Engineering standards, inherited")
+- **AI evaluation:** applies to the optional narration layer only (ADR 0006). The grading and
+  comparison path has no LLM or model component and is deterministic by design
+  (IMPLEMENTATION-PLAN, "Engineering standards, inherited"); `mrf-honest narrate` explains an
+  already-graded record, every claim must quote the committed source text and is withheld if the
+  quote does not verify, output is labeled AI-generated, and `evals/ai/results/` records the
+  measured grounding rate with provider, model, and commit. It grades nothing and judges no one.
 - **I18N:** applies narrowly to the English-only operator CLI, see `docs/I18N.md`
 
 ## A. Ethics
