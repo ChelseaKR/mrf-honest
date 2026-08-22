@@ -4,7 +4,10 @@
 runs `mrf-honest narrate` over committed assessment records and counts, per
 record and overall, the claims the model generated, the claims shown (every
 cited quote occurs verbatim in the named committed document under `corpus/`),
-and the claims withheld. It does not measure whether a shown claim is a
+and the claims withheld, and names separately
+(`records_refused_before_model_call`) the records the layer declined to
+narrate because no passage could be offered — those generate no claims and
+cost no tokens. It does not measure whether a shown claim is a
 correct reading of the passage it quotes, and no gold explanations exist; a
 verified citation proves the passage exists and says those words.
 

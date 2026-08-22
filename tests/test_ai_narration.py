@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import sys
 import types
@@ -23,11 +24,14 @@ from mrf_honest.ai.corpus import (
 )
 from mrf_honest.ai.narrate import (
     LABEL,
+    REFUSAL_NO_FINDINGS,
+    REFUSAL_NO_RETAINED_SOURCE,
     NarrationError,
     catalog_description,
     grounding_passages,
     narrate,
     narration_schema,
+    refusal_reason,
 )
 from mrf_honest.ai.provider import (
     ProviderError,
@@ -278,6 +282,73 @@ def test_narration_in_spanish_and_error_paths() -> None:
         narrate(record, corpus=CORPUS, provider=ScriptedProvider(['{"claims": 1}']))
 
 
+def _without_findings(record: dict[str, Any]) -> dict[str, Any]:
+    """Cohort record 0 with every finding removed: the shape issue #26 was observed on."""
+    stripped = copy.deepcopy(record)
+    for block in stripped["scorecard"].values():
+        if isinstance(block, dict):
+            block["findings"] = []
+            if block.get("status") == "FINDINGS":
+                block["status"] = "OBSERVED"
+    return stripped
+
+
+def test_a_record_that_offers_no_passage_is_refused_before_the_model_is_called() -> None:
+    """Issue #26: the model was called on a record with no findings, wrote claims, and every
+    one was withheld for lack of a citation. The promise held, at 962 input tokens per
+    language, to say nothing. A provider with no scripted reply proves the call is never made.
+    """
+    stripped = _without_findings(RECORDS[0])
+    assert grade_assessment(stripped).grade == "A"
+    for language in ("en", "es"):
+        provider = ScriptedProvider([])
+        narration = narrate(stripped, corpus=CORPUS, provider=provider, language=language)
+        assert provider.calls == []
+        assert narration.refusal == REFUSAL_NO_FINDINGS
+        assert narration.model_called is False
+        assert narration.claims == () and narration.withheld == ()
+        assert narration.offered_passage_ids == () and narration.uncited_sources == ()
+        assert narration.finding_codes == ()
+        assert (narration.input_tokens, narration.output_tokens) == (0, 0)
+        # Provenance still names the provider and model the layer would have used, and the
+        # grade it was asked to explain, so a refusal is traceable the way a narration is.
+        assert (narration.provider, narration.model) == ("scripted", "scripted-model")
+        assert narration.grade == "A" and narration.label == LABEL[language]
+        payload = narration.to_dict()
+        assert payload["refusal"] == REFUSAL_NO_FINDINGS
+        assert payload["model_called"] is False and payload["withheld_count"] == 0
+
+    # Findings whose only cited document is not retained offer nothing either; the refusal
+    # names that reason and the unresolved source stays listed.
+    uncited = _without_findings(RECORDS[0])
+    uncited["scorecard"]["retrievability"]["status"] = "FINDINGS"
+    uncited["scorecard"]["retrievability"]["findings"] = [
+        {
+            "code": "MRF_AUTOMATION_BARRIER_OBSERVED",
+            "message": "x",
+            "severity": "INFO",
+            "citations": [CMS_HPT_POLICY_FAQ],
+            "occurrences": 1,
+        }
+    ]
+    provider = ScriptedProvider([])
+    narration = narrate(uncited, corpus=CORPUS, provider=provider)
+    assert provider.calls == []
+    assert narration.refusal == REFUSAL_NO_RETAINED_SOURCE
+    assert narration.uncited_sources == (CMS_HPT_POLICY_FAQ,)
+    assert narration.finding_codes == ("MRF_AUTOMATION_BARRIER_OBSERVED",)
+
+    # A record with a passage to offer is not refused; the existing tests cover that call.
+    assert refusal_reason([], []) == REFUSAL_NO_FINDINGS
+    assert refusal_reason([{"code": "x"}], []) == REFUSAL_NO_RETAINED_SOURCE
+    passage = CORPUS.passages_for(["cfr-45-part-180"])[0]
+    assert refusal_reason([{"code": "x"}], [passage]) is None
+    assert (
+        narrate(RECORDS[0], corpus=CORPUS, provider=ScriptedProvider(['{"claims": []}'])).refusal
+        is None
+    )
+
+
 # --- provider ----------------------------------------------------------------
 
 
@@ -388,13 +459,23 @@ def test_eval_scores_records_and_records_provenance(tmp_path: Path) -> None:
     ]
     offered = [p.passage_id for p in grounding_passages(findings, CORPUS)[0]]
     provider = ScriptedProvider([_claims_reply(offered, bad=True), "not json"])
-    result = eval_module.run(records, corpus=CORPUS, provider=provider)
-    assert result["summary"]["records"] == 1
+    result = eval_module.run(
+        [*records, _without_findings(records[0])], corpus=CORPUS, provider=provider
+    )
+    assert result["summary"]["records"] == 2
     assert result["summary"]["claims_generated"] == 6
     assert result["summary"]["claims_shown"] == 1
     assert result["summary"]["fraction_claims_with_verified_citations"] == round(1 / 6, 4)
+    assert result["summary"]["records_refused_before_model_call"] == 1
     assert result["errors"] == [{"index": "1", "error": "the model did not return JSON"}]
+    refused = result["records"][1]
+    assert refused["index"] == 2 and refused["model_called"] is False
+    assert refused["refusal"] == REFUSAL_NO_FINDINGS
+    assert refused["claims_generated"] == 0 and refused["input_tokens"] == 0
+    assert result["records"][0]["model_called"] is True
+    assert result["records"][0]["refusal"] is None
     assert eval_module.summarize([])["records"] == 0
+    assert eval_module.summarize([])["records_refused_before_model_call"] == 0
     meta = eval_module.metadata(
         provider, ROOT, ROOT / "data" / "cohorts" / "2026-08-19.assessments.jsonl"
     )
@@ -449,3 +530,13 @@ def test_narrate_cli_prints_claims_and_validates_index(
     assert payload["withheld_count"] == 0 and payload["claims"][0]["text"] == "Supported claim."
     assert main(["narrate", "--assessments", str(records), "--index", "99"]) == 1
     assert "--index must be between" in capsys.readouterr().err
+    stripped = tmp_path / "stripped.jsonl"
+    stripped.write_text(json.dumps(_without_findings(RECORDS[0])) + "\n", encoding="utf-8")
+    monkeypatch.setattr("mrf_honest.ai.provider.provider_from_env", lambda: ScriptedProvider([]))
+    assert main(["narrate", "--assessments", str(stripped), "--root", str(ROOT)]) == 0
+    out = capsys.readouterr().out
+    assert REFUSAL_NO_FINDINGS in out and "(not called)" in out
+    assert LABEL["en"] not in out, "an AI-generated label on text nobody generated"
+    assert main(["narrate", "--assessments", str(stripped), "--root", str(ROOT), "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["model_called"] is False and payload["refusal"] == REFUSAL_NO_FINDINGS
