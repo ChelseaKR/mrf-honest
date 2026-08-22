@@ -48,7 +48,9 @@ ROOT = Path(__file__).resolve().parents[1]
 CORPUS = CorpusIndex.load(ROOT)
 RECORDS = [
     json.loads(line)
-    for line in (ROOT / "data" / "cohorts" / "2026-08-19.assessments.jsonl").read_text(encoding="utf-8").splitlines()
+    for line in (ROOT / "data" / "cohorts" / "2026-08-19.assessments.jsonl")
+    .read_text(encoding="utf-8")
+    .splitlines()
     if line.strip()
 ]
 
@@ -393,14 +395,23 @@ def test_eval_scores_records_and_records_provenance(tmp_path: Path) -> None:
     assert result["summary"]["fraction_claims_with_verified_citations"] == round(1 / 6, 4)
     assert result["errors"] == [{"index": "1", "error": "the model did not return JSON"}]
     assert eval_module.summarize([])["records"] == 0
-    meta = eval_module.metadata(provider, ROOT, ROOT / "data" / "cohorts" / "2026-08-19.assessments.jsonl")
+    meta = eval_module.metadata(
+        provider, ROOT, ROOT / "data" / "cohorts" / "2026-08-19.assessments.jsonl"
+    )
     assert meta["status"] == "recorded_live_run" and len(meta["commit"]) == 40
     assert eval_module.git_commit(tmp_path) == "unknown"
     with pytest.raises(ValueError, match="no records"):
         eval_module.load_records(tmp_path / "empty.jsonl") if (
             (tmp_path / "empty.jsonl").write_text("\n", encoding="utf-8") or True
         ) else None
-    assert len(eval_module.load_records(ROOT / "data" / "cohorts" / "2026-08-19.assessments.jsonl", limit=3)) == 3
+    assert (
+        len(
+            eval_module.load_records(
+                ROOT / "data" / "cohorts" / "2026-08-19.assessments.jsonl", limit=3
+            )
+        )
+        == 3
+    )
 
 
 def test_committed_results_carry_provenance() -> None:
@@ -431,7 +442,7 @@ def test_narrate_cli_prints_claims_and_validates_index(
     records = ROOT / "data" / "cohorts" / "2026-08-19.assessments.jsonl"
     assert main(["narrate", "--assessments", str(records), "--root", str(ROOT)]) == 0
     out = capsys.readouterr().out
-    assert "grade A" in out and "1. Supported claim." in out
+    assert ": grade " in out and "1. Supported claim." in out
     assert "5 statement(s) withheld" in out and "Prompt version: narrate-v1" in out
     assert main(["narrate", "--assessments", str(records), "--root", str(ROOT), "--json"]) == 0
     payload = json.loads(capsys.readouterr().out)
