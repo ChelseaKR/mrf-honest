@@ -6,774 +6,25 @@
     "provider": "bedrock",
     "model": "global.anthropic.claude-sonnet-4-6",
     "prompt_version": "narrate-v1",
-    "commit": "b00dd5c7852d439523de2b0a67b356543db97c6a",
-    "records_file": "data/scorecards.jsonl",
+    "commit": "3510d196083852af329ebc35c7eb6ce023d10007",
+    "records_file": "data/cohorts/2026-08-19.assessments.jsonl",
     "scoring": {
       "claims_shown": "every cited quote occurs verbatim in the named committed document",
       "claims_withheld": "at least one citation did not verify; the claim is not shown"
     }
   },
   "summary": {
-    "records": 12,
-    "claims_generated": 69,
-    "claims_shown": 67,
-    "claims_withheld": 2,
-    "fraction_claims_with_verified_citations": 0.971,
-    "records_with_no_withheld_claims": 0.8333,
-    "mean_claims_shown_per_record": 5.58
+    "records": 17,
+    "claims_generated": 95,
+    "claims_shown": 91,
+    "claims_withheld": 4,
+    "fraction_claims_with_verified_citations": 0.9579,
+    "records_with_no_withheld_claims": 0.7647,
+    "mean_claims_shown_per_record": 5.35
   },
   "records": [
     {
       "index": 0,
-      "subject": "University of Cincinnati Medical Center",
-      "grade": "A",
-      "finding_codes": [
-        "JSON_UTF8_BOM_PRESENT",
-        "INTERPRETABILITY_ALGORITHM_RATES",
-        "INTERPRETABILITY_PERCENTAGE_RATES"
-      ],
-      "offered_passages": 8,
-      "uncited_sources": [],
-      "claims_generated": 6,
-      "claims_shown": 6,
-      "claims_withheld": 0,
-      "withheld_reasons": [],
-      "claims": [
-        {
-          "dimension": "retrievability",
-          "text": "The file was successfully downloaded on 2026-08-14, confirming it is publicly accessible at the University of Cincinnati Medical Center's published URL.",
-          "citations": [
-            {
-              "passage_id": "cms-json-data-dictionary#1",
-              "quote": "Developers of MRFs should generally consider and adopt established standards and industry norms for JSON files"
-            }
-          ]
-        },
-        {
-          "dimension": "conformance",
-          "text": "The file begins with a UTF-8 byte-order mark (BOM), a small sequence of bytes sometimes added to text files; the grader tolerated this and recorded it as an informational observation only, so it does not affect the grade.",
-          "citations": [
-            {
-              "passage_id": "cms-json-data-dictionary#1",
-              "quote": "Developers of MRFs should generally consider and adopt established standards and industry norms for JSON files when creating the MRF"
-            }
-          ]
-        },
-        {
-          "dimension": "interpretability",
-          "text": "Some payer rates in the file are expressed as algorithms rather than dollar amounts; the CMS data dictionary allows this when a dollar amount cannot be calculated in advance, but such rates cannot be read as direct prices and are counted separately from dollar-denominated charges.",
-          "citations": [
-            {
-              "passage_id": "cms-json-data-dictionary#10",
-              "quote": "For payer-specific negotiated charges that cannot be expressed as a dollar amount in the machine-readable file or not knowable in advance, the hospital attests that the payer-specific negotiated charge is based on a contractual algorithm, percentage or formula that precludes the provision of a dollar amount"
-            }
-          ]
-        },
-        {
-          "dimension": "interpretability",
-          "text": "Some payer rates in the file are expressed as percentages rather than dollar amounts; the data dictionary instructs that when a dollar amount cannot be calculated, the numeric percentage should be encoded instead, and such rates are counted separately from dollar-denominated charges.",
-          "citations": [
-            {
-              "passage_id": "cms-json-data-dictionary#28",
-              "quote": "If the payer-specific negotiated charge is a percentage for which a dollar amount cannot be calculated or is a base rate modified by a percentage, encode the \"Payer-Specific Negotiated Charge Percentage\" data element"
-            }
-          ]
-        },
-        {
-          "dimension": "interpretability",
-          "text": "When percentage- or algorithm-encoded rates are present, the data dictionary requires that corresponding allowed-amount data elements also be encoded so readers can work toward a dollar figure.",
-          "citations": [
-            {
-              "passage_id": "cms-json-data-dictionary#45",
-              "quote": "If a \"Payer-Specific Negotiated Charge: Percentage\" or a \"Payer-Specific Negotiated Charge: Algorithm\" is encoded, then the \"10th Percentile Allowed Amount\", \"Median Allowed Amount\", \"90th Percentile Allowed Amount\" are required"
-            }
-          ]
-        },
-        {
-          "dimension": null,
-          "text": "The three findings recorded for this file are all at the INFO level; because only informational observations were found and no errors or warnings were present, the file received a grade of A.",
-          "citations": [
-            {
-              "passage_id": "cms-json-data-dictionary#44",
-              "quote": "If a \"Payers Information\" object is encoded, then there must be a value for at least one of the following attributes in that object: \"Payer-Specific Negotiated Charge: Dollar Amount\", \"Payer-Specific Negotiated Charge: Percentage\", \"Payer-Specific Negotiated Charge: Algorithm\""
-            }
-          ]
-        }
-      ],
-      "input_tokens": 2892,
-      "output_tokens": 765
-    },
-    {
-      "index": 1,
-      "subject": "West Chester Hospital",
-      "grade": "A",
-      "finding_codes": [
-        "JSON_UTF8_BOM_PRESENT",
-        "INTERPRETABILITY_ALGORITHM_RATES",
-        "INTERPRETABILITY_PERCENTAGE_RATES"
-      ],
-      "offered_passages": 8,
-      "uncited_sources": [],
-      "claims_generated": 6,
-      "claims_shown": 6,
-      "claims_withheld": 0,
-      "withheld_reasons": [],
-      "claims": [
-        {
-          "dimension": null,
-          "text": "West Chester Hospital's price-transparency file received a grade of A because every assessed dimension was completed with no error or warning findings; only informational (INFO) observations were recorded, and those do not lower a grade.",
-          "citations": [
-            {
-              "passage_id": "cms-json-data-dictionary#1",
-              "quote": "Developers of MRFs should generally consider and adopt established standards and industry norms for JSON files when creating the MRF."
-            }
-          ]
-        },
-        {
-          "dimension": "retrievability",
-          "text": "The file was successfully downloaded on 2026-08-14, confirming it is publicly retrievable at the posted URL.",
-          "citations": [
-            {
-              "passage_id": "cms-json-data-dictionary#1",
-              "quote": "Developers of MRFs should generally consider and adopt established standards and industry norms for JSON files when creating the MRF."
-            }
-          ]
-        },
-        {
-          "dimension": "conformance",
-          "text": "The file begins with a UTF-8 byte-order mark (BOM), a small sequence of bytes sometimes added to the start of a text file to signal its encoding. This was recorded as an INFO observation and tolerated, meaning it did not count as an error.",
-          "citations": [
-            {
-              "passage_id": "cms-json-data-dictionary#1",
-              "quote": "Developers of MRFs should generally consider and adopt established standards and industry norms for JSON files when creating the MRF. For more information on the JSON schema standards, visit"
-            }
-          ]
-        },
-        {
-          "dimension": "interpretability",
-          "text": "Some payer rates in the file are encoded as algorithms rather than dollar amounts. The data dictionary notes that when a payer-specific negotiated charge cannot be expressed as a dollar amount, the hospital may instead provide the algorithm or formula, along with all necessary information for the public to derive the dollar amount.",
-          "citations": [
-            {
-              "passage_id": "cms-json-data-dictionary#10",
-              "quote": "For payer-specific negotiated charges that cannot be expressed as a dollar amount in the machine-readable file or not knowable in advance, the hospital attests that the payer-specific negotiated charge is based on a contractual algorithm, percentage or formula that precludes the provision of a dollar amount and has provided all necessary information available to the hospital for the public to be able to derive the dollar amount"
-            }
-          ]
-        },
-        {
-          "dimension": "interpretability",
-          "text": "Some payer rates in the file are encoded as percentages rather than dollar amounts. The data dictionary specifies that if a dollar amount cannot be calculated from a percentage, the hospital should encode the numeric percentage value — for example, 70.5% is entered as '70.5' and not '.705' — along with required allowed-amount data.",
-          "citations": [
-            {
-              "passage_id": "cms-json-data-dictionary#28",
-              "quote": "If the payer-specific negotiated charge is a percentage for which a dollar amount cannot be calculated or is a base rate modified by a percentage, encode the \"Payer-Specific Negotiated Charge Percentage\" data element. This data element will contain the numeric representation of the percentage, not as a decimal (70.5% is to be entered as \"70.5\" and not \".705\")."
-            }
-          ]
-        },
-        {
-          "dimension": "interpretability",
-          "text": "When percentage- or algorithm-encoded rates are present, the data dictionary requires that the '10th Percentile Allowed Amount', 'Median Allowed Amount', and '90th Percentile Allowed Amount' also be encoded (unless the count of allowed amounts is zero), so that readers can better understand the range of actual payments.",
-          "citations": [
-            {
-              "passage_id": "cms-json-data-dictionary#45",
-              "quote": "If a \"Payer-Specific Negotiated Charge: Percentage\" or a \"Payer-Specific Negotiated Charge: Algorithm\" is encoded, then the \"10th Percentile Allowed Amount\", \"Median Allowed Amount\", \"90th Percentile Allowed Amount\" are required (unless the \"Count of Allowed Amounts\" is \"0\")."
-            }
-          ]
-        }
-      ],
-      "input_tokens": 2892,
-      "output_tokens": 880
-    },
-    {
-      "index": 2,
-      "subject": "Stanford Health Care",
-      "grade": "A",
-      "finding_codes": [
-        "JSON_UTF8_BOM_PRESENT",
-        "INTERPRETABILITY_ALGORITHM_RATES",
-        "INTERPRETABILITY_PERCENTAGE_RATES"
-      ],
-      "offered_passages": 8,
-      "uncited_sources": [],
-      "claims_generated": 7,
-      "claims_shown": 7,
-      "claims_withheld": 0,
-      "withheld_reasons": [],
-      "claims": [
-        {
-          "dimension": null,
-          "text": "Stanford Health Care's price-transparency file earned a grade of A because every assessed dimension completed with no error or warning findings; only informational (INFO) observations were noted, and those do not lower a grade.",
-          "citations": [
-            {
-              "passage_id": "cms-json-data-dictionary#1",
-              "quote": "Developers of MRFs should generally consider and adopt established standards and industry norms for JSON files when creating the MRF."
-            }
-          ]
-        },
-        {
-          "dimension": "retrievability",
-          "text": "The file was successfully downloaded on 2026-08-14, confirming it was publicly reachable at the expected URL on that date.",
-          "citations": [
-            {
-              "passage_id": "cms-json-data-dictionary#1",
-              "quote": "Developers of MRFs should generally consider and adopt established standards and industry norms for JSON files when creating the MRF."
-            }
-          ]
-        },
-        {
-          "dimension": "conformance",
-          "text": "The file begins with a UTF-8 byte-order mark (BOM), a small sequence of bytes sometimes added to the start of a text file to signal its encoding. This was recorded as an INFO observation, meaning it was tolerated and did not affect the grade.",
-          "citations": [
-            {
-              "passage_id": "cms-json-data-dictionary#1",
-              "quote": "Developers of MRFs should generally consider and adopt established standards and industry norms for JSON files when creating the MRF. For more information on the JSON schema standards, visit"
-            }
-          ]
-        },
-        {
-          "dimension": "interpretability",
-          "text": "Some payer rates in the file are expressed as algorithms rather than as a direct dollar amount. The data dictionary notes that when a payer-specific negotiated charge algorithm is encoded, it must be accompanied by allowed-amount data so the public can work toward deriving a dollar figure.",
-          "citations": [
-            {
-              "passage_id": "cms-json-data-dictionary#44",
-              "quote": "If a \"Payer-Specific Negotiated Charge: Percentage\" or a \"Payer-Specific Negotiated Charge: Algorithm\" is encoded, then the \"Count of Allowed Amounts\" is required."
-            }
-          ]
-        },
-        {
-          "dimension": "interpretability",
-          "text": "Some payer rates in the file are expressed as percentages rather than as a direct dollar amount. The data dictionary explains that a percentage encoding is appropriate when a dollar amount cannot be calculated, and the numeric percentage should be entered as a number (for example, 70.5% is entered as \"70.5\" and not \".705\").",
-          "citations": [
-            {
-              "passage_id": "cms-json-data-dictionary#28",
-              "quote": "encode the \"Payer-Specific Negotiated Charge Percentage\" data element. This data element will contain the numeric representation of the percentage, not as a decimal (70.5% is to be entered as \"70.5\" and not \".705\")."
-            }
-          ]
-        },
-        {
-          "dimension": "interpretability",
-          "text": "When percentage or algorithm rates are used, the data dictionary requires that the 10th percentile, median, and 90th percentile allowed amounts also be provided for each item or service, unless the count of allowed amounts is zero.",
-          "citations": [
-            {
-              "passage_id": "cms-json-data-dictionary#45",
-              "quote": "If a \"Payer-Specific Negotiated Charge: Percentage\" or a \"Payer-Specific Negotiated Charge: Algorithm\" is encoded, then the \"10th Percentile Allowed Amount\", \"Median Allowed Amount\", \"90th Percentile Allowed Amount\" are required (unless the \"Count of Allowed Amounts\" is \"0\")."
-            }
-          ]
-        },
-        {
-          "dimension": "interpretability",
-          "text": "The attestation statement in the data dictionary explains that a hospital using percentage or algorithm charges must attest that those charges are based on a contractual arrangement that precludes providing a dollar amount, and must provide all information needed for the public to derive the dollar amount.",
-          "citations": [
-            {
-              "passage_id": "cms-json-data-dictionary#10",
-              "quote": "the hospital attests that the payer-specific negotiated charge is based on a contractual algorithm, percentage or formula that precludes the provision of a dollar amount and has provided all necessary information available to the hospital for the public to be able to derive the dollar amount"
-            }
-          ]
-        }
-      ],
-      "input_tokens": 2896,
-      "output_tokens": 933
-    },
-    {
-      "index": 3,
-      "subject": "Stanford Health Care Tri-Valley",
-      "grade": "A",
-      "finding_codes": [
-        "INTERPRETABILITY_ALGORITHM_RATES"
-      ],
-      "offered_passages": 3,
-      "uncited_sources": [],
-      "claims_generated": 6,
-      "claims_shown": 6,
-      "claims_withheld": 0,
-      "withheld_reasons": [],
-      "claims": [
-        {
-          "dimension": null,
-          "text": "Stanford Health Care Tri-Valley received a grade of A, meaning every assessed dimension was completed with no error or warning findings.",
-          "citations": [
-            {
-              "passage_id": "cms-json-data-dictionary#10",
-              "quote": "this hospital has included all applicable standard charge information in accordance with the requirements of 45 CFR 180.50, and the information encoded is true, accurate, and complete as of the date in the file"
-            }
-          ]
-        },
-        {
-          "dimension": "retrievability",
-          "text": "The file was successfully downloaded on 2026-08-14 and is publicly accessible at the Stanford Health Care website, satisfying the retrievability requirement.",
-          "citations": [
-            {
-              "passage_id": "cms-json-data-dictionary#10",
-              "quote": "this hospital has included all applicable standard charge information in accordance with the requirements of 45 CFR 180.50, and the information encoded is true, accurate, and complete as of the date in the file"
-            }
-          ]
-        },
-        {
-          "dimension": "interpretability",
-          "text": "Some payer-specific negotiated charges in the file are expressed as an algorithm rather than a direct dollar amount; these are counted separately from dollar-denominated rates and are flagged as an informational (INFO) observation, which does not lower the grade.",
-          "citations": [
-            {
-              "passage_id": "cms-json-data-dictionary#10",
-              "quote": "For payer-specific negotiated charges that cannot be expressed as a dollar amount in the machine-readable file or not knowable in advance, the hospital attests that the payer-specific negotiated charge is based on a contractual algorithm, percentage or formula that precludes the provision of a dollar amount"
-            }
-          ]
-        },
-        {
-          "dimension": "interpretability",
-          "text": "When a payer-specific negotiated charge is expressed as an algorithm, the CMS data dictionary requires that a 'Count of Allowed Amounts' field also be present in the file.",
-          "citations": [
-            {
-              "passage_id": "cms-json-data-dictionary#44",
-              "quote": "If a \"Payer-Specific Negotiated Charge: Percentage\" or a \"Payer-Specific Negotiated Charge: Algorithm\" is encoded, then the \"Count of Allowed Amounts\" is required."
-            }
-          ]
-        },
-        {
-          "dimension": "interpretability",
-          "text": "The CMS data dictionary permits algorithm-encoded rates when a dollar amount cannot be determined in advance, provided the hospital supplies all information needed for the public to derive the dollar amount, such as the specific fee schedule or formula components.",
-          "citations": [
-            {
-              "passage_id": "cms-json-data-dictionary#10",
-              "quote": "has provided all necessary information available to the hospital for the public to be able to derive the dollar amount, including, but not limited to, the specific fee schedule or components referenced in such percentage, algorithm or formula"
-            }
-          ]
-        },
-        {
-          "dimension": "completeness",
-          "text": "When payer-specific negotiated charges are expressed as a dollar amount, the data dictionary also requires corresponding values for the de-identified minimum and maximum negotiated charge fields.",
-          "citations": [
-            {
-              "passage_id": "cms-json-data-dictionary#44",
-              "quote": "If there is \"Payer-Specific Negotiated Charge: Dollar Amount\" encoded, there must be a corresponding valid value encoded for the \"De-identified Minimum Negotiated Charge\" and \"De-identified Maximum Negotiated Charge\" elements."
-            }
-          ]
-        }
-      ],
-      "input_tokens": 1724,
-      "output_tokens": 729
-    },
-    {
-      "index": 4,
-      "subject": "Cedars-Sinai Medical Center",
-      "grade": "NOT_GRADED",
-      "finding_codes": [],
-      "offered_passages": 0,
-      "uncited_sources": [],
-      "claims_generated": 1,
-      "claims_shown": 0,
-      "claims_withheld": 1,
-      "withheld_reasons": [
-        [
-          "no citation"
-        ]
-      ],
-      "claims": [],
-      "input_tokens": 933,
-      "output_tokens": 42
-    },
-    {
-      "index": 5,
-      "subject": "University of California Davis Medical Center",
-      "grade": "A",
-      "finding_codes": [
-        "JSON_UTF8_BOM_PRESENT",
-        "INTERPRETABILITY_ALGORITHM_RATES",
-        "INTERPRETABILITY_PERCENTAGE_RATES"
-      ],
-      "offered_passages": 8,
-      "uncited_sources": [],
-      "claims_generated": 7,
-      "claims_shown": 6,
-      "claims_withheld": 1,
-      "withheld_reasons": [
-        [
-          "cms-json-data-dictionary#28: quote does not occur in the source text (quote: 'If the payer-specific negotiated charge dollar can be calculated, for example if the payer-specific negotiated charge is')"
-        ]
-      ],
-      "claims": [
-        {
-          "dimension": null,
-          "text": "The file received an overall grade of A because every assessed dimension was completed with no error or warning findings; only informational (INFO) observations were recorded, and those do not lower a grade.",
-          "citations": [
-            {
-              "passage_id": "cms-json-data-dictionary#1",
-              "quote": "Developers of MRFs should generally consider and adopt established standards and industry norms for JSON files when creating the MRF."
-            }
-          ]
-        },
-        {
-          "dimension": "conformance",
-          "text": "The file's JSON encoding begins with a UTF-8 byte-order mark (BOM), a small sequence of bytes sometimes added to the start of a text file to signal its encoding; the grader noted this as an informational observation, tolerated it, and did not treat it as an error.",
-          "citations": [
-            {
-              "passage_id": "cms-json-data-dictionary#1",
-              "quote": "Developers of MRFs should generally consider and adopt established standards and industry norms for JSON files when creating the MRF. For more information on the JSON schema standards"
-            }
-          ]
-        },
-        {
-          "dimension": "interpretability",
-          "text": "Some payer rates in the file are encoded as algorithms rather than as dollar amounts; the CMS data dictionary explains that when a payer-specific negotiated charge cannot be expressed as a dollar amount, a hospital may instead encode a contractual algorithm, percentage, or formula and must provide all information needed for the public to derive the dollar amount.",
-          "citations": [
-            {
-              "passage_id": "cms-json-data-dictionary#10",
-              "quote": "For payer-specific negotiated charges that cannot be expressed as a dollar amount in the machine-readable file or not knowable in advance, the hospital attests that the payer-specific negotiated charge is based on a contractual algorithm, percentage or formula that precludes the provision of a dollar amount and has provided all necessary information available to the hospital for the public to be able to derive the dollar amount"
-            }
-          ]
-        },
-        {
-          "dimension": "interpretability",
-          "text": "Some payer rates in the file are encoded as percentages rather than as dollar amounts; the CMS data dictionary states that if a dollar amount cannot be calculated, the hospital should encode the numeric percentage (for example, 70.5% is entered as \"70.5\" and not \".705\") in the designated data element.",
-          "citations": [
-            {
-              "passage_id": "cms-json-data-dictionary#28",
-              "quote": "This data element will contain the numeric representation of the percentage, not as a decimal (70.5% is to be entered as \"70.5\" and not \".705\")."
-            }
-          ]
-        },
-        {
-          "dimension": "interpretability",
-          "text": "When a rate is expressed as a percentage or algorithm rather than a dollar amount, the CMS data dictionary requires that the \"10th Percentile Allowed Amount\", \"Median Allowed Amount\", and \"90th Percentile Allowed Amount\" also be encoded (unless the count of allowed amounts is zero), so that readers have reference points to understand the charge.",
-          "citations": [
-            {
-              "passage_id": "cms-json-data-dictionary#45",
-              "quote": "If a \"Payer-Specific Negotiated Charge: Percentage\" or a \"Payer-Specific Negotiated Charge: Algorithm\" is encoded, then the \"10th Percentile Allowed Amount\", \"Median Allowed Amount\", \"90th Percentile Allowed Amount\" are required (unless the \"Count of Allowed Amounts\" is \"0\")."
-            }
-          ]
-        },
-        {
-          "dimension": "retrievability",
-          "text": "The file was successfully downloaded on 2026-08-14 from the published URL, confirming it was publicly retrievable on the assessment date.",
-          "citations": [
-            {
-              "passage_id": "cms-json-data-dictionary#1",
-              "quote": "Developers of MRFs should generally consider and adopt established standards and industry norms for JSON files when creating the MRF. For more information on the JSON schema standards, visit"
-            }
-          ]
-        }
-      ],
-      "input_tokens": 2897,
-      "output_tokens": 989
-    },
-    {
-      "index": 6,
-      "subject": "University of Cincinnati Medical Center",
-      "grade": "A",
-      "finding_codes": [
-        "JSON_UTF8_BOM_PRESENT",
-        "INTERPRETABILITY_ALGORITHM_RATES",
-        "INTERPRETABILITY_PERCENTAGE_RATES"
-      ],
-      "offered_passages": 8,
-      "uncited_sources": [],
-      "claims_generated": 6,
-      "claims_shown": 6,
-      "claims_withheld": 0,
-      "withheld_reasons": [],
-      "claims": [
-        {
-          "dimension": "retrievability",
-          "text": "The file for University of Cincinnati Medical Center was successfully retrieved from its published URL and its contents were recorded for validation.",
-          "citations": [
-            {
-              "passage_id": "cms-json-data-dictionary#1",
-              "quote": "Developers of MRFs should generally consider and adopt established standards and industry norms for JSON files when creating the MRF."
-            }
-          ]
-        },
-        {
-          "dimension": "conformance",
-          "text": "The file begins with a UTF-8 byte-order mark (BOM), which is an optional sequence of bytes sometimes added to the start of a text file to signal its encoding. The grader tolerated this and recorded it as an informational observation only, meaning it did not count as an error.",
-          "citations": [
-            {
-              "passage_id": "cms-json-data-dictionary#1",
-              "quote": "Developers of MRFs should generally consider and adopt established standards and industry norms for JSON files when creating the MRF. For more information on the JSON schema standards"
-            }
-          ]
-        },
-        {
-          "dimension": "interpretability",
-          "text": "Some payer rates in the file are expressed as algorithms rather than dollar amounts. The CMS data dictionary explains that when a payer-specific negotiated charge cannot be expressed as a dollar amount, it may be encoded as an algorithm, but the hospital must supply all information needed for the public to derive the dollar amount.",
-          "citations": [
-            {
-              "passage_id": "cms-json-data-dictionary#10",
-              "quote": "For payer-specific negotiated charges that cannot be expressed as a dollar amount in the machine-readable file or not knowable in advance, the hospital attests that the payer-specific negotiated charge is based on a contractual algorithm, percentage or formula that precludes the provision of a dollar amount and has provided all necessary information available to the hospital for the public to be able to derive the dollar amount"
-            }
-          ]
-        },
-        {
-          "dimension": "interpretability",
-          "text": "Some payer rates in the file are expressed as percentages rather than dollar amounts. The data dictionary states that when a dollar amount cannot be calculated from a percentage, the numeric percentage value should be encoded in the 'Payer-Specific Negotiated Charge: Percentage' field instead.",
-          "citations": [
-            {
-              "passage_id": "cms-json-data-dictionary#28",
-              "quote": "If the payer-specific negotiated charge is a percentage for which a dollar amount cannot be calculated or is a base rate modified by a percentage, encode the \"Payer-Specific Negotiated Charge Percentage\" data element."
-            }
-          ]
-        },
-        {
-          "dimension": "interpretability",
-          "text": "When percentage- or algorithm-encoded rates are present, the data dictionary requires that 'Count of Allowed Amounts' and percentile allowed amount fields also be encoded, so that readers have additional context to understand the rates.",
-          "citations": [
-            {
-              "passage_id": "cms-json-data-dictionary#45",
-              "quote": "If a \"Payer-Specific Negotiated Charge: Percentage\" or a \"Payer-Specific Negotiated Charge: Algorithm\" is encoded, then the \"10th Percentile Allowed Amount\", \"Median Allowed Amount\", \"90th Percentile Allowed Amount\" are required (unless the \"Count of Allowed Amounts\" is \"0\")."
-            }
-          ]
-        },
-        {
-          "dimension": null,
-          "text": "All three informational observations — the UTF-8 BOM, algorithm-encoded rates, and percentage-encoded rates — were classified as INFO level findings. The grader's rules specify that tolerated INFO observations do not lower a grade, which is why the file received an A.",
-          "citations": [
-            {
-              "passage_id": "cms-json-data-dictionary#44",
-              "quote": "If a \"Payers Information\" object is encoded, then there must be a value for at least one of the following attributes in that object: \"Payer-Specific Negotiated Charge: Dollar Amount\", \"Payer-Specific Negotiated Charge: Percentage\", \"Payer-Specific Negotiated Charge: Algorithm\"."
-            }
-          ]
-        }
-      ],
-      "input_tokens": 2893,
-      "output_tokens": 878
-    },
-    {
-      "index": 7,
-      "subject": "West Chester Hospital",
-      "grade": "A",
-      "finding_codes": [
-        "JSON_UTF8_BOM_PRESENT",
-        "INTERPRETABILITY_ALGORITHM_RATES",
-        "INTERPRETABILITY_PERCENTAGE_RATES"
-      ],
-      "offered_passages": 8,
-      "uncited_sources": [],
-      "claims_generated": 6,
-      "claims_shown": 6,
-      "claims_withheld": 0,
-      "withheld_reasons": [],
-      "claims": [
-        {
-          "dimension": null,
-          "text": "West Chester Hospital's price-transparency file earned a grade of A because every assessed dimension was completed with no error or warning findings; only informational observations were noted, and those do not lower a grade.",
-          "citations": [
-            {
-              "passage_id": "cms-json-data-dictionary#1",
-              "quote": "Developers of MRFs should generally consider and adopt established standards and industry norms for JSON files when creating the MRF."
-            }
-          ]
-        },
-        {
-          "dimension": "conformance",
-          "text": "The file begins with a UTF-8 byte-order mark (BOM), a small sequence of bytes sometimes added to the start of a text file to signal its encoding. This was recorded as an informational note only and was tolerated by the validator.",
-          "citations": [
-            {
-              "passage_id": "cms-json-data-dictionary#1",
-              "quote": "Developers of MRFs should generally consider and adopt established standards and industry norms for JSON files when creating the MRF. For more information on the JSON schema standards, visit"
-            }
-          ]
-        },
-        {
-          "dimension": "interpretability",
-          "text": "Some payer rates in the file are expressed as algorithms rather than dollar amounts. The CMS data dictionary allows this when a dollar amount cannot be calculated in advance, provided the hospital supplies enough information for the public to derive the dollar amount.",
-          "citations": [
-            {
-              "passage_id": "cms-json-data-dictionary#10",
-              "quote": "For payer-specific negotiated charges that cannot be expressed as a dollar amount in the machine-readable file or not knowable in advance, the hospital attests that the payer-specific negotiated charge is based on a contractual algorithm, percentage or formula that precludes the provision of a dollar amount and has provided all necessary information available to the hospital for the public to be able to derive the dollar amount"
-            }
-          ]
-        },
-        {
-          "dimension": "interpretability",
-          "text": "Some payer rates in the file are expressed as percentages rather than dollar amounts. When a percentage rate is used, the data dictionary requires that the corresponding allowed-amount data elements also be encoded.",
-          "citations": [
-            {
-              "passage_id": "cms-json-data-dictionary#28",
-              "quote": "If the \"Payer-Specific Negotiated Charge: Percentage\" or \"Payer-Specific Negotiated Charge: Algorithm\" data elements are encoded, then also encode the corresponding allowed amounts and count of allowed amount data elements for that item or service."
-            }
-          ]
-        },
-        {
-          "dimension": "interpretability",
-          "text": "Because algorithm- and percentage-encoded rates are not expressed as direct dollar figures, they are counted separately from dollar-denominated rates in the interpretability assessment. This is an informational observation and does not constitute an error.",
-          "citations": [
-            {
-              "passage_id": "cms-json-data-dictionary#44",
-              "quote": "If a \"Payer-Specific Negotiated Charge: Percentage\" or a \"Payer-Specific Negotiated Charge: Algorithm\" is encoded, then the \"Count of Allowed Amounts\" is required."
-            }
-          ]
-        },
-        {
-          "dimension": "retrievability",
-          "text": "The file was retrieved successfully from its published URL and a cryptographic checksum (SHA-256) was recorded, confirming the exact content of the file at the time of assessment.",
-          "citations": [
-            {
-              "passage_id": "cms-json-data-dictionary#1",
-              "quote": "Developers of MRFs should generally consider and adopt established standards and industry norms for JSON files when creating the MRF. For more information on the JSON schema standards, visit <https://www.json.org/json-en.html> and <https://json-schema.org/>."
-            }
-          ]
-        }
-      ],
-      "input_tokens": 2893,
-      "output_tokens": 783
-    },
-    {
-      "index": 8,
-      "subject": "Stanford Health Care",
-      "grade": "A",
-      "finding_codes": [
-        "JSON_UTF8_BOM_PRESENT",
-        "INTERPRETABILITY_ALGORITHM_RATES",
-        "INTERPRETABILITY_PERCENTAGE_RATES"
-      ],
-      "offered_passages": 8,
-      "uncited_sources": [],
-      "claims_generated": 6,
-      "claims_shown": 6,
-      "claims_withheld": 0,
-      "withheld_reasons": [],
-      "claims": [
-        {
-          "dimension": "retrievability",
-          "text": "The file was successfully retrieved from Stanford Health Care's website and its contents were verified by a cryptographic checksum, confirming the file was accessible on the assessment date.",
-          "citations": [
-            {
-              "passage_id": "cms-json-data-dictionary#1",
-              "quote": "Developers of MRFs should generally consider and adopt established standards and industry norms for JSON files"
-            }
-          ]
-        },
-        {
-          "dimension": "conformance",
-          "text": "The file begins with a UTF-8 byte-order mark (BOM), a small sequence of bytes sometimes added to the start of a text file to signal its encoding; the grader tolerated this and recorded it as an informational note that does not reduce the grade.",
-          "citations": [
-            {
-              "passage_id": "cms-json-data-dictionary#1",
-              "quote": "Developers of MRFs should generally consider and adopt established standards and industry norms for JSON files when creating the MRF"
-            }
-          ]
-        },
-        {
-          "dimension": "interpretability",
-          "text": "Some payer rates in the file are expressed as algorithms rather than dollar amounts; the data dictionary explains that when a charge cannot be expressed as a dollar amount, the hospital may instead encode a contractual algorithm and provide all necessary information for the public to derive the dollar amount.",
-          "citations": [
-            {
-              "passage_id": "cms-json-data-dictionary#10",
-              "quote": "For payer-specific negotiated charges that cannot be expressed as a dollar amount in the machine-readable file or not knowable in advance, the hospital attests that the payer-specific negotiated charge is based on a contractual algorithm, percentage or formula that precludes the provision of a dollar amount and has provided all necessary information available to the hospital for the public to be able to derive the dollar amount"
-            }
-          ]
-        },
-        {
-          "dimension": "interpretability",
-          "text": "Some payer rates in the file are expressed as percentages rather than dollar amounts; the data dictionary specifies that a percentage should be encoded when a dollar amount cannot be calculated or when the charge is a base rate modified by a percentage, and the numeric percentage should be entered directly (for example, 70.5% is entered as \"70.5\" and not \".705\").",
-          "citations": [
-            {
-              "passage_id": "cms-json-data-dictionary#28",
-              "quote": "If the payer-specific negotiated charge is a percentage for which a dollar amount cannot be calculated or is a base rate modified by a percentage, encode the \"Payer-Specific Negotiated Charge Percentage\" data element. This data element will contain the numeric representation of the percentage, not as a decimal (70.5% is to be entered as \"70.5\" and not \".705\")"
-            }
-          ]
-        },
-        {
-          "dimension": "interpretability",
-          "text": "When percentage- or algorithm-encoded rates are present, the data dictionary requires that the corresponding allowed-amount figures—10th percentile, median, and 90th percentile—also be included, unless the count of allowed amounts is zero.",
-          "citations": [
-            {
-              "passage_id": "cms-json-data-dictionary#45",
-              "quote": "If a \"Payer-Specific Negotiated Charge: Percentage\" or a \"Payer-Specific Negotiated Charge: Algorithm\" is encoded, then the \"10th Percentile Allowed Amount\", \"Median Allowed Amount\", \"90th Percentile Allowed Amount\" are required (unless the \"Count of Allowed Amounts\" is \"0\")"
-            }
-          ]
-        },
-        {
-          "dimension": null,
-          "text": "Because all three informational observations are classified only as INFO-level notes, the grader's rules treat them as tolerated and they do not reduce the file's grade from an A.",
-          "citations": [
-            {
-              "passage_id": "cms-json-data-dictionary#44",
-              "quote": "If a \"Payers Information\" object is encoded, then there must be a value for at least one of the following attributes in that object: \"Payer-Specific Negotiated Charge: Dollar Amount\", \"Payer-Specific Negotiated Charge: Percentage\", \"Payer-Specific Negotiated Charge: Algorithm\""
-            }
-          ]
-        }
-      ],
-      "input_tokens": 2897,
-      "output_tokens": 896
-    },
-    {
-      "index": 9,
-      "subject": "Stanford Health Care Tri-Valley",
-      "grade": "A",
-      "finding_codes": [
-        "INTERPRETABILITY_ALGORITHM_RATES"
-      ],
-      "offered_passages": 3,
-      "uncited_sources": [],
-      "claims_generated": 6,
-      "claims_shown": 6,
-      "claims_withheld": 0,
-      "withheld_reasons": [],
-      "claims": [
-        {
-          "dimension": null,
-          "text": "Stanford Health Care Tri-Valley received a grade of A, meaning every assessed dimension was completed with no error or warning findings.",
-          "citations": [
-            {
-              "passage_id": "cms-json-data-dictionary#10",
-              "quote": "this hospital has included all applicable standard charge information in accordance with the requirements of 45 CFR 180.50, and the information encoded is true, accurate, and complete as of the date in the file"
-            }
-          ]
-        },
-        {
-          "dimension": "retrievability",
-          "text": "The file was successfully retrieved from Stanford Health Care's website and its contents were verified, confirming the file exists and is accessible to the public.",
-          "citations": [
-            {
-              "passage_id": "cms-json-data-dictionary#10",
-              "quote": "this hospital has included all applicable standard charge information in accordance with the requirements of 45 CFR 180.50, and the information encoded is true, accurate, and complete as of the date in the file"
-            }
-          ]
-        },
-        {
-          "dimension": "interpretability",
-          "text": "Some payer-specific negotiated charges in this file are expressed as an algorithm rather than as a direct dollar amount; these algorithm-encoded rates are counted separately and are not directly dollar-denominated.",
-          "citations": [
-            {
-              "passage_id": "cms-json-data-dictionary#10",
-              "quote": "For payer-specific negotiated charges that cannot be expressed as a dollar amount in the machine-readable file or not knowable in advance, the hospital attests that the payer-specific negotiated charge is based on a contractual algorithm, percentage or formula that precludes the provision of a dollar amount"
-            }
-          ]
-        },
-        {
-          "dimension": "interpretability",
-          "text": "When a payer-specific negotiated charge is encoded as an algorithm or percentage instead of a dollar amount, the CMS data dictionary requires that a",
-          "citations": [
-            {
-              "passage_id": "cms-json-data-dictionary#44",
-              "quote": "If a \"Payer-Specific Negotiated Charge: Percentage\" or a \"Payer-Specific Negotiated Charge: Algorithm\" is encoded, then the \"Count of Allowed Amounts\" is required."
-            }
-          ]
-        },
-        {
-          "dimension": "interpretability",
-          "text": "The hospital's attestation statement affirms that where a dollar amount cannot be provided, all necessary information has been included so that the public can derive the dollar amount from the algorithm, percentage, or formula referenced.",
-          "citations": [
-            {
-              "passage_id": "cms-json-data-dictionary#10",
-              "quote": "has provided all necessary information available to the hospital for the public to be able to derive the dollar amount, including, but not limited to, the specific fee schedule or components referenced in such percentage, algorithm or formula"
-            }
-          ]
-        },
-        {
-          "dimension": null,
-          "text": "The INFO observation about algorithm-encoded rates does not lower the grade, because only error or warning findings affect the score.",
-          "citations": [
-            {
-              "passage_id": "cms-json-data-dictionary#44",
-              "quote": "If a \"Payers Information\" object is encoded, then there must be a value for at least one of the following attributes in that object: \"Payer-Specific Negotiated Charge: Dollar Amount\", \"Payer-Specific Negotiated Charge: Percentage\", \"Payer-Specific Negotiated Charge: Algorithm\""
-            }
-          ]
-        }
-      ],
-      "input_tokens": 1725,
-      "output_tokens": 713
-    },
-    {
-      "index": 10,
       "subject": "Cedars-Sinai Medical Center",
       "grade": "C",
       "finding_codes": [
@@ -790,7 +41,7 @@
       "claims": [
         {
           "dimension": null,
-          "text": "The file received a grade of C because one of the four assessed dimensions — conformance — contains errors or missing evidence, while the other three dimensions (retrievability, completeness, and freshness) were observed without issues.",
+          "text": "The file received a grade of C because the grader found errors or missing evidence in one of four evaluated dimensions, specifically the conformance dimension.",
           "citations": [
             {
               "passage_id": "cms-json-data-dictionary#0",
@@ -800,17 +51,17 @@
         },
         {
           "dimension": "conformance",
-          "text": "The conformance error was triggered because the file declares schema version '2.0.0', but the inspector checks files against CMS JSON v3.0.0 — the version attribute in the file header is expected to match the current required schema version.",
+          "text": "The conformance finding is that the file declares template version '2.0.0', but the inspector checks files against the CMS JSON v3.0.0 schema, so the declared version does not match what the inspector expects.",
           "citations": [
             {
               "passage_id": "cms-json-data-dictionary#4",
-              "quote": "version | CMS Template Version | String | The version of the schema. | Yes"
+              "quote": "**version** | CMS Template Version | String | The version of the schema. | Yes"
             }
           ]
         },
         {
           "dimension": "conformance",
-          "text": "The current CMS data dictionary is explicitly versioned as v3.0, and new requirements under it became effective January 1, 2026, meaning a file still tagged as version 2.0.0 does not signal conformance with that updated specification.",
+          "text": "The CMS v3.0 data dictionary describes requirements that became effective January 1, 2026, with enforcement beginning April 1, 2026, so files assessed after that date are evaluated against the v3.0 schema.",
           "citations": [
             {
               "passage_id": "cms-json-data-dictionary#0",
@@ -820,7 +71,793 @@
         },
         {
           "dimension": "interpretability",
-          "text": "Some payer rates in the file are encoded as algorithms rather than dollar amounts; algorithm-encoded rates are not directly dollar-denominated and are therefore counted separately from standard dollar charges in the interpretability assessment.",
+          "text": "Some payer rates in the file are expressed as an algorithm rather than a dollar amount; the data dictionary allows this when a dollar amount cannot be calculated in advance, but such rates are not directly dollar-denominated and are counted separately from dollar-amount rates.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#10",
+              "quote": "the hospital attests that the payer-specific negotiated charge is based on a contractual algorithm, percentage or formula that precludes the provision of a dollar amount and has provided all necessary information available to the hospital for the public to be able to derive the dollar amount"
+            }
+          ]
+        },
+        {
+          "dimension": "interpretability",
+          "text": "Some payer rates in the file are expressed as a percentage rather than a dollar amount; the data dictionary instructs hospitals to encode these using the 'Payer-Specific Negotiated Charge: Percentage' element when a dollar amount cannot be calculated, and such rates are counted separately from dollar-amount rates.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#28",
+              "quote": "If the payer-specific negotiated charge is a percentage for which a dollar amount cannot be calculated or is a base rate modified by a percentage, encode the \"Payer-Specific Negotiated Charge Percentage\" data element."
+            }
+          ]
+        },
+        {
+          "dimension": "interpretability",
+          "text": "When percentage or algorithm rates are present, the data dictionary requires that corresponding allowed-amounts data also be encoded so that readers have the information needed to derive a dollar figure.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#28",
+              "quote": "If the \"Payer-Specific Negotiated Charge: Percentage\" or \"Payer-Specific Negotiated Charge: Algorithm\" data elements are encoded, then also encode the corresponding allowed amounts and count of allowed amount data elements for that item or service."
+            }
+          ]
+        }
+      ],
+      "input_tokens": 3101,
+      "output_tokens": 730
+    },
+    {
+      "index": 1,
+      "subject": "Central Maine Medical Center",
+      "grade": "C",
+      "finding_codes": [
+        "CMS_V3_VERSION_UNEXPECTED",
+        "INTERPRETABILITY_ALGORITHM_RATES",
+        "INTERPRETABILITY_PERCENTAGE_RATES"
+      ],
+      "offered_passages": 8,
+      "uncited_sources": [],
+      "claims_generated": 6,
+      "claims_shown": 5,
+      "claims_withheld": 1,
+      "withheld_reasons": [
+        [
+          "cms-json-data-dictionary#4: quote does not occur in the source text (quote: 'The version of the schema.')"
+        ]
+      ],
+      "claims": [
+        {
+          "dimension": null,
+          "text": "The file received a grade of C because one of the four graded dimensions — conformance — contains errors or missing evidence, while the other three dimensions passed without findings.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#0",
+              "quote": "The v3.0 data dictionary includes formatting updates and new regulatory requirements from the Calendar Year 2026 Hospital Outpatient Prospective Payment and Ambulatory Surgical Center Payment System final rule"
+            }
+          ]
+        },
+        {
+          "dimension": "conformance",
+          "text": "The CMS data dictionary requires that each JSON file include a 'version' attribute, which must record the CMS Template Version as a string; the precise format of that string is what the conformance check validates.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#4",
+              "quote": "version | CMS Template Version | String | The version of the schema. | Yes"
+            }
+          ]
+        },
+        {
+          "dimension": "interpretability",
+          "text": "Some payer rates in the file are expressed as algorithms rather than dollar amounts; the data dictionary notes that when a 'Payer-Specific Negotiated Charge: Algorithm' is encoded, the corresponding allowed amounts and count of allowed amounts must also be present.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#28",
+              "quote": "If the \"Payer-Specific Negotiated Charge: Percentage\" or \"Payer-Specific Negotiated Charge: Algorithm\" data elements are encoded, then also encode the corresponding allowed amounts and count of allowed amount data elements for that item or service."
+            }
+          ]
+        },
+        {
+          "dimension": "interpretability",
+          "text": "Some payer rates in the file are expressed as percentages rather than dollar amounts; the data dictionary explains that a percentage encoding is appropriate when a dollar amount cannot be calculated or is a base rate modified by a percentage, and the numeric value should be entered as the percentage itself (e.g., '70.5'), not as a decimal.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#28",
+              "quote": "If the payer-specific negotiated charge is a percentage for which a dollar amount cannot be calculated or is a base rate modified by a percentage, encode the \"Payer-Specific Negotiated Charge Percentage\" data element. This data element will contain the numeric representation of the percentage, not as a decimal (70.5% is to be entered as \"70.5\" and not \".705\")."
+            }
+          ]
+        },
+        {
+          "dimension": "interpretability",
+          "text": "Because algorithm- and percentage-encoded rates are not expressed as dollar amounts, they are counted separately from dollar-denominated rates when the file's interpretability is assessed; this is an informational note, not an error.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#44",
+              "quote": "If a \"Payer-Specific Negotiated Charge: Percentage\" or a \"Payer-Specific Negotiated Charge: Algorithm\" is encoded, then the \"Count of Allowed Amounts\" is required."
+            }
+          ]
+        }
+      ],
+      "input_tokens": 3086,
+      "output_tokens": 766
+    },
+    {
+      "index": 2,
+      "subject": "CHI Health Lakeside",
+      "grade": "A",
+      "finding_codes": [
+        "INTERPRETABILITY_ALGORITHM_RATES",
+        "INTERPRETABILITY_PERCENTAGE_RATES"
+      ],
+      "offered_passages": 5,
+      "uncited_sources": [],
+      "claims_generated": 5,
+      "claims_shown": 5,
+      "claims_withheld": 0,
+      "withheld_reasons": [],
+      "claims": [
+        {
+          "dimension": null,
+          "text": "The file for CHI Health Lakeside was successfully downloaded on 2026-08-19 and passed all graded checks, earning an overall grade of A. INFO-level observations do not reduce a grade.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#10",
+              "quote": "this hospital has included all applicable standard charge information in accordance with the requirements of 45 CFR 180.50"
+            }
+          ]
+        },
+        {
+          "dimension": "interpretability",
+          "text": "Some payer rates in this file are expressed as an algorithm rather than a direct dollar amount. The CMS data dictionary allows this when a dollar amount cannot be calculated in advance, provided the hospital supplies enough information for the public to derive the dollar amount.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#10",
+              "quote": "For payer-specific negotiated charges that cannot be expressed as a dollar amount in the machine-readable file or not knowable in advance, the hospital attests that the payer-specific negotiated charge is based on a contractual algorithm, percentage or formula that precludes the provision of a dollar amount and has provided all necessary information available to the hospital for the public to be able to derive the dollar amount"
+            }
+          ]
+        },
+        {
+          "dimension": "interpretability",
+          "text": "Some payer rates in this file are expressed as a percentage rather than a direct dollar amount. The data dictionary states that if a percentage cannot be converted to a dollar figure, the numeric percentage should be encoded directly — for example, 70.5% is entered as \"70.5\" and not \".705\".",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#28",
+              "quote": "If the payer-specific negotiated charge is a percentage for which a dollar amount cannot be calculated or is a base rate modified by a percentage, encode the \"Payer-Specific Negotiated Charge Percentage\" data element. This data element will contain the numeric representation of the percentage, not as a decimal (70.5% is to be entered as \"70.5\" and not \".705\")"
+            }
+          ]
+        },
+        {
+          "dimension": "interpretability",
+          "text": "When percentage or algorithm rates are present, the data dictionary requires that corresponding allowed amounts also be encoded alongside them, so readers have a basis for calculating actual dollar values.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#28",
+              "quote": "If the \"Payer-Specific Negotiated Charge: Percentage\" or \"Payer-Specific Negotiated Charge: Algorithm\" data elements are encoded, then also encode the corresponding allowed amounts and count of allowed amount data elements for that item or service"
+            }
+          ]
+        },
+        {
+          "dimension": "interpretability",
+          "text": "Because algorithm- and percentage-encoded rates are not directly dollar-denominated, the grader counted them separately from dollar-amount rates. These observations were recorded at the INFO level, which does not affect the grade.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#44",
+              "quote": "If a \"Payer-Specific Negotiated Charge: Percentage\" or a \"Payer-Specific Negotiated Charge: Algorithm\" is encoded, then the \"Count of Allowed Amounts\" is required."
+            }
+          ]
+        }
+      ],
+      "input_tokens": 2383,
+      "output_tokens": 710
+    },
+    {
+      "index": 3,
+      "subject": "CHRISTUS Spohn Hospital - Beeville",
+      "grade": "A",
+      "finding_codes": [
+        "INTERPRETABILITY_PERCENTAGE_RATES"
+      ],
+      "offered_passages": 3,
+      "uncited_sources": [],
+      "claims_generated": 3,
+      "claims_shown": 2,
+      "claims_withheld": 1,
+      "withheld_reasons": [
+        [
+          "no citation"
+        ]
+      ],
+      "claims": [
+        {
+          "dimension": "retrievability",
+          "text": "The file was successfully downloaded on 2026-08-19, confirming it is publicly accessible at the reported URL.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#44",
+              "quote": "If a \"Payers Information\" object is encoded, then there must be a value for at least one of the following attributes"
+            }
+          ]
+        },
+        {
+          "dimension": null,
+          "text": "The overall grade is A because every assessed dimension was completed with no error or warning findings; only informational observations were noted, and those do not lower the grade.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#28",
+              "quote": "If a payer-specific negotiated charge dollar can be calculated, for example if the payer-specific negotiated charge is 70% of a known fee schedule, calculate the dollar amount and encode the"
+            }
+          ]
+        }
+      ],
+      "input_tokens": 1837,
+      "output_tokens": 255
+    },
+    {
+      "index": 4,
+      "subject": "Mercy Gilbert Medical Center",
+      "grade": "A",
+      "finding_codes": [
+        "INTERPRETABILITY_ALGORITHM_RATES",
+        "INTERPRETABILITY_PERCENTAGE_RATES"
+      ],
+      "offered_passages": 5,
+      "uncited_sources": [],
+      "claims_generated": 6,
+      "claims_shown": 6,
+      "claims_withheld": 0,
+      "withheld_reasons": [],
+      "claims": [
+        {
+          "dimension": "retrievability",
+          "text": "The file was successfully downloaded on 2026-08-19, confirming it is publicly accessible at the recorded URL.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#44",
+              "quote": "If a \"Payers Information\" object is encoded, then there must be a value for at least one of the following attributes"
+            }
+          ]
+        },
+        {
+          "dimension": null,
+          "text": "The overall grade is A because every assessed dimension was completed with no error or warning findings; only informational observations were noted, and those do not lower the grade.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#10",
+              "quote": "this hospital has included all applicable standard charge information in accordance with the requirements of 45 CFR 180.50"
+            }
+          ]
+        },
+        {
+          "dimension": "interpretability",
+          "text": "Some payer-specific negotiated charges in the file are expressed as an algorithm — meaning a formula or contractual arrangement — rather than as a direct dollar amount; these rates are counted separately from dollar-denominated rates.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#10",
+              "quote": "the payer-specific negotiated charge is based on a contractual algorithm, percentage or formula that precludes the provision of a dollar amount and has provided all necessary information available to the hospital for the public to be able to derive the dollar amount"
+            }
+          ]
+        },
+        {
+          "dimension": "interpretability",
+          "text": "Some payer-specific negotiated charges are expressed as a percentage rather than a dollar amount; the CMS data dictionary explains that when a dollar amount cannot be calculated from the percentage, the numeric percentage value itself is encoded instead.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#28",
+              "quote": "If the payer-specific negotiated charge is a percentage for which a dollar amount cannot be calculated or is a base rate modified by a percentage, encode the \"Payer-Specific Negotiated Charge Percentage\" data element. This data element will contain the numeric representation of the percentage, not as a decimal"
+            }
+          ]
+        },
+        {
+          "dimension": "interpretability",
+          "text": "When percentage or algorithm rates are used, the CMS data dictionary requires that corresponding allowed amounts and a count of allowed amounts also be encoded for that item or service.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#28",
+              "quote": "If the \"Payer-Specific Negotiated Charge: Percentage\" or \"Payer-Specific Negotiated Charge: Algorithm\" data elements are encoded, then also encode the corresponding allowed amounts and count of allowed amount data elements for that item or service."
+            }
+          ]
+        },
+        {
+          "dimension": "interpretability",
+          "text": "The hospital's attestation, as defined in the data dictionary, states that all charges that can be expressed as a dollar amount have been provided in dollars, and that non-dollar charges are based on a formula or percentage that prevents a dollar amount from being stated in advance.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#12",
+              "quote": "This hospital has included all payer-specific negotiated charges in dollars that can be expressed as a dollar amount. For payer-specific negotiated charges that cannot be expressed as a dollar amount in the machine-readable file or not knowable in advance, the hospital attests that the payer-specific negotiated charge is based on a contractual algorithm, percentage or formula"
+            }
+          ]
+        }
+      ],
+      "input_tokens": 2372,
+      "output_tokens": 736
+    },
+    {
+      "index": 5,
+      "subject": "HCA Florida Raulerson Hospital",
+      "grade": "A",
+      "finding_codes": [
+        "INTERPRETABILITY_ALGORITHM_RATES",
+        "INTERPRETABILITY_PERCENTAGE_RATES"
+      ],
+      "offered_passages": 5,
+      "uncited_sources": [],
+      "claims_generated": 6,
+      "claims_shown": 6,
+      "claims_withheld": 0,
+      "withheld_reasons": [],
+      "claims": [
+        {
+          "dimension": "retrievability",
+          "text": "The file was successfully downloaded on 2026-08-19, confirming it is publicly accessible at its posted URL.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#44",
+              "quote": "If a \"Payers Information\" object is encoded, then there must be a value for at least one of the following attributes"
+            }
+          ]
+        },
+        {
+          "dimension": null,
+          "text": "The file earned a grade of A because every assessed dimension completed with no error or warning findings; only informational (INFO) observations were noted, and those do not lower a grade.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#10",
+              "quote": "this hospital has included all applicable standard charge information in accordance with the requirements of 45 CFR 180.50, and the information encoded is true, accurate, and complete as of the date in the file"
+            }
+          ]
+        },
+        {
+          "dimension": "interpretability",
+          "text": "Some payer rates in the file are expressed as algorithms rather than dollar amounts. The CMS data dictionary allows this when a dollar amount cannot be calculated in advance, but those rates are counted separately from direct dollar amounts because they are not immediately readable as a price.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#10",
+              "quote": "For payer-specific negotiated charges that cannot be expressed as a dollar amount in the machine-readable file or not knowable in advance, the hospital attests that the payer-specific negotiated charge is based on a contractual algorithm, percentage or formula that precludes the provision of a dollar amount"
+            }
+          ]
+        },
+        {
+          "dimension": "interpretability",
+          "text": "Some payer rates in the file are expressed as percentages rather than dollar amounts. The data dictionary explains that when a dollar amount cannot be calculated, the hospital should encode the percentage value numerically — for example, 70.5% is entered as \"70.5\" and not \".705\".",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#28",
+              "quote": "encode the \"Payer-Specific Negotiated Charge Percentage\" data element. This data element will contain the numeric representation of the percentage, not as a decimal (70.5% is to be entered as \"70.5\" and not \".705\")"
+            }
+          ]
+        },
+        {
+          "dimension": "interpretability",
+          "text": "When percentage or algorithm rates are used, the data dictionary requires that the file also include corresponding allowed amounts and a count of allowed amounts for each item or service, so readers have the information needed to derive an actual dollar figure.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#28",
+              "quote": "If the \"Payer-Specific Negotiated Charge: Percentage\" or \"Payer-Specific Negotiated Charge: Algorithm\" data elements are encoded, then also encode the corresponding allowed amounts and count of allowed amount data elements for that item or service."
+            }
+          ]
+        },
+        {
+          "dimension": "interpretability",
+          "text": "The hospital's attestation statement, embedded in the file, states that all necessary information has been provided for the public to derive a dollar amount from any percentage or algorithm rate, including the specific fee schedule or components referenced in such a formula.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#12",
+              "quote": "has provided all necessary information available to the hospital for the public to be able to derive the dollar amount, including, but not limited to, the specific fee schedule or components referenced in such percentage, algorithm or formula"
+            }
+          ]
+        }
+      ],
+      "input_tokens": 2382,
+      "output_tokens": 760
+    },
+    {
+      "index": 6,
+      "subject": "Mercer County Joint Township Community Hospital",
+      "grade": "A",
+      "finding_codes": [
+        "INTERPRETABILITY_ALGORITHM_RATES",
+        "INTERPRETABILITY_PERCENTAGE_RATES"
+      ],
+      "offered_passages": 5,
+      "uncited_sources": [],
+      "claims_generated": 6,
+      "claims_shown": 6,
+      "claims_withheld": 0,
+      "withheld_reasons": [],
+      "claims": [
+        {
+          "dimension": "retrievability",
+          "text": "The file was successfully downloaded on 2026-08-19, confirming it is publicly accessible at its listed URL.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#44",
+              "quote": "If a \"Payers Information\" object is encoded, then there must be a value for at least one of the following attributes"
+            }
+          ]
+        },
+        {
+          "dimension": null,
+          "text": "The overall grade is A because every assessed dimension was completed with no error or warning findings; only informational (INFO) observations were noted, and those do not lower the grade.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#10",
+              "quote": "this hospital has included all applicable standard charge information in accordance with the requirements of 45 CFR 180.50"
+            }
+          ]
+        },
+        {
+          "dimension": "interpretability",
+          "text": "Some payer rates in the file are encoded as algorithms rather than direct dollar amounts. When a charge cannot be expressed as a dollar amount, the CMS data dictionary allows the hospital to instead provide the contractual algorithm along with enough information for the public to derive the dollar amount.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#10",
+              "quote": "the hospital attests that the payer-specific negotiated charge is based on a contractual algorithm, percentage or formula that precludes the provision of a dollar amount and has provided all necessary information available to the hospital for the public to be able to derive the dollar amount"
+            }
+          ]
+        },
+        {
+          "dimension": "interpretability",
+          "text": "Some payer rates in the file are encoded as percentages rather than direct dollar amounts. The data dictionary specifies that a percentage should be encoded when a dollar amount cannot be calculated or when the charge is a base rate modified by a percentage.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#28",
+              "quote": "If the payer-specific negotiated charge is a percentage for which a dollar amount cannot be calculated or is a base rate modified by a percentage, encode the \"Payer-Specific Negotiated Charge Percentage\" data element."
+            }
+          ]
+        },
+        {
+          "dimension": "interpretability",
+          "text": "When percentage or algorithm rates are used, the data dictionary requires that corresponding allowed amounts and count of allowed amounts also be encoded for that item or service.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#28",
+              "quote": "If the \"Payer-Specific Negotiated Charge: Percentage\" or \"Payer-Specific Negotiated Charge: Algorithm\" data elements are encoded, then also encode the corresponding allowed amounts and count of allowed amount data elements for that item or service."
+            }
+          ]
+        },
+        {
+          "dimension": "interpretability",
+          "text": "Because algorithm- and percentage-encoded rates are not expressed as direct dollar figures, they are counted separately from dollar-denominated rates; this is noted as an informational observation and does not constitute an error or warning under the grading rules.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#44",
+              "quote": "If a \"Payer-Specific Negotiated Charge: Percentage\" or a \"Payer-Specific Negotiated Charge: Algorithm\" is encoded, then the \"Count of Allowed Amounts\" is required."
+            }
+          ]
+        }
+      ],
+      "input_tokens": 2369,
+      "output_tokens": 708
+    },
+    {
+      "index": 7,
+      "subject": "NMC Health",
+      "grade": "B",
+      "finding_codes": [
+        "FRESHNESS_ANNUAL_UPDATE_OVERDUE"
+      ],
+      "offered_passages": 3,
+      "uncited_sources": [],
+      "claims_generated": 5,
+      "claims_shown": 5,
+      "claims_withheld": 0,
+      "withheld_reasons": [],
+      "claims": [
+        {
+          "dimension": "retrievability",
+          "text": "The file was successfully downloaded on 2026-08-19, meaning it is publicly accessible at the URL where NMC Health posted it.",
+          "citations": [
+            {
+              "passage_id": "cfr-45-part-180#37",
+              "quote": "the date 12 months after the date of the last annual update specified in information posted by the hospital"
+            }
+          ]
+        },
+        {
+          "dimension": null,
+          "text": "The file contains no structural errors and passed all checks for conformance, completeness, and interpretability; the only issue recorded was a warning about the file's age.",
+          "citations": [
+            {
+              "passage_id": "cfr-45-part-180#30",
+              "quote": "Provide a written warning notice to the hospital of the specific violation(s)"
+            }
+          ]
+        },
+        {
+          "dimension": "freshness",
+          "text": "The freshness dimension received a warning because the file's source date of 2025-06-30 is more than one year before the assessment date of 2026-08-19.",
+          "citations": [
+            {
+              "passage_id": "cfr-45-part-180#37",
+              "quote": "the date 12 months after the date of the last annual update specified in information posted by the hospital"
+            }
+          ]
+        },
+        {
+          "dimension": "freshness",
+          "text": "The regulation requires hospitals to update their machine-readable price file at least once every 12 months; a file whose stated date falls more than 12 months in the past has not met that annual-update cadence.",
+          "citations": [
+            {
+              "passage_id": "cfr-45-part-180#37",
+              "quote": "If a hospital previously met the requirements of this part but did not update the information annually as required, the date 12 months after the date of the last annual update specified in information posted by the hospital"
+            }
+          ]
+        },
+        {
+          "dimension": null,
+          "text": "Because the finding is a warning rather than a higher-severity error, the file still earned a grade of B overall, reflecting that price data is present and readable but the update timing is the one area flagged for attention.",
+          "citations": [
+            {
+              "passage_id": "cfr-45-part-180#30",
+              "quote": "CMS may take any of the following actions, which generally, but not necessarily, will occur in the following order"
+            }
+          ]
+        }
+      ],
+      "input_tokens": 1774,
+      "output_tokens": 487
+    },
+    {
+      "index": 8,
+      "subject": "Northside Hospital Duluth",
+      "grade": "F",
+      "finding_codes": [
+        "MRF_AUTOMATION_BARRIER_OBSERVED"
+      ],
+      "offered_passages": 3,
+      "uncited_sources": [
+        "https://www.cms.gov/files/document/hpt-policy-faqs-june-2026.pdf"
+      ],
+      "claims_generated": 4,
+      "claims_shown": 4,
+      "claims_withheld": 0,
+      "withheld_reasons": [],
+      "claims": [
+        {
+          "dimension": "retrievability",
+          "text": "On 2026-08-19, an automated attempt to download Northside Hospital Duluth's machine-readable file (MRF) — the file hospitals are required to post containing their standard charges — returned an HTTP 403 error, meaning the server actively refused the request.",
+          "citations": [
+            {
+              "passage_id": "cfr-45-part-180#44",
+              "quote": "failed to make public an MRF as required at § 180.40(a)"
+            }
+          ]
+        },
+        {
+          "dimension": null,
+          "text": "Because the download was blocked by the HTTP 403 response, no file was retrieved and verified, so the automated system could not evaluate the file's conformance, completeness, interpretability, or freshness — those four dimensions were each marked NOT_ASSESSED.",
+          "citations": [
+            {
+              "passage_id": "cfr-45-part-180#44",
+              "quote": "failed to make public an MRF as required at § 180.40(a) or failed to make public a consumer-friendly list of standard charges as required at § 180.40(b)"
+            }
+          ]
+        },
+        {
+          "dimension": "retrievability",
+          "text": "An MRF is the machine-readable file that hospitals must post publicly; without a downloadable file, automated tools and members of the public alike cannot read the hospital's standard charges, including figures such as the median allowed amount — defined as the median of the total allowed amounts the hospital has historically received from a third party payer for an item or service.",
+          "citations": [
+            {
+              "passage_id": "cfr-45-part-180#5",
+              "quote": "Median allowed amount means the median of the total allowed amounts the hospital has historically received from a third party payer for an item or service for a time period no less than 12 months and no longer than 15 months prior to posting the machine-readable file."
+            }
+          ]
+        },
+        {
+          "dimension": "retrievability",
+          "text": "The retrievability finding is described as a dated technical observation: the HTTP 403 barrier was recorded at the specific moment of 2026-08-19T16:05:56.736157Z after one download attempt, and conditions could differ at other times or from other network locations.",
+          "citations": [
+            {
+              "passage_id": "cfr-45-part-180#44",
+              "quote": "The hospital does not request to waive its right to a hearing in accordance with this paragraph"
+            }
+          ]
+        }
+      ],
+      "input_tokens": 1696,
+      "output_tokens": 521
+    },
+    {
+      "index": 9,
+      "subject": "Portsmouth Regional Hospital",
+      "grade": "A",
+      "finding_codes": [
+        "INTERPRETABILITY_ALGORITHM_RATES",
+        "INTERPRETABILITY_PERCENTAGE_RATES"
+      ],
+      "offered_passages": 5,
+      "uncited_sources": [],
+      "claims_generated": 6,
+      "claims_shown": 6,
+      "claims_withheld": 0,
+      "withheld_reasons": [],
+      "claims": [
+        {
+          "dimension": null,
+          "text": "Portsmouth Regional Hospital's price-transparency file earned a grade of A, meaning every assessed dimension completed with no error or warning findings.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#10",
+              "quote": "this hospital has included all applicable standard charge information in accordance with the requirements of 45 CFR 180.50, and the information encoded is true, accurate, and complete as of the date in the file"
+            }
+          ]
+        },
+        {
+          "dimension": "retrievability",
+          "text": "The file was successfully downloaded on 2026-08-19, confirming it was publicly reachable at that time.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#12",
+              "quote": "the information encoded is true, accurate, and complete as of the date in the file"
+            }
+          ]
+        },
+        {
+          "dimension": "interpretability",
+          "text": "Some payer rates in the file are expressed as algorithms rather than dollar amounts; the CMS data dictionary allows this when a dollar amount cannot be calculated or is not knowable in advance, provided the hospital supplies enough information for the public to derive the dollar amount.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#10",
+              "quote": "For payer-specific negotiated charges that cannot be expressed as a dollar amount in the machine-readable file or not knowable in advance, the hospital attests that the payer-specific negotiated charge is based on a contractual algorithm, percentage or formula that precludes the provision of a dollar amount and has provided all necessary information available to the hospital for the public to be able to derive the dollar amount"
+            }
+          ]
+        },
+        {
+          "dimension": "interpretability",
+          "text": "Some payer rates in the file are expressed as percentages rather than dollar amounts; the data dictionary permits this when a dollar amount cannot be calculated, and requires encoding the numeric percentage (for example, 70.5% is entered as \"70.5\" and not \".705\").",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#28",
+              "quote": "If the payer-specific negotiated charge is a percentage for which a dollar amount cannot be calculated or is a base rate modified by a percentage, encode the \"Payer-Specific Negotiated Charge Percentage\" data element. This data element will contain the numeric representation of the percentage, not as a decimal (70.5% is to be entered as \"70.5\" and not \".705\")"
+            }
+          ]
+        },
+        {
+          "dimension": "interpretability",
+          "text": "When percentage or algorithm rates are present, the data dictionary also requires that corresponding allowed amounts and count of allowed amounts be encoded alongside them.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#28",
+              "quote": "If the \"Payer-Specific Negotiated Charge: Percentage\" or \"Payer-Specific Negotiated Charge: Algorithm\" data elements are encoded, then also encode the corresponding allowed amounts and count of allowed amount data elements for that item or service"
+            }
+          ]
+        },
+        {
+          "dimension": "interpretability",
+          "text": "Because algorithm- and percentage-encoded rates are not directly expressed as dollar figures, the grader counted them separately from dollar-denominated rates; this is noted as an informational observation and does not lower the file's grade.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#10",
+              "quote": "This hospital has included all payer-specific negotiated charges in dollars that can be expressed as a dollar amount"
+            }
+          ]
+        }
+      ],
+      "input_tokens": 2370,
+      "output_tokens": 748
+    },
+    {
+      "index": 10,
+      "subject": "Rio Grande Regional Hospital",
+      "grade": "F",
+      "finding_codes": [
+        "MRF_DIRECT_DOWNLOAD_FAILED"
+      ],
+      "offered_passages": 3,
+      "uncited_sources": [],
+      "claims_generated": 5,
+      "claims_shown": 5,
+      "claims_withheld": 0,
+      "withheld_reasons": [],
+      "claims": [
+        {
+          "dimension": "retrievability",
+          "text": "When the grader attempted to download the machine-readable file (MRF) for Rio Grande Regional Hospital on 2026-08-19, the server returned an HTTP 409 error, meaning the file could not be retrieved.",
+          "citations": [
+            {
+              "passage_id": "cfr-45-part-180#44",
+              "quote": "The hospital does not request to waive its right to a hearing in accordance with this paragraph"
+            }
+          ]
+        },
+        {
+          "dimension": "retrievability",
+          "text": "The specific error message returned was \"Public access is not permitted on this storage account,\" which means the file's storage location is configured to block public access.",
+          "citations": [
+            {
+              "passage_id": "cfr-45-part-180#33",
+              "quote": "A hospital's failure to make public its standard charges required by § 180.40."
+            }
+          ]
+        },
+        {
+          "dimension": null,
+          "text": "Because the file could not be downloaded, none of the other dimensions — conformance, completeness, interpretability, or freshness — could be assessed; there was simply no file content to evaluate.",
+          "citations": [
+            {
+              "passage_id": "cfr-45-part-180#33",
+              "quote": "A hospital's failure to make public its standard charges in the form and manner required under §§ 180.50 and 180.60."
+            }
+          ]
+        },
+        {
+          "dimension": "retrievability",
+          "text": "The regulation requires hospitals to make their standard charges publicly available, and a storage account that blocks public access prevents any member of the public from reaching that file.",
+          "citations": [
+            {
+              "passage_id": "cfr-45-part-180#33",
+              "quote": "A hospital's failure to make public its standard charges required by § 180.40."
+            }
+          ]
+        },
+        {
+          "dimension": null,
+          "text": "Because no verified file was obtained, the overall grade for this assessment is F, reflecting that the download attempt did not produce a file that could be graded on any dimension.",
+          "citations": [
+            {
+              "passage_id": "cfr-45-part-180#44",
+              "quote": "failed to make public an MRF as required at § 180.40(a) or failed to make public a consumer-friendly list of standard charges as required at § 180.40(b)."
+            }
+          ]
+        }
+      ],
+      "input_tokens": 1765,
+      "output_tokens": 485
+    },
+    {
+      "index": 11,
+      "subject": "St. Elizabeth Healthcare Florence",
+      "grade": "A",
+      "finding_codes": [
+        "JSON_UTF8_BOM_PRESENT",
+        "INTERPRETABILITY_ALGORITHM_RATES"
+      ],
+      "offered_passages": 6,
+      "uncited_sources": [],
+      "claims_generated": 7,
+      "claims_shown": 7,
+      "claims_withheld": 0,
+      "withheld_reasons": [],
+      "claims": [
+        {
+          "dimension": null,
+          "text": "St. Elizabeth Healthcare Florence received a grade of A because every assessed dimension was completed with no error or warning findings; only informational observations were noted, and those do not lower the grade.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#1",
+              "quote": "Developers of MRFs should generally consider and adopt established standards and industry norms for JSON files when creating the MRF."
+            }
+          ]
+        },
+        {
+          "dimension": "retrievability",
+          "text": "The file was successfully downloaded on 2026-08-19 from the hospital's published URL, confirming it was retrievable at the time of assessment.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#1",
+              "quote": "Developers of MRFs should generally consider and adopt established standards and industry norms for JSON files when creating the MRF."
+            }
+          ]
+        },
+        {
+          "dimension": "conformance",
+          "text": "One informational note was recorded for the conformance dimension: the file began with a UTF-8 byte-order mark (a hidden character some software adds to the start of a text file). This was tolerated and did not count as an error or warning.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#1",
+              "quote": "Developers of MRFs should generally consider and adopt established standards and industry norms for JSON files when creating the MRF. For more information on the JSON schema standards, visit"
+            }
+          ]
+        },
+        {
+          "dimension": "interpretability",
+          "text": "One informational note was recorded for the interpretability dimension: some payer rates in the file are expressed as algorithms rather than dollar amounts. The CMS data dictionary recognizes this practice — when a charge cannot be expressed as a dollar amount, the hospital may instead encode a contractual algorithm and provide the information needed for the public to derive the dollar amount.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#10",
+              "quote": "For payer-specific negotiated charges that cannot be expressed as a dollar amount in the machine-readable file or not knowable in advance, the hospital attests that the payer-specific negotiated charge is based on a contractual algorithm, percentage or formula that precludes the provision of a dollar amount and has provided all necessary information available to the hospital for the public to be able to derive the dollar amount, including, but not limited to, the specific fee schedule or components referenced in such percentage, algorithm or formula."
+            }
+          ]
+        },
+        {
+          "dimension": "interpretability",
+          "text": "When algorithm-encoded rates are used, the CMS data dictionary requires a 'Count of Allowed Amounts' to accompany each such rate entry, as stated in the conditional requirements.",
           "citations": [
             {
               "passage_id": "cms-json-data-dictionary#44",
@@ -829,32 +866,32 @@
           ]
         },
         {
-          "dimension": "interpretability",
-          "text": "Some payer rates in the file are encoded as percentages rather than dollar amounts; percentage-encoded rates similarly are not directly dollar-denominated, and the data dictionary notes that a percentage should be entered as a numeric value (for example, 70.5% is entered as \"70.5\" and not \".705\") rather than as a dollar figure.",
+          "dimension": "completeness",
+          "text": "The file includes an attestation statement, which is the hospital's formal declaration that all standard charge information has been included and is true, accurate, and complete as of the file date, as required by 45 CFR 180.50.",
           "citations": [
             {
-              "passage_id": "cms-json-data-dictionary#28",
-              "quote": "This data element will contain the numeric representation of the percentage, not as a decimal (70.5% is to be entered as \"70.5\" and not \".705\")."
+              "passage_id": "cms-json-data-dictionary#10",
+              "quote": "To the best of its knowledge and belief, this hospital has included all applicable standard charge information in accordance with the requirements of 45 CFR 180.50, and the information encoded is true, accurate, and complete as of the date in the file."
             }
           ]
         },
         {
-          "dimension": "interpretability",
-          "text": "When a payer-specific negotiated charge cannot be expressed as a dollar amount, the attestation statement in the data dictionary describes what the hospital must confirm: that the charge is based on a contractual algorithm, percentage, or formula and that all necessary information has been provided for the public to derive the dollar amount.",
+          "dimension": "completeness",
+          "text": "The CMS data dictionary specifies that a value of 'true' for the confirm_attestation field is required to meet the attestation regulatory requirement under 45 CFR 180.50(a)(3).",
           "citations": [
             {
-              "passage_id": "cms-json-data-dictionary#10",
-              "quote": "the hospital attests that the payer-specific negotiated charge is based on a contractual algorithm, percentage or formula that precludes the provision of a dollar amount and has provided all necessary information available to the hospital for the public to be able to derive the dollar amount"
+              "passage_id": "cms-json-data-dictionary#11",
+              "quote": "While \"true\" or \"false\" is accepted from a form and manner perspective, a value of \"true\" is required to meet the attestation regulatory requirement (45 CFR 180.50(a)(3))."
             }
           ]
         }
       ],
-      "input_tokens": 3101,
-      "output_tokens": 760
+      "input_tokens": 2245,
+      "output_tokens": 910
     },
     {
-      "index": 11,
-      "subject": "University of California Davis Medical Center",
+      "index": 12,
+      "subject": "Stanford Health Care",
       "grade": "A",
       "finding_codes": [
         "JSON_UTF8_BOM_PRESENT",
@@ -870,7 +907,7 @@
       "claims": [
         {
           "dimension": "retrievability",
-          "text": "The file was found at a publicly accessible URL and its contents were verified, which satisfies the retrievability requirement for a machine-readable file (MRF).",
+          "text": "The file was successfully located and downloaded from Stanford Health Care's website, confirming it is publicly accessible.",
           "citations": [
             {
               "passage_id": "cms-json-data-dictionary#1",
@@ -880,17 +917,95 @@
         },
         {
           "dimension": "conformance",
-          "text": "The file begins with a UTF-8 byte-order mark (BOM), a character sequence sometimes added to the start of a text file; this was recorded as an informational observation only and did not count as an error.",
+          "text": "The file begins with a UTF-8 byte-order mark (BOM), which is an optional marker sometimes added to the start of a text file to indicate its encoding. The grader detected this marker, recorded it as an informational note, and tolerated it without penalizing the file.",
           "citations": [
             {
               "passage_id": "cms-json-data-dictionary#1",
-              "quote": "Developers of MRFs should generally consider and adopt established standards and industry norms for JSON files when creating the MRF. For more information on the JSON schema standards"
+              "quote": "Developers of MRFs should generally consider and adopt established standards and industry norms for JSON files when creating the MRF."
             }
           ]
         },
         {
           "dimension": "interpretability",
-          "text": "Some payer rates in the file are expressed as algorithms rather than dollar amounts; the CMS data dictionary treats algorithm-encoded charges as a permitted alternative when a dollar amount cannot be calculated in advance.",
+          "text": "Some payer rates in the file are expressed as algorithms rather than dollar amounts. The CMS data dictionary recognizes that certain negotiated charges cannot be expressed as a dollar amount and permits algorithm-encoded rates, provided the hospital supplies enough information for the public to derive the dollar amount.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#10",
+              "quote": "For payer-specific negotiated charges that cannot be expressed as a dollar amount in the machine-readable file or not knowable in advance, the hospital attests that the payer-specific negotiated charge is based on a contractual algorithm, percentage or formula that precludes the provision of a dollar amount and has provided all necessary information available to the hospital for the public to be able to derive the dollar amount"
+            }
+          ]
+        },
+        {
+          "dimension": "interpretability",
+          "text": "Some payer rates in the file are expressed as percentages rather than dollar amounts. The data dictionary states that if a dollar amount cannot be calculated from a percentage, the hospital should encode the 'Payer-Specific Negotiated Charge Percentage' data element and also include corresponding allowed-amount data.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#28",
+              "quote": "If the payer-specific negotiated charge is a percentage for which a dollar amount cannot be calculated or is a base rate modified by a percentage, encode the \"Payer-Specific Negotiated Charge Percentage\" data element."
+            }
+          ]
+        },
+        {
+          "dimension": "interpretability",
+          "text": "Because algorithm- and percentage-encoded rates are not direct dollar figures, the grader counts them separately from dollar-denominated rates. These are recorded as informational observations and do not lower the file's grade.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#44",
+              "quote": "If a \"Payers Information\" object is encoded, then there must be a value for at least one of the following attributes in that object: \"Payer-Specific Negotiated Charge: Dollar Amount\", \"Payer-Specific Negotiated Charge: Percentage\", \"Payer-Specific Negotiated Charge: Algorithm\"."
+            }
+          ]
+        },
+        {
+          "dimension": null,
+          "text": "All assessed dimensions — retrievability, conformance, completeness, interpretability, and freshness — were completed with no error or warning findings, resulting in an overall grade of A.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#11",
+              "quote": "While \"true\" or \"false\" is accepted from a form and manner perspective, a value of \"true\" is required to meet the attestation regulatory requirement (45 CFR 180.50(a)(3))."
+            }
+          ]
+        }
+      ],
+      "input_tokens": 2897,
+      "output_tokens": 797
+    },
+    {
+      "index": 13,
+      "subject": "Stanford Health Care Tri-Valley",
+      "grade": "A",
+      "finding_codes": [
+        "INTERPRETABILITY_ALGORITHM_RATES"
+      ],
+      "offered_passages": 3,
+      "uncited_sources": [],
+      "claims_generated": 6,
+      "claims_shown": 6,
+      "claims_withheld": 0,
+      "withheld_reasons": [],
+      "claims": [
+        {
+          "dimension": null,
+          "text": "Stanford Health Care Tri-Valley received a grade of A, meaning every assessed dimension was completed with no error or warning findings.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#10",
+              "quote": "this hospital has included all applicable standard charge information in accordance with the requirements of 45 CFR 180.50, and the information encoded is true, accurate, and complete as of the date in the file"
+            }
+          ]
+        },
+        {
+          "dimension": "retrievability",
+          "text": "The file was successfully retrieved and validated; the grader confirmed a cached copy at a specific web address on 2026-08-19.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#10",
+              "quote": "this hospital has included all applicable standard charge information in accordance with the requirements of 45 CFR 180.50, and the information encoded is true, accurate, and complete as of the date in the file"
+            }
+          ]
+        },
+        {
+          "dimension": "interpretability",
+          "text": "Some payer-specific negotiated charges in the file are expressed as an algorithm rather than a direct dollar amount; this is an allowed format under the rules.",
           "citations": [
             {
               "passage_id": "cms-json-data-dictionary#10",
@@ -900,17 +1015,7 @@
         },
         {
           "dimension": "interpretability",
-          "text": "Some payer rates in the file are expressed as percentages rather than dollar amounts; the data dictionary requires that when a percentage-encoded charge is used, the file must also include corresponding allowed amounts and count of allowed amounts for that item or service.",
-          "citations": [
-            {
-              "passage_id": "cms-json-data-dictionary#28",
-              "quote": "If the \"Payer-Specific Negotiated Charge: Percentage\" or \"Payer-Specific Negotiated Charge: Algorithm\" data elements are encoded, then also encode the corresponding allowed amounts and count of allowed amount data elements for that item or service."
-            }
-          ]
-        },
-        {
-          "dimension": "interpretability",
-          "text": "Because algorithm- and percentage-encoded rates are not expressed as a direct dollar figure, they are counted separately from dollar-denominated rates; this was recorded as an informational observation and did not lower the grade.",
+          "text": "When a payer rate is encoded as an algorithm instead of a dollar amount, the CMS data dictionary requires the file to also include a 'Count of Allowed Amounts' field so that the algorithm-based charge can be placed in context.",
           "citations": [
             {
               "passage_id": "cms-json-data-dictionary#44",
@@ -919,18 +1024,256 @@
           ]
         },
         {
-          "dimension": null,
-          "text": "The overall grade is A because every assessed dimension was completed with no error or warning findings; informational (INFO) observations are tolerated and do not reduce the grade.",
+          "dimension": "interpretability",
+          "text": "Because algorithm-encoded rates are not expressed as direct dollar figures, the grader counted them separately from dollar-denominated rates; this observation is logged at the INFO level and does not lower the grade.",
           "citations": [
             {
-              "passage_id": "cms-json-data-dictionary#11",
-              "quote": "While \"true\" or \"false\" is accepted from a form and manner perspective, a value of \"true\" is required to meet the attestation regulatory requirement (45 CFR 180.50(a)(3))."
+              "passage_id": "cms-json-data-dictionary#10",
+              "quote": "This hospital has included all payer-specific negotiated charges in dollars that can be expressed as a dollar amount. For payer-specific negotiated charges that cannot be expressed as a dollar amount in the machine-readable file or not knowable in advance"
+            }
+          ]
+        },
+        {
+          "dimension": "interpretability",
+          "text": "The hospital's attestation statement affirms that where an algorithm is used, all necessary information has been provided so that the public can derive the dollar amount, including any referenced fee schedule or formula components.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#10",
+              "quote": "has provided all necessary information available to the hospital for the public to be able to derive the dollar amount, including, but not limited to, the specific fee schedule or components referenced in such percentage, algorithm or formula"
+            }
+          ]
+        }
+      ],
+      "input_tokens": 1725,
+      "output_tokens": 710
+    },
+    {
+      "index": 14,
+      "subject": "University of California Davis Medical Center",
+      "grade": "A",
+      "finding_codes": [
+        "JSON_UTF8_BOM_PRESENT",
+        "INTERPRETABILITY_ALGORITHM_RATES",
+        "INTERPRETABILITY_PERCENTAGE_RATES"
+      ],
+      "offered_passages": 8,
+      "uncited_sources": [],
+      "claims_generated": 6,
+      "claims_shown": 5,
+      "claims_withheld": 1,
+      "withheld_reasons": [
+        [
+          "cms-json-data-dictionary#44: quote does not occur in the source text (quote: 'If a \"Payer-Specific Negotiated Charge: Dollar Amount\" encoded, there must be a corresponding valid value encoded for th')"
+        ]
+      ],
+      "claims": [
+        {
+          "dimension": "retrievability",
+          "text": "The file was found at a specific public URL and its contents were verified by a cryptographic checksum, confirming the file could be retrieved.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#1",
+              "quote": "Developers of MRFs should generally consider and adopt established standards and industry norms for JSON files when creating the MRF."
+            }
+          ]
+        },
+        {
+          "dimension": "conformance",
+          "text": "The file begins with a UTF-8 byte-order mark (BOM), which is an optional sequence of bytes that some software adds to the start of a text file to signal its encoding; the grader tolerated this and recorded it as an informational note only, so it did not lower the grade.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#1",
+              "quote": "Developers of MRFs should generally consider and adopt established standards and industry norms for JSON files when creating the MRF."
+            }
+          ]
+        },
+        {
+          "dimension": "interpretability",
+          "text": "Some payer rates in the file are expressed as percentages rather than dollar amounts; the CMS data dictionary explains that when a dollar amount cannot be calculated, the numeric percentage should be encoded in the \"Payer-Specific Negotiated Charge: Percentage\" field rather than converted to dollars.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#28",
+              "quote": "If the payer-specific negotiated charge is a percentage for which a dollar amount cannot be calculated or is a base rate modified by a percentage, encode the \"Payer-Specific Negotiated Charge Percentage\" data element."
+            }
+          ]
+        },
+        {
+          "dimension": "interpretability",
+          "text": "When percentage- or algorithm-encoded rates are used, the data dictionary requires that allowed-amount statistics also be included so that a reader can understand the range of actual payments made under those arrangements.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#45",
+              "quote": "If a \"Payer-Specific Negotiated Charge: Percentage\" or a \"Payer-Specific Negotiated Charge: Algorithm\" is encoded, then the \"10th Percentile Allowed Amount\", \"Median Allowed Amount\", \"90th Percentile Allowed Amount\" are required (unless the \"Count of Allowed Amounts\" is \"0\")."
+            }
+          ]
+        },
+        {
+          "dimension": null,
+          "text": "The file received a grade of A because every assessed dimension was completed without any error or warning findings; the three informational observations noted above do not count against the grade.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#10",
+              "quote": "This hospital has included all payer-specific negotiated charges in dollars that can be expressed as a dollar amount. For payer-specific negotiated charges that cannot be expressed as a dollar amount in the machine-readable file or not knowable in advance, the hospital attests that the payer-specific negotiated charge is based on a contractual algorithm, percentage or formula that precludes the provision of a dollar amount and has provided all necessary information available to the hospital for the public to be able to derive the dollar amount"
             }
           ]
         }
       ],
       "input_tokens": 2898,
-      "output_tokens": 726
+      "output_tokens": 825
+    },
+    {
+      "index": 15,
+      "subject": "University of Cincinnati Medical Center",
+      "grade": "A",
+      "finding_codes": [
+        "JSON_UTF8_BOM_PRESENT",
+        "INTERPRETABILITY_ALGORITHM_RATES",
+        "INTERPRETABILITY_PERCENTAGE_RATES"
+      ],
+      "offered_passages": 8,
+      "uncited_sources": [],
+      "claims_generated": 6,
+      "claims_shown": 5,
+      "claims_withheld": 1,
+      "withheld_reasons": [
+        [
+          "cms-json-data-dictionary#44: quote does not occur in the source text (quote: 'If a \"Payer-Specific Negotiated Charge: Dollar Amount\" encoded, there must be a corresponding valid value encoded for th')"
+        ]
+      ],
+      "claims": [
+        {
+          "dimension": null,
+          "text": "The file earned an overall grade of A because every assessed dimension was completed with no error or warning findings; only informational observations were recorded, and those do not lower a grade.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#1",
+              "quote": "Developers of MRFs should generally consider and adopt established standards and industry norms for JSON files when creating the MRF."
+            }
+          ]
+        },
+        {
+          "dimension": "conformance",
+          "text": "The file begins with a UTF-8 byte-order mark (BOM), a small sequence of bytes sometimes added to the start of a text file to signal its encoding. The grader tolerated and recorded this as an informational note only, meaning it did not trigger an error or reduce the grade.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#1",
+              "quote": "Developers of MRFs should generally consider and adopt established standards and industry norms for JSON files when creating the MRF."
+            }
+          ]
+        },
+        {
+          "dimension": null,
+          "text": "Some payer rates in the file are expressed as a percentage rather than a dollar amount. The data dictionary instructs that when a dollar amount cannot be calculated, the numeric percentage should be encoded in the",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#28",
+              "quote": "If the payer-specific negotiated charge is a percentage for which a dollar amount cannot be calculated or is a base rate modified by a percentage, encode the \"Payer-Specific Negotiated Charge Percentage\" data element."
+            }
+          ]
+        },
+        {
+          "dimension": "interpretability",
+          "text": "When percentage- or algorithm-encoded rates are present, the data dictionary requires that corresponding allowed-amount data elements also be encoded, including the 10th percentile, median, and 90th percentile allowed amounts, unless the count of allowed amounts is zero.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#45",
+              "quote": "If a \"Payer-Specific Negotiated Charge: Percentage\" or a \"Payer-Specific Negotiated Charge: Algorithm\" is encoded, then the \"10th Percentile Allowed Amount\", \"Median Allowed Amount\", \"90th Percentile Allowed Amount\" are required (unless the \"Count of Allowed Amounts\" is \"0\")."
+            }
+          ]
+        },
+        {
+          "dimension": "retrievability",
+          "text": "The file was retrieved from a publicly accessible URL and its contents were verified with a SHA-256 checksum, confirming the file was available and intact at the time of assessment.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#1",
+              "quote": "Developers of MRFs should generally consider and adopt established standards and industry norms for JSON files when creating the MRF. For more information on the JSON schema standards, visit"
+            }
+          ]
+        }
+      ],
+      "input_tokens": 2893,
+      "output_tokens": 876
+    },
+    {
+      "index": 16,
+      "subject": "West Chester Hospital",
+      "grade": "A",
+      "finding_codes": [
+        "JSON_UTF8_BOM_PRESENT",
+        "INTERPRETABILITY_ALGORITHM_RATES",
+        "INTERPRETABILITY_PERCENTAGE_RATES"
+      ],
+      "offered_passages": 8,
+      "uncited_sources": [],
+      "claims_generated": 6,
+      "claims_shown": 6,
+      "claims_withheld": 0,
+      "withheld_reasons": [],
+      "claims": [
+        {
+          "dimension": null,
+          "text": "West Chester Hospital's price-transparency file received a grade of A because every assessed dimension was completed with no error or warning findings; only informational (INFO) observations were noted, and those do not lower a grade.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#1",
+              "quote": "Developers of MRFs should generally consider and adopt established standards and industry norms for JSON files when creating the MRF."
+            }
+          ]
+        },
+        {
+          "dimension": "retrievability",
+          "text": "The file was successfully retrieved from a public URL and its contents were verified by a SHA-256 checksum, confirming the file is accessible.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#1",
+              "quote": "Developers of MRFs should generally consider and adopt established standards and industry norms for JSON files when creating the MRF."
+            }
+          ]
+        },
+        {
+          "dimension": "conformance",
+          "text": "The file begins with a UTF-8 byte-order mark (BOM), a small sequence of bytes sometimes added to the start of a text file to indicate its encoding; this was recorded as an INFO-level observation and was tolerated, meaning it did not count as an error or warning.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#1",
+              "quote": "Developers of MRFs should generally consider and adopt established standards and industry norms for JSON files when creating the MRF. For more information on the JSON schema standards, visit"
+            }
+          ]
+        },
+        {
+          "dimension": "interpretability",
+          "text": "Some payer rates in the file are expressed as algorithms rather than dollar amounts; the CMS data dictionary notes that when a payer-specific negotiated charge cannot be expressed as a dollar amount, the hospital must provide all necessary information for the public to derive that amount, including the specific fee schedule or components referenced in the algorithm.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#10",
+              "quote": "the hospital attests that the payer-specific negotiated charge is based on a contractual algorithm, percentage or formula that precludes the provision of a dollar amount and has provided all necessary information available to the hospital for the public to be able to derive the dollar amount, including, but not limited to, the specific fee schedule or components referenced in such percentage, algorithm or formula."
+            }
+          ]
+        },
+        {
+          "dimension": "interpretability",
+          "text": "Some payer rates in the file are expressed as percentages rather than dollar amounts; because these are not directly dollar-denominated, they are counted separately as an INFO-level observation. The data dictionary instructs that if a dollar amount cannot be calculated, the percentage should be encoded numerically — for example, 70.5% is entered as '70.5' and not '.705'.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#28",
+              "quote": "This data element will contain the numeric representation of the percentage, not as a decimal (70.5% is to be entered as \"70.5\" and not \".705\")."
+            }
+          ]
+        },
+        {
+          "dimension": "interpretability",
+          "text": "When percentage- or algorithm-encoded rates are present, the data dictionary requires that the 10th Percentile Allowed Amount, Median Allowed Amount, and 90th Percentile Allowed Amount also be encoded, unless the Count of Allowed Amounts is zero.",
+          "citations": [
+            {
+              "passage_id": "cms-json-data-dictionary#45",
+              "quote": "If a \"Payer-Specific Negotiated Charge: Percentage\" or a \"Payer-Specific Negotiated Charge: Algorithm\" is encoded, then the \"10th Percentile Allowed Amount\", \"Median Allowed Amount\", \"90th Percentile Allowed Amount\" are required (unless the \"Count of Allowed Amounts\" is \"0\")."
+            }
+          ]
+        }
+      ],
+      "input_tokens": 2893,
+      "output_tokens": 833
     }
   ],
   "errors": []

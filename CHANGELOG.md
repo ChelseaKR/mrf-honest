@@ -20,10 +20,10 @@ no version tags yet; until the first dated release (phase 5 of
   as an optional `ai` extra that only this layer imports; the standard-library boundary of
   ADR 0002 holds for everything on the graded path. `python -m mrf_honest.ai.eval` measures
   grounding; two recorded runs on Amazon Bedrock `global.anthropic.claude-sonnet-4-6` are
-  committed under `evals/ai/results/`: the 12 JSON scorecards produced 69 claims, 67 shown
-  (97.1%), 2 withheld; 8 CSV-cohort records produced 48 claims, 39 shown (81.3%), 9 withheld,
-  eight of them uncited statements about files that could not be graded and one a quote with a
-  dropped word. A verified citation proves the passage exists, not that the sentence reads it
+  committed under `evals/ai/results/`: the 17 records of the 2026-08-19 JSON cohort produced 95
+  claims, 91 shown (95.8%), 4 withheld (three altered quotes, one uncited statement); 8 records
+  of the 2026-08-19 CSV cohort produced 48 claims, 39 shown (81.3%), 9 withheld, eight of them
+  uncited statements about files that could not be graded and one a quote with a dropped word. A verified citation proves the passage exists, not that the sentence reads it
   correctly; no person has reviewed the prompt or the Spanish output. `README.md`,
   `docs/RESPONSIBLE-TECH-AUDITS.md`, and `docs/IMPLEMENTATION-PLAN.md` now say "no model on the
   graded path" rather than "no model component"; `docs/ROADMAP.md`'s audited dependency count
