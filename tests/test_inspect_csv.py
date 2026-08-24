@@ -366,6 +366,18 @@ def test_a_charge_without_any_code_pairing_is_incomplete(tmp_path: Path) -> None
     assert "CMS_CSV_CODE_PAIRING_MISSING" in _codes(inspection)
 
 
+def test_a_charged_row_without_codes_still_checks_description_and_setting(
+    tmp_path: Path,
+) -> None:
+    # Row with a standard gross charge, but blank description, codes, and setting
+    row = ",,,,,,,150.00,,,,,,,,,,,,,,,"
+    inspection = _tall(tmp_path, row)
+    codes = _codes(inspection)
+    assert "CMS_CSV_CODE_PAIRING_MISSING" in codes
+    assert "CMS_CSV_DESCRIPTION_MISSING" in codes
+    assert "CMS_CSV_SETTING_INVALID" in codes
+
+
 def test_a_code_without_its_type_is_unpaired(tmp_path: Path) -> None:
     row = TALL_DOLLAR_ROW.replace("70551,CPT", "70551,")
     inspection = _tall(tmp_path, row)

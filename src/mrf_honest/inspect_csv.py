@@ -1356,7 +1356,7 @@ def _check_item_completeness(
     any_payer_charge: bool,
 ) -> None:
     has_description = row.has("description")
-    if is_item:
+    if is_item or any_charge:
         if not has_description:
             book.add(
                 "CMS_CSV_DESCRIPTION_MISSING",
