@@ -250,6 +250,7 @@ Still open:
 | [docs/CONTEXT.md](docs/CONTEXT.md) | Why this project exists, what gaps it closes, when to build it |
 | [docs/DATA-LANDSCAPE.md](docs/DATA-LANDSCAPE.md) | What MRFs actually are, the schemas, the scale, the known pitfalls |
 | [docs/IMPLEMENTATION-PLAN.md](docs/IMPLEMENTATION-PLAN.md) | Phased build plan with decision points and stop conditions |
+| [docs/EXPANSION-PLAN.md](docs/EXPANSION-PLAN.md) | Phases 6 through 14: what is built next, what it depends on, and what only a person can do |
 | [docs/PHASE-0-FINDINGS.md](docs/PHASE-0-FINDINGS.md) | Measured phase-0 constraint study and the phase-1 streaming result |
 | [docs/PHASE-2-FINDINGS.md](docs/PHASE-2-FINDINGS.md) | Real-file lakehouse acceptance, counts, storage, and limits |
 | [docs/PHASE-3-FINDINGS.md](docs/PHASE-3-FINDINGS.md) | Fail-closed remote scorecard contract, verification, and limits |

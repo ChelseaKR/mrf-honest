@@ -9,6 +9,17 @@ no version tags yet; until the first dated release (phase 5 of
 
 ### Added
 
+- **A plan for phases 6 through 14 ([docs/EXPANSION-PLAN.md](docs/EXPANSION-PLAN.md)).**
+  [docs/IMPLEMENTATION-PLAN.md](docs/IMPLEMENTATION-PLAN.md) stopped at phase 5, with four of
+  phase 4's five boxes and six of phase 5's seven still unticked. The expansion plan continues it
+  in the same form across a two to three year arc: suppression and uncertainty (6), the published
+  statistic (7), the dataset and API (8), a read-only MCP server (9), the correction flow and the
+  record of what this project got wrong (10), the warehouse's second profile and ZIP containers
+  (11), the durability limits the ROADMAP declines to claim (12), the payer publisher class (13),
+  and cadence (14). Phase 14 also names, in one place, the four things no automation should do
+  here: sign a release tag, decide a service tier, perform the screen-reader pass, and retrieve
+  new evidence from publishers' servers.
+
 - **AI narration outside the graded path (ADR 0006, 2026-08-21).** `mrf-honest narrate` explains
   one already-graded assessment record in English or Spanish. The grade and findings are inputs
   the model cannot change; it is shown only passages from the documents the record's own
