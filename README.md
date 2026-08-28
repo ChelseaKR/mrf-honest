@@ -242,7 +242,8 @@ Still open:
   excluded rather than mis-graded);
 - safe concurrent-writer coordination, supported warehouse migrations, and a full SIGKILL/fsync
   crash matrix; and
-- the phase-5 dataset export, API, MCP server, and release process.
+- the phase-5 MCP server and release process. The dataset export and static JSON API landed:
+  `dataset.csv`, `dataset.schema.json` and `api/` are written by the same render as the pages.
 
 ## Documents
 

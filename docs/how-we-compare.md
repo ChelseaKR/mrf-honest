@@ -72,6 +72,14 @@ One JSON document per cohort, fully derived from persisted inputs:
   refusal in place of every share. See [ADR 0007](adr/0007-suppression-uncertainty-and-refusal.md)
   for the interval method, the suppression floor, and the five refusals.
 
+The same render writes `dataset.csv`, `dataset.schema.json` (a Frictionless Table Schema) and a
+static JSON API under `api/`, all derived from these same documents in the same run, so there is
+no second pipeline to drift from the pages. Every dataset row carries its cohort, profile,
+publisher type, URL provenance and all three policy fingerprints, because rows assessed under
+different profiles must never be pooled, and a grade with no profile beside it invites exactly
+that. `mrf_honest.dataset.missing_exports` runs on the deploy path and fails the publish when the
+written exports stop agreeing with the cohorts they came from.
+
 A refusal there is a published outcome, not an absence. A cohort with no sampling frame, a cohort
 whose only stratum is a convenience sample, and a cohort that accounts for part of a draw (the CSV
 cohort covers the 25 CSV-retrievable targets of a draw of 48; its sibling holds the rest) each
