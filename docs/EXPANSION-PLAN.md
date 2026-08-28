@@ -224,6 +224,34 @@ retrieval that this repository cannot perform for itself (see "What only a perso
 **Stop condition:** if payer index files turn out to be uniformly unretrievable under this
 project's politeness rules, record that as the finding and stop. It is a publishable result.
 
+### Why this phase is blocked, and what would unblock it
+
+Recorded here so it is not rediscovered, and so nothing here gets half-built to look started.
+
+Phase 0's unticked boxes are the blocker, and they say so in their own words: "Fetch **one**
+payer index file **by hand**. Record actual byte sizes," and "Attempt a naive `json.load()` on
+the payer file and watch it fail. Write down the number." Both are measurements of a real file.
+This repository's rule is that every published number is measured, never estimated, so neither
+can be satisfied without the file.
+
+A payer profile built with no real payer file would be built against imagination. That is exactly
+the mistake `docs/findings/` records this project making once already, with a six-file
+convenience cohort whose grades implied a landscape; the corrective was a stated frame and real
+files, not more code. Retrieval is also an operator-invoked act under the politeness gate, on
+files measured in gigabytes, from third-party servers, and `data/cache/` is not committed.
+
+**What would unblock it**, in order:
+
+1. The maintainer retrieves one payer index file and one in-network rates file, records their
+   byte sizes, and records the naive-parse failure.
+2. Their URLs enter the registry with how and when they were confirmed, under the existing rule
+   that no URL is guessed.
+3. CMS's published payer schema is vendored with its hash and retrieval date, the way the
+   hospital schema already is. This step needs nothing that is not already in the repository and
+   can be done the moment step 1 exists to calibrate against.
+
+Steps 1 and 2 are the maintainer's. Step 3 and everything after it are not.
+
 ---
 
 ## Phase 14: cadence, and the obligations only a person can discharge
