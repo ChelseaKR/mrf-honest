@@ -253,10 +253,12 @@ Still open:
   do small-cell suppression and uncertainty intervals (ADR 0007), but they are applied to the
   disposition of a drawn sample rather than to prices: **no price comparison is published
   anywhere**, and none will be until a rate comparison can carry its own uncertainty;
-- a payer-MRF pipeline, ZIP-container handling, and warehouse (lakehouse) support for the CSV
-  profile: the warehouse remains JSON-v3-only, so CSV cohort pages state that no contract
-  evidence exists rather than implying a pass (a `.zip` publication is still recorded and
-  excluded rather than mis-graded);
+- a payer-MRF pipeline, and warehouse (lakehouse) support for the CSV profile: the warehouse
+  remains JSON-v3-only, so CSV cohort pages state that no contract evidence exists rather than
+  implying a pass. ZIP containers are now read: `mrf-honest inspect` opens an archive, selects
+  the one document inside it, and refuses rather than choosing when there is not exactly one.
+  The seven ZIP publications of the committed draw remain recorded exclusions until an operator
+  retrieves their bodies, because those bodies are not committed;
 - safe concurrent-writer coordination, supported warehouse migrations, and a full SIGKILL/fsync
   crash matrix; and
 - the phase-5 release process. The dataset export, the static JSON API and the read-only MCP

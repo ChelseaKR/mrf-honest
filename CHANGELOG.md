@@ -9,6 +9,24 @@ no version tags yet; until the first dated release (phase 5 of
 
 ### Added
 
+- **ZIP publications are read rather than excluded (phase 11, first half).** Seven publications
+  in the committed 2026-08-19 draw are ZIP archives, and every one was a recorded exclusion on
+  the stated ground that a container is not a CSV file. That is right about grading the
+  container and says nothing about the document inside it. `mrf_honest.container` opens an
+  archive under stated bounds and selects the one gradeable member, or refuses with the reason:
+  at most 64 members, at most 1 GiB of declared uncompressed bytes, at most a 200-to-1 expansion
+  ratio on any member (that is what a zip bomb is, and the ratio is read from the central
+  directory so nothing is decompressed to find out), no encrypted member, no member name that
+  escapes the archive root, and no nested archive, because a nested container is a second
+  unbounded read wearing the first one's clothes. Two gradeable members are refused rather than
+  chosen between, since choosing would be this project deciding which file a publisher meant to
+  publish. A member is classified by its leading bytes, never by the name it was stored under.
+  `mrf-honest inspect` reads a ZIP publication end to end, records the container step in its JSON
+  output, and removes the lifted member afterwards; a refused container exits nonzero and emits
+  no inspection, so an archive nobody opened can never report zero findings. **The seven
+  committed ZIPs stay exclusions**: their bodies were never retrieved, and retrieval is an
+  operator-invoked act. The warehouse's CSV profile, the other half of this phase, is not built.
+
 - **A correction and removal flow, and the record of what this project got wrong (phase 10).**
   [docs/CORRECTIONS.md](docs/CORRECTIONS.md) says what is published about a named institution,
   gives four routes for raising a problem, and states the rule the rest of the page is built on:

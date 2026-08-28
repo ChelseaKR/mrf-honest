@@ -171,7 +171,9 @@ document for every mistake it describes.
 one.*
 
 - [ ] A CSV profile in the lakehouse, with the same contract enforcement the JSON profile has
-- [ ] ZIP-container handling, so a `.zip` publication is read rather than recorded and excluded
+- [x] ZIP-container handling, so a `.zip` publication is read rather than recorded and excluded
+      (the reader landed; the seven committed ZIPs stay exclusions until an operator retrieves
+      their bodies, which is a phase-14 obligation)
 - [ ] The CSV cohort's rows stop stating that no contract evidence exists
 
 **Depends on:** nothing in this plan. It is placed after phase 10 because publication surface
