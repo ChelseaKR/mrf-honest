@@ -19,6 +19,7 @@ from mrf_honest.inspect_csv import (
     inspect_hospital_csv_file,
 )
 from mrf_honest.lakehouse import LakehouseScopeRefusal, ingest_hospital_file, query_file_profile
+from mrf_honest.mcp import serve as serve_mcp
 from mrf_honest.politeness import Politeness
 from mrf_honest.registry import Registry, discover_domain
 from mrf_honest.scorecard import (
@@ -346,6 +347,12 @@ def _run_compare(args: argparse.Namespace) -> int:
     return _SUCCESS
 
 
+def _run_mcp(args: argparse.Namespace) -> int:
+    """Serve the published dataset over stdio. Reads committed files; never reaches a network."""
+
+    return serve_mcp(cast(Path, args.site))
+
+
 def _run_site(args: argparse.Namespace) -> int:
     comparisons = [
         _load_json_object(path, "comparison") for path in cast(list[Path], args.comparisons)
@@ -564,6 +571,18 @@ def _build_parser() -> argparse.ArgumentParser:
     site_parser.add_argument("--out", type=Path, required=True)
     site_parser.add_argument("--origin", default=DEFAULT_ORIGIN)
     site_parser.set_defaults(handler=_run_site)
+
+    mcp_parser = commands.add_parser(
+        "mcp",
+        help="serve the published dataset to an MCP client over stdio, read-only and offline",
+    )
+    mcp_parser.add_argument(
+        "--site",
+        type=Path,
+        default=Path("site"),
+        help="a directory written by `mrf-honest site`; its api/ documents are the whole source",
+    )
+    mcp_parser.set_defaults(handler=_run_mcp)
 
     explain_parser = commands.add_parser("explain", help="explain a quality finding code")
     explain_parser.add_argument("finding_code", metavar="FINDING_CODE")

@@ -9,6 +9,21 @@ no version tags yet; until the first dated release (phase 5 of
 
 ### Added
 
+- **A read-only MCP server that refuses what the site refuses (phase 9).** `mrf-honest mcp`
+  speaks JSON-RPC 2.0 over stdio, standard library only, and answers entirely from the `api/`
+  documents the render wrote. Five tools: `list_cohorts`, `list_files`, `get_file`,
+  `cohort_statistics` and `grading_method`. There is deliberately no tool that retrieves a
+  hospital's file. The refusals are the point: `list_files` with a grade filter and no
+  `cohort_id` returns a stated refusal, because a letter counted across cohorts pools rows
+  produced under different profiles and policies, and an assistant would get that number in one
+  sentence without ever seeing the page that explains why it is meaningless. A slug published in
+  two cohorts refuses until one is named, an unknown tool refuses rather than answering
+  approximately, and a cohort published before the statistics layer says so instead of reporting
+  an empty result. `grading_method` reads each rule table from the policy the published grades
+  were minted under rather than from a summary that could drift from it. A test asserts the
+  module names no network module at all. The server is not registered with any MCP registry,
+  which would name a released package; there is no release yet.
+
 - **The grades leave the HTML: `dataset.csv`, a Table Schema, and a static JSON API (phase 8).**
   All three are written by the same render as the pages, from the same comparison documents, so
   there is no second pipeline to drift: a row that is not on the site is not in the dataset. The

@@ -120,7 +120,24 @@ uv run mrf-honest compare \
   $(for e in data/cohorts/2026-08-19.ingest/*.json; do printf ' --ingest-result %s' "$e"; done) \
   > comparison.json
 uv run mrf-honest site --comparison comparison.json --out site
+
+# Serve the published dataset to an MCP client. Read-only, offline, no network at answer time:
+# the site directory's api/ documents are the entire source.
+uv run mrf-honest mcp --site site
 ```
+
+The render writes more than pages: `site/dataset.csv`, `site/dataset.schema.json` (a Frictionless
+Table Schema) and a static JSON API under `site/api/`, all from the same comparison documents, so
+the dataset cannot describe a cohort the site does not show.
+
+`mrf-honest mcp` speaks JSON-RPC 2.0 over stdio with five tools: `list_cohorts`, `list_files`,
+`get_file`, `cohort_statistics`, and `grading_method`. It refuses the questions the site refuses.
+Asking for a grade filter without naming a cohort returns a stated refusal rather than a pooled
+count, because a letter counted across cohorts pools rows produced under different profiles and
+policies. `grading_method` reads the rule table from the policy the published grades were minted
+under, not from a summary that could drift from it. There is no tool that retrieves a hospital's
+file. The server is not registered with any MCP registry: that would name a released package, and
+there is no release yet.
 
 Re-running that command over the committed inputs reproduces
 [the committed comparison](data/cohorts/2026-08-19.comparison.json) byte for byte, and both
@@ -242,8 +259,9 @@ Still open:
   excluded rather than mis-graded);
 - safe concurrent-writer coordination, supported warehouse migrations, and a full SIGKILL/fsync
   crash matrix; and
-- the phase-5 MCP server and release process. The dataset export and static JSON API landed:
-  `dataset.csv`, `dataset.schema.json` and `api/` are written by the same render as the pages.
+- the phase-5 release process. The dataset export, the static JSON API and the read-only MCP
+  server landed; `dataset.csv`, `dataset.schema.json` and `api/` are written by the same render
+  as the pages, and `mrf-honest mcp` serves them.
 
 ## Documents
 

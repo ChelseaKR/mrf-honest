@@ -126,11 +126,11 @@ what the render produces from committed data, and the deploy path fails when the
 
 *Goal: phase 5's MCP bullet, with the `grading_method` tool that returns the documented limits.*
 
-- [ ] A read-only server over the published dataset, with no write path and no network at answer
+- [x] A read-only server over the published dataset, with no write path and no network at answer
       time
-- [ ] A `grading_method` tool returning the documented limits, sourced from the same policy the
+- [x] A `grading_method` tool returning the documented limits, sourced from the same policy the
       grades were produced under rather than from a hand-written summary
-- [ ] A refusal for any question the dataset cannot answer, including every comparison the
+- [x] A refusal for any question the dataset cannot answer, including every comparison the
       comparison layer itself refuses
 
 **Depends on:** phase 8. There is nothing to serve until the dataset exists.
