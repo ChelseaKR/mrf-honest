@@ -9,6 +9,23 @@ no version tags yet; until the first dated release (phase 5 of
 
 ### Added
 
+- **Suppression, uncertainty, and the refusal that guards them (ADR 0007, phase 6).**
+  `mrf_honest.statistics` is the only place a proportion is produced, and it returns either a
+  `Proportion` carrying its own stratum, denominator and interval or a `Refusal` carrying the
+  reason no number was produced. There is no third outcome and no entry point returning a bare
+  float, so a point estimate cannot be rendered without the qualifiers that make it readable.
+  `docs/SAMPLING-FRAME.md` has said since 2026-08-19 that a proportion is computed over stratum B
+  alone and that the two strata must not be pooled; that was prose, and this is the gate. Five
+  refusals fire: no sampling frame, a convenience stratum, pooled strata (on the count of strata,
+  not their kind), an empty denominator, and a denominator below the stated floor of 20. The
+  interval is Wilson score at 95 percent with a finite-population correction applied when the
+  frame records a universe larger than the sample, which for the committed draw of 48 from 3,024
+  is an effective size of 48.758. A property test found, on its first run, that at
+  numerator == denominator the arithmetic put the observed 1.0 outside its own interval
+  (upper bound 0.9999999999999999); the interval is now clamped to contain its point estimate and
+  the case is pinned by a named regression test. Nothing is published by this change: phase 7 puts
+  the results in the comparison document and on the site.
+
 - **A plan for phases 6 through 14 ([docs/EXPANSION-PLAN.md](docs/EXPANSION-PLAN.md)).**
   [docs/IMPLEMENTATION-PLAN.md](docs/IMPLEMENTATION-PLAN.md) stopped at phase 5, with four of
   phase 4's five boxes and six of phase 5's seven still unticked. The expansion plan continues it
