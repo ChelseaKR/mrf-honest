@@ -1,0 +1,44 @@
+name: Correction or dispute
+description: Something published here is wrong about a file, a URL, or an organisation.
+title: "Correction: "
+labels: ["correction"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        You do not have to prove anything. Every field below is optional except the first, and
+        the first only has to be enough to find the row. See
+        [docs/CORRECTIONS.md](https://github.com/ChelseaKR/mrf-honest/blob/master/docs/CORRECTIONS.md).
+
+        If you want a row removed rather than corrected, use the removal form instead. That one
+        is honoured on request, with no reason asked for and no case to make.
+  - type: input
+    id: row
+    attributes:
+      label: Which row
+      description: A page URL, a slug, or the organisation and location names.
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of problem
+      options:
+        - The grade or a finding is wrong
+        - The wrong document was retrieved
+        - The URL is not the one we publish
+        - Something else
+  - type: textarea
+    id: detail
+    attributes:
+      label: What you know
+      description: >
+        Anything at all. The correct URL, what the file actually contains, when it changed.
+        Nothing here is required, and an incomplete report is still worth sending.
+  - type: markdown
+    attributes:
+      value: |
+        What happens next: the retrieval evidence and the assessment are re-read. If the tool
+        misread the file, the fix lands with a regression test and a write-up in `docs/findings/`.
+        If it read the file correctly, you get the finding, its citation, and the passage it
+        rests on, so you can disagree with something specific.

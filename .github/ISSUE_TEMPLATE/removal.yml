@@ -1,0 +1,35 @@
+name: Removal request
+description: Remove a published row. Honoured on request, no reason needed.
+title: "Removal: "
+labels: ["removal"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Say which row. That is the whole procedure.
+
+        You are not asked to prove that a grade is mistaken, to identify yourself as authorised,
+        or to argue a case first. See
+        [docs/CORRECTIONS.md](https://github.com/ChelseaKR/mrf-honest/blob/master/docs/CORRECTIONS.md).
+
+        If you would rather not do this in public, the address in
+        [SECURITY.md](https://github.com/ChelseaKR/mrf-honest/blob/master/SECURITY.md) reaches
+        the same person.
+  - type: input
+    id: row
+    attributes:
+      label: Which row
+      description: A page URL, a slug, or the organisation and location names.
+    validations:
+      required: true
+  - type: markdown
+    attributes:
+      value: |
+        What happens next: the row is removed from the site, the dataset and the API on the next
+        publish. The cohort's accounting will record that a row was withdrawn on request, because
+        a cohort that quietly shrinks would misstate its own denominator. That note names no
+        reason and asks for none.
+
+        To stop retrieval as well as publication, a `robots.txt` disallow stops this project in
+        code before any request, with no override flag anywhere in it. A request here is honoured
+        the same way.

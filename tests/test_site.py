@@ -22,6 +22,7 @@ from test_cohort import (
 from mrf_honest.cohort import build_comparison
 from mrf_honest.fetch import FetchStatus
 from mrf_honest.site import (
+    CORRECTIONS_URL,
     DEFAULT_ORIGIN,
     MIN_CONTRAST,
     NON_TEXT_TOKENS,
@@ -431,3 +432,20 @@ def test_missing_shares_catches_a_block_with_neither_estimate_nor_reason(tmp_pat
     assert missing_shares(comparison, html) == [
         "the document carries neither an estimate nor a stated refusal"
     ]
+
+
+def test_every_page_carries_the_route_to_a_correction(tmp_path: Path) -> None:
+    """A subject who finds a wrong grade lands on that file's page, not on the index, so the
+    route out has to be on the page they actually reach."""
+
+    comparison = build_comparison(
+        _two_records(tmp_path / "bodies"), _manifest(), generated_at=GENERATED_AT
+    )
+    out = tmp_path / "site"
+    render_site(comparison, out, origin=DEFAULT_ORIGIN)
+    pages = list(out.rglob("*.html"))
+    assert pages
+    for page in pages:
+        html = page.read_text(encoding="utf-8")
+        assert CORRECTIONS_URL in html, f"{page} has no correction route"
+        assert "you are not asked to prove anything" in html.lower()

@@ -278,6 +278,7 @@ Still open:
 | [docs/how-we-grade.md](docs/how-we-grade.md) | Assessment semantics and the source-cited finding catalog |
 | [docs/how-we-compare.md](docs/how-we-compare.md) | The comparison boundary and the published file-grade policy |
 | [docs/findings/](docs/findings/) | Written-up findings from published cohorts, with evidence |
+| [docs/CORRECTIONS.md](docs/CORRECTIONS.md) | How to dispute or remove a published row, and the record of what this project has already got wrong |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Current position, observability declaration, metrics ledger |
 | [docs/RESPONSIBLE-TECH-AUDITS.md](docs/RESPONSIBLE-TECH-AUDITS.md) | Responsible-tech declarations for the current scope |
 | [docs/adr/0006-ai-narration-outside-the-graded-path.md](docs/adr/0006-ai-narration-outside-the-graded-path.md) | Why a model may narrate a finished grade, and the verifier that keeps it honest |

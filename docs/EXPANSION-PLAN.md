@@ -145,9 +145,9 @@ answered approximately.
 
 *Goal: phase 5's last two bullets.*
 
-- [ ] A claim and correction flow, non-adversarial, honouring a removal request without demanding
+- [x] A claim and correction flow, non-adversarial, honouring a removal request without demanding
       proof
-- [ ] A write-up in the pattern of the findings documents, including a section on what this
+- [x] A write-up in the pattern of the findings documents, including a section on what this
       project got wrong
 
 The second is not a retrospective to be written from memory. The material is already in the

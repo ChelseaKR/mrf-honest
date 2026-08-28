@@ -9,6 +9,21 @@ no version tags yet; until the first dated release (phase 5 of
 
 ### Added
 
+- **A correction and removal flow, and the record of what this project got wrong (phase 10).**
+  [docs/CORRECTIONS.md](docs/CORRECTIONS.md) says what is published about a named institution,
+  gives four routes for raising a problem, and states the rule the rest of the page is built on:
+  **a removal request is honoured on request, with no proof asked for and no case to make.** A
+  withdrawn row leaves a stated trace in the cohort's accounting, because a cohort that quietly
+  shrinks would misstate its own denominator and the statistics layer would then compute a share
+  of a population edited after the fact. Two GitHub issue forms match, and a test asserts the
+  removal form has exactly one required field and that neither form requires a reason, a proof,
+  or evidence. Every page's footer carries the route, asserted for every rendered page rather
+  than for the index alone, because a subject who finds a wrong grade lands on that file's page.
+  The page ends with ten things that have already gone wrong here, each naming the commit that
+  fixed it, and a test resolves every cited commit against this repository and requires it to be
+  an ancestor of the default branch. Six of the ten are one shape: this project's own limitation
+  published as a statement about somebody else.
+
 - **A read-only MCP server that refuses what the site refuses (phase 9).** `mrf-honest mcp`
   speaks JSON-RPC 2.0 over stdio, standard library only, and answers entirely from the `api/`
   documents the render wrote. Five tools: `list_cohorts`, `list_files`, `get_file`,

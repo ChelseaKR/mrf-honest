@@ -40,6 +40,10 @@ dev = [
     "pip-audit>=2.9",
     "duckdb>=1.4,<2",
     "pre-commit>=4,<5",
+    # tests/test_corrections.py parses the issue forms. It was arriving transitively through
+    # pre-commit, which is a dependency that could drop it without warning; a test that reads a
+    # YAML contract should declare the parser it reads it with.
+    "pyyaml>=6,<7",
 ]
 
 [tool.hatch.build.targets.wheel]

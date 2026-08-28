@@ -133,6 +133,8 @@ _DIMENSION_TITLES = {
 
 #: The one heading and the one sentence the deploy path looks for, so the check and the render
 #: cannot drift apart into two different strings.
+CORRECTIONS_URL = "https://github.com/ChelseaKR/mrf-honest/blob/master/docs/CORRECTIONS.md"
+
 SHARES_HEADING = "What share of the drawn sample this is"
 SHARES_REFUSAL = "No share is published for this cohort"
 
@@ -886,6 +888,8 @@ def _shell(page: Page, origin: str, generated_at: str) -> str:
 <p>Generated {_e(generated_at)} from the committed comparison document. Only public,
 CMS-mandated machine-readable files are read; retrieval is identified, bounded, and respects
 robots.txt. <a href="https://github.com/ChelseaKR/mrf-honest">Source and methodology</a>.</p>
+<p>Something here wrong about your file? <a href="{CORRECTIONS_URL}">Corrections, disputes and
+removal</a>. A removal request is honoured on request: you are not asked to prove anything.</p>
 </footer>
 </body>
 </html>
