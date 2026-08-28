@@ -139,6 +139,11 @@ jobs:
               total_rendered=$((total_rendered + 1))
             done < /tmp/slugs.txt
           done < /tmp/render-list.txt
+          # Phase 8. dataset.csv, its Table Schema and the JSON API are written by the same
+          # render as the pages, so they can only disagree by being truncated, reordered, or
+          # dropped after the fact. `missing_exports` is the same function the suite exercises.
+          python -c "import json,sys;from pathlib import Path;from mrf_honest.dataset import missing_exports;d=[json.load(open(p)) for p in sys.argv[2:]];p=missing_exports(d,Path(sys.argv[1]));sys.exit('::error title=Published export disagrees with its cohorts::'+'; '.join(p) if p else 0)" site $(cat /tmp/render-list.txt | tr '\n' ' ')
+          echo "exports checked"
           if [ "${total_rendered}" -ne "${total_targeted}" ]; then
             echo "::error title=Page count disagrees with the data::${total_rendered} file pages checked against ${total_targeted} targeted rows."
             exit 1

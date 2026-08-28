@@ -9,6 +9,21 @@ no version tags yet; until the first dated release (phase 5 of
 
 ### Added
 
+- **The grades leave the HTML: `dataset.csv`, a Table Schema, and a static JSON API (phase 8).**
+  All three are written by the same render as the pages, from the same comparison documents, so
+  there is no second pipeline to drift: a row that is not on the site is not in the dataset. The
+  dataset carries one row per published file with 34 columns, and every row carries its cohort,
+  profile, publisher type, URL provenance and all three policy fingerprints, because a grade with
+  no profile beside it invites exactly the pooling `docs/how-we-compare.md` forbids. A refused
+  warehouse load is a stated `lakehouse_status`, never a blank. The Table Schema is generated from
+  the same column tuple as the CSV header, so a column cannot appear in the data and be missing
+  from its own description, and it carries the site's caveat so a consumer who never opens a page
+  still meets the boundary. `api/index.json` lists every cohort with its scope, its summary and
+  its statistics outcome, including a refusal as a stated field rather than a missing key;
+  `api/cohorts/<id>.json` carries the rows, exclusions and finding matrix.
+  `mrf_honest.dataset.missing_exports` runs on the deploy path and fails a publish where the
+  exports have been truncated, reordered, or dropped.
+
 - **The first population statistic this project has published (phase 7, comparison version 3).**
   The comparison document now carries a `statistics` block, always present so that a refusal
   cannot read as an older document. For the 2026-08-19 JSON cohort it publishes the disposition
