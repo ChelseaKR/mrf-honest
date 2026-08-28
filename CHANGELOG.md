@@ -9,6 +9,19 @@ no version tags yet; until the first dated release (phase 5 of
 
 ### Added
 
+- **The release path, up to the one act no automation here should take (phase 14).**
+  `.github/workflows/release.yml` verifies that a tag carries a signature from a key in
+  `.github/allowed_signers`, requires the tag and `pyproject.toml` to agree, refuses a
+  pre-release version, requires a `CHANGELOG.md` entry for it, re-runs `make verify` at the
+  tagged commit with the uv cache disabled, and builds and SHA-256-hashes the distributions.
+  It holds no signing key, no passphrase and no registry credential; it creates no tag; it
+  publishes nothing. `.github/allowed_signers` is deliberately **not** shipped: a committed
+  placeholder would look like a configured trust root while trusting nobody, so the workflow
+  stops at that step with the reason stated instead, and a test asserts the placeholder is
+  absent. Twenty-three assertions in `tests/test_release_workflow.py` pin all of that, including
+  that every action is SHA-pinned, no checkout persists credentials, and the version this
+  repository declares today (`0.1.0.dev0`) would be refused, which is the honest state of it.
+
 - **Crash and concurrency durability is measured rather than disclaimed (phase 12).**
   `docs/ROADMAP.md` has said since the lakehouse landed that "concurrent writers, historical
   warehouse migrations, and a full SIGKILL/fsync crash matrix remain open". Two of those three
@@ -30,6 +43,7 @@ no version tags yet; until the first dated release (phase 5 of
   implied: historical migrations, fsync behaviour (which needs a filesystem fault injector, not a
   signal), and the one-statement window `_clean_promoted` guards, which no fault this suite can
   inject reaches. That last one has a test whose only job is to say so.
+
 
 - **ZIP publications are read rather than excluded (phase 11, first half).** Seven publications
   in the committed 2026-08-19 draw are ZIP archives, and every one was a recorded exclusion on

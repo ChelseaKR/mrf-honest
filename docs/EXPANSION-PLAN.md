@@ -230,17 +230,25 @@ project's politeness rules, record that as the finding and stop. It is a publish
 
 *Goal: say out loud which parts of phases 4 and 5 are not engineering.*
 
-- [ ] Dated releases
-- [ ] A scheduled refresh
-- [ ] The manual screen-reader pass
+- [x] The release path up to the tag, which is everything except the two acts named below
+- [ ] Dated releases (blocked: the signing key and the tag are the maintainer's)
+- [ ] A scheduled refresh (blocked: needs a service/job tier declaration, an owner decision)
+- [ ] The manual screen-reader pass (blocked: needs a person)
 
 ### What only a person can do
 
 These are recorded here so that no future phase quietly reports them as done:
 
 - **A dated release.** The release process ends in a signed tag. The signing key is the
-  maintainer's, and no automation should ever hold it. Everything up to the tag can be built and
-  tested; the tag cannot.
+  maintainer's, and no automation should ever hold it. Everything up to the tag is built and
+  tested: `.github/workflows/release.yml` verifies the tag's signature against a committed
+  allowed-signers file, requires the tag and `pyproject.toml` to agree, refuses a pre-release
+  version, requires a changelog entry, re-runs `make verify` at the tagged commit, and builds and
+  hashes the distributions. It holds no signing key and no registry credential, and it creates no
+  tag. **Two things the maintainer must do, which no automation here should:** commit the public
+  half of the signing key to `.github/allowed_signers`, which this repository deliberately does
+  not ship a placeholder for, and sign the tag. Until the first, the workflow stops at its second
+  step with the reason stated; until the second, there is nothing for it to verify.
 - **A scheduled refresh.** The ROADMAP states the precondition: "any future scheduled job must
   take a real service/job tier declaration before shipping." That declaration is an owner
   decision about what this project promises to keep running, not a file an agent should author.
