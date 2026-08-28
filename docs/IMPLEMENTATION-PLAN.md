@@ -133,6 +133,13 @@ not a phase-3 claim.
 
 ---
 
+## What happens after phase 5
+
+Phases 6 through 14 continue this plan in [EXPANSION-PLAN.md](EXPANSION-PLAN.md): the phase-4
+statistics that gate any published proportion, the phase-5 publication surface, the warehouse's
+second profile, the durability limits the ROADMAP declines to claim, the payer publisher class,
+and the short list of obligations only a person can discharge.
+
 ## Engineering standards, inherited
 
 Same house rules as the rest of the portfolio, non-negotiable:
