@@ -48,9 +48,9 @@ is published in this phase; it builds the thing that would make publishing hones
 
 Phase 4's unticked boxes are the whole of this phase:
 
-- [ ] Small-cell suppression before anything is displayed, with the threshold stated
-- [ ] Uncertainty intervals on every published comparison
-- [ ] Refuse to publish a comparison that cannot carry its own uncertainty
+- [x] Small-cell suppression before anything is displayed, with the threshold stated
+- [x] Uncertainty intervals on every published comparison
+- [x] Refuse to publish a comparison that cannot carry its own uncertainty
 
 The inputs already exist and are committed. `data/cohorts/2026-08-19.json` records a sampling frame
 with two strata: `stratum_a_carry_forward` (six subjects, a convenience sample) and
