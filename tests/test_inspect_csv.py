@@ -437,6 +437,49 @@ def test_a_modifier_row_needs_description_and_context(tmp_path: Path) -> None:
     assert "CMS_CSV_MODIFIER_ROW_CONTEXT_MISSING" not in _codes(_tall(tmp_path, explained))
 
 
+def test_a_charged_row_without_codes_still_owes_a_description_and_a_setting(
+    tmp_path: Path,
+) -> None:
+    """Issue #28. `description` and `setting` are "Blanks Accepted: No" in the data
+    dictionary's required standard-charge table, and neither requirement is conditioned on
+    the row's code columns being populated. Before the fix a charged row with no complete
+    code pairing reported only `CMS_CSV_CODE_PAIRING_MISSING`, because both checks sat
+    behind `is_item`, which the absent pairing had already turned off.
+    """
+
+    bare = ",,,,,,,1200,900,,,,,,,,,,,,,"
+    codes = _codes(_tall(tmp_path, bare))
+    assert "CMS_CSV_CODE_PAIRING_MISSING" in codes
+    assert "CMS_CSV_DESCRIPTION_MISSING" in codes
+    assert "CMS_CSV_SETTING_INVALID" in codes
+
+    described = "Mystery service,,,,,,,1200,900,,,,,,,,,,,,,"
+    only_setting = _codes(_tall(tmp_path, described))
+    assert "CMS_CSV_DESCRIPTION_MISSING" not in only_setting
+    assert "CMS_CSV_SETTING_INVALID" in only_setting
+
+
+def test_a_charged_modifier_row_is_still_exempt_from_the_setting_requirement(
+    tmp_path: Path,
+) -> None:
+    """The regression that closed PR #31 unmerged, pinned so it cannot return.
+
+    Note 11 of the data dictionary makes a description plus one payer-specific charge the
+    minimum for a modifier row encoded without an item or service; `setting` is not on that
+    list. Widening the description and setting checks to every charged row would report a
+    blank `setting` here, and would also put a `return` in front of the modifier branch,
+    making `CMS_CSV_MODIFIER_ROW_CONTEXT_MISSING` unreachable for any row carrying a charge.
+    """
+
+    charged_modifier = "MRI brain w/ mod,,,26,,,,,,Acme Health,PPO,800,,,,,,fee schedule,700,950,"
+    codes = _codes(_tall(tmp_path, charged_modifier))
+    assert "CMS_CSV_SETTING_INVALID" not in codes
+    assert "CMS_CSV_DESCRIPTION_MISSING" not in codes
+
+    undescribed = ",,,26,,,,,,Acme Health,PPO,800,,,,,,fee schedule,700,950,"
+    assert "CMS_CSV_MODIFIER_ROW_CONTEXT_MISSING" in _codes(_tall(tmp_path, undescribed))
+
+
 def test_wide_conditionals_apply_per_payer_combination(tmp_path: Path) -> None:
     no_methodology = "MRI brain,70551,CPT,,outpatient,,,1200,900,800,,,,,,,,,700,950,"
     inspection = _wide(tmp_path, no_methodology)
