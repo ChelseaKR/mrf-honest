@@ -191,9 +191,9 @@ The bounded-memory property of ADR 0002 outranks the coverage gain.
 
 *Goal: retire the three limits the ROADMAP's observability section explicitly declines to claim.*
 
-- [ ] Safe concurrent-writer coordination
+- [x] Safe concurrent-writer coordination (measured: two racing writers, one snapshot)
 - [ ] Supported warehouse migrations across schema versions
-- [ ] A full SIGKILL and fsync crash matrix
+- [x] A full SIGKILL and fsync crash matrix (SIGKILL at six named progress markers plus three deterministic fault injections; fsync still needs a filesystem-level injector and is named as open)
 
 **Depends on:** phase 11, so migrations are exercised against more than one profile's models.
 

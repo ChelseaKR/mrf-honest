@@ -9,6 +9,28 @@ no version tags yet; until the first dated release (phase 5 of
 
 ### Added
 
+- **Crash and concurrency durability is measured rather than disclaimed (phase 12).**
+  `docs/ROADMAP.md` has said since the lakehouse landed that "concurrent writers, historical
+  warehouse migrations, and a full SIGKILL/fsync crash matrix remain open". Two of those three
+  now have evidence. `tests/test_durability.py` runs a real ingest in a subprocess and kills it
+  with SIGKILL at six named progress markers; after every kill the catalog must report no
+  completed snapshot, every run it does report must have its manifest and every named Parquet on
+  disk, and the warehouse must be re-runnable to completion. The kill points are markers rather
+  than wall-clock offsets because offsets were tried first and were flaky: a kill scheduled at a
+  fraction of a run measured a second earlier lands wherever the machine's load puts it. The
+  sweep also fails outright if fewer than four of its six samples were genuinely killed, so a run
+  of quiet non-interruptions cannot pass as evidence. Two writers are raced against one warehouse
+  and one source, and one snapshot is the measured result. One observed state is recorded rather
+  than asserted away: killing at the instant DuckDB creates `warehouse.duckdb` leaves a file it
+  will not open read-only, because the file exists before its header does; a re-run recovers it.
+  The interesting part is what the matrix could **not** show: reordering the catalog commit ahead
+  of artifact promotion left every marker green, because that window is too narrow for a kill to
+  land in. Three deterministic fault injections close it, at promotion, at the Parquet write and
+  at the manifest write, and the reordering fails them. What stays open is named rather than
+  implied: historical migrations, fsync behaviour (which needs a filesystem fault injector, not a
+  signal), and the one-statement window `_clean_promoted` guards, which no fault this suite can
+  inject reaches. That last one has a test whose only job is to say so.
+
 - **ZIP publications are read rather than excluded (phase 11, first half).** Seven publications
   in the committed 2026-08-19 draw are ZIP archives, and every one was a recorded exclusion on
   the stated ground that a container is not a CSV file. That is right about grading the

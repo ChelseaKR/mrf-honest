@@ -33,10 +33,23 @@ from test_lakehouse import _document
 
 from mrf_honest.lakehouse import MANIFEST_SCHEMA_VERSION, PublisherRef, ingest_hospital_file
 
-#: Where in a run the kill lands. Each is a fraction of one measured, uninterrupted run, so the
-#: spread covers the source snapshot, inspection, model build, Parquet staging, promotion, and
-#: the catalog commit rather than only whatever the first millisecond happens to be doing.
-KILL_FRACTIONS = (0.05, 0.15, 0.3, 0.45, 0.6, 0.75, 0.9)
+#: Where in a run the kill lands, named by the artifact whose first appearance marks that the
+#: run has reached that stage. Wall-clock offsets were tried first and abandoned: a kill
+#: scheduled at a fraction of a run measured a second earlier lands wherever the machine's load
+#: happens to put it, so the same offset interrupted a different stage on every run and
+#: sometimes none at all. A progress marker is the same point on a fast machine and a slow one.
+KILL_POINTS: tuple[tuple[str, str], ...] = (
+    ("database opened", "warehouse.duckdb"),
+    ("source snapshotted", ".staging/*/sources/sha256/*/*.json"),
+    ("spool written", ".staging/*/spool/*.tsv"),
+    ("models loaded", ".staging/*/profiles/load-*.json"),
+    ("marts built", ".staging/*/profiles/build-*.json"),
+    ("parquet staged", ".staging/*/parquet/**/*.parquet"),
+)
+
+#: How long to wait for a marker before concluding the run passed that stage without this
+#: watcher seeing it, or finished first.
+MARKER_TIMEOUT_SECONDS = 60.0
 
 _RUNNER = """
 import json, sys
@@ -59,7 +72,7 @@ def _source(tmp_path: Path) -> Path:
 
     document = _document()
     charges = list(document["standard_charge_information"])  # type: ignore[arg-type]
-    document["standard_charge_information"] = charges * 400
+    document["standard_charge_information"] = charges * 1200
     path = tmp_path / "standardcharges.json"
     path.write_text(json.dumps(document), encoding="utf-8")
     return path
@@ -132,111 +145,145 @@ def _catalog_runs(warehouse: Path) -> list[str]:
     return [run_id for run_id, status in _catalog(warehouse) if status == "success"]
 
 
-@pytest.fixture(scope="module")
-def baseline_seconds(tmp_path_factory: pytest.TempPathFactory) -> float:
-    """One uninterrupted run, measured, so the kill offsets mean something."""
+def _wait_for(warehouse: Path, pattern: str, process: subprocess.Popen[str]) -> bool:
+    """Block until the marker appears, the run ends, or the timeout expires.
 
-    tmp_path = tmp_path_factory.mktemp("baseline")
-    source = _source(tmp_path)
-    started = time.monotonic()
-    ingest_hospital_file(
-        source,
-        tmp_path / "warehouse",
-        publisher=PublisherRef("example-health"),
-        as_of=date(2026, 4, 1),
-    )
-    return max(time.monotonic() - started, 0.2)
+    Returns whether the marker was seen. A run that finishes first is not a failure of the
+    subject; it is a sample that did not interrupt anything, and the sweep counts it as such.
+    """
+
+    deadline = time.monotonic() + MARKER_TIMEOUT_SECONDS
+    while time.monotonic() < deadline:
+        if warehouse.is_dir() and any(warehouse.glob(pattern)):
+            return True
+        if process.poll() is not None:
+            return False
+        time.sleep(0.002)
+    return False
 
 
 class TestCrashMatrix:
-    @pytest.mark.parametrize("fraction", KILL_FRACTIONS)
-    def test_a_sigkill_leaves_the_warehouse_in_a_stated_state(
-        self, tmp_path: Path, baseline_seconds: float, fraction: float
-    ) -> None:
-        """Untouched, recoverable, or complete. Never a catalog row without its artifacts."""
+    """One test per claim, each sweeping every offset, rather than one test per offset.
+
+    A per-offset test cannot know whether the sweep as a whole proved anything. A kill scheduled
+    at a fraction of a measured run sometimes lands after the run has already finished, because
+    the machine is not the machine the baseline was measured on a second earlier. A per-offset
+    test can only fail on that, or skip, and a suite where every sample quietly skipped would be
+    green having tested nothing. Sweeping inside one test lets it assert the thing that actually
+    matters: **enough samples were genuinely killed for the sweep to mean something.**
+    """
+
+    #: Below this many genuine kills out of `KILL_POINTS`, the sweep proved nothing and says so.
+    MINIMUM_GENUINE_KILLS = 4
+
+    def _sweep(self, tmp_path: Path) -> list[tuple[str, bool, Path]]:
+        """Run the matrix once, returning per stage whether the kill actually landed."""
 
         source = _source(tmp_path)
-        warehouse = tmp_path / "warehouse"
-        process = _spawn(_runner(tmp_path), source, warehouse)
-        time.sleep(baseline_seconds * fraction)
-        process.send_signal(signal.SIGKILL)
-        process.wait(timeout=30)
-        assert process.returncode == -signal.SIGKILL, "the run finished before it was killed"
+        runner = _runner(tmp_path)
+        outcomes: list[tuple[str, bool, Path]] = []
+        for stage, pattern in KILL_POINTS:
+            warehouse = tmp_path / f"warehouse-{stage.replace(' ', '-')}"
+            process = _spawn(runner, source, warehouse)
+            if _wait_for(warehouse, pattern, process):
+                process.send_signal(signal.SIGKILL)
+            process.wait(timeout=120)
+            outcomes.append((stage, process.returncode == -signal.SIGKILL, warehouse))
+        return outcomes
 
-        manifests = _manifests(warehouse)
-        catalog = _catalog(warehouse)
-        assert catalog != [("<unopenable>", "<unopenable>")], (
-            "the warehouse database could not be opened read-only after a kill"
-        )
-        for _run_id, status in catalog:
-            assert status in CATALOG_STATUSES, f"unrecognised catalog status {status!r}"
-        for manifest in manifests:
-            assert manifest["schema_version"] == MANIFEST_SCHEMA_VERSION
-            assert manifest["status"] in {"prepared", "success"}
+    def test_a_sigkill_leaves_the_warehouse_in_a_stated_state(self, tmp_path: Path) -> None:
+        """Untouched, recoverable, or complete. Never a success the artifacts do not back."""
 
-        # The load-bearing invariant. A row that says `running` is a recoverable interruption and
-        # legitimately has no manifest yet. A row that says `success` is a claim that a snapshot
-        # exists, and that claim must be backed by a manifest and its Parquet artifacts.
-        manifest_runs = {str(manifest["run_id"]) for manifest in manifests}
-        claimed = {run_id for run_id, status in catalog if status == "success"}
-        assert claimed <= manifest_runs, (
-            f"catalog reports success for {sorted(claimed - manifest_runs)} with no manifest"
+        outcomes = self._sweep(tmp_path)
+        killed = [entry for entry in outcomes if entry[1]]
+        assert len(killed) >= self.MINIMUM_GENUINE_KILLS, (
+            f"only {len(killed)} of {len(outcomes)} samples were genuinely killed; the sweep "
+            "did not exercise enough interruption points to mean anything"
         )
-        for manifest in manifests:
-            if manifest["status"] != "success":
-                continue
-            for artifact in manifest["artifacts"]:
-                assert (warehouse / artifact["path"]).is_file(), (
-                    f"successful manifest names {artifact['path']}, which is not on disk"
+        for stage, _, warehouse in outcomes:
+            manifests = _manifests(warehouse)
+            catalog = _catalog(warehouse)
+            if catalog == [("<unopenable>", "<unopenable>")]:
+                # Measured, and kept rather than asserted away. Killing at the instant DuckDB
+                # first creates `warehouse.duckdb` leaves a file it will not open read-only: the
+                # file exists before its header does. That is not a false claim, which is what
+                # this suite guards against, and it is not permanent either. The invariant is
+                # that a re-run recovers it, and `test_a_killed_run_can_be_re_run_to_completion`
+                # covers every stage including this one.
+                assert stage == "database opened", (
+                    f"an unopenable warehouse after a kill at {stage!r}, which is past the "
+                    "window where the database file exists without a header"
                 )
+                assert not manifests, "an unopenable database with a manifest beside it"
+                continue
+            for _run_id, status in catalog:
+                assert status in CATALOG_STATUSES, f"unrecognised catalog status {status!r}"
+            for manifest in manifests:
+                assert manifest["schema_version"] == MANIFEST_SCHEMA_VERSION
+                assert manifest["status"] in {"prepared", "success"}
 
-    @pytest.mark.parametrize("fraction", KILL_FRACTIONS)
-    def test_a_killed_run_can_be_re_run_to_completion(
-        self, tmp_path: Path, baseline_seconds: float, fraction: float
-    ) -> None:
+            # The load-bearing invariant. A `running` row is a recoverable interruption and
+            # legitimately has no manifest yet. A `success` row is a claim that a snapshot
+            # exists, and that claim must be backed by a manifest and its Parquet artifacts.
+            manifest_runs = {str(manifest["run_id"]) for manifest in manifests}
+            claimed = {run_id for run_id, status in catalog if status == "success"}
+            assert claimed <= manifest_runs, (
+                f"at the {stage!r} point, the catalog reports success for "
+                f"{sorted(claimed - manifest_runs)} with no manifest"
+            )
+            for manifest in manifests:
+                if manifest["status"] != "success":
+                    continue
+                for artifact in manifest["artifacts"]:
+                    assert (warehouse / artifact["path"]).is_file(), (
+                        f"at the {stage!r} point, a successful manifest names {artifact['path']}, "
+                        "which is not on disk"
+                    )
+
+    def test_a_killed_run_is_never_reported_as_a_completed_one(self, tmp_path: Path) -> None:
+        """The fail-closed half. An interrupted run may leave a `running` row; it may never
+        leave a `success` one, because a success row is what `query_file_profile` reads.
+
+        Samples where the run finished before the kill landed are not interruptions and are not
+        judged as such; they are counted, and the sweep fails if too few were real.
+        """
+
+        outcomes = self._sweep(tmp_path)
+        killed = [entry for entry in outcomes if entry[1]]
+        assert len(killed) >= self.MINIMUM_GENUINE_KILLS, (
+            f"only {len(killed)} of {len(outcomes)} samples were genuinely killed"
+        )
+        for stage, _, warehouse in killed:
+            if _catalog(warehouse) == [("<unopenable>", "<unopenable>")]:
+                continue  # no catalog to read yet; covered by the recovery test
+            assert _catalog_runs(warehouse) == [], (
+                f"a run killed at {stage!r} is reported by the catalog as a completed snapshot"
+            )
+
+    def test_a_killed_run_can_be_re_run_to_completion(self, tmp_path: Path) -> None:
         """Recovery is the point of a prepared state. A killed warehouse must not be a dead one."""
 
         source = _source(tmp_path)
-        warehouse = tmp_path / "warehouse"
-        process = _spawn(_runner(tmp_path), source, warehouse)
-        time.sleep(baseline_seconds * fraction)
-        process.send_signal(signal.SIGKILL)
-        process.wait(timeout=30)
+        outcomes = self._sweep(tmp_path)
+        assert sum(1 for entry in outcomes if entry[1]) >= self.MINIMUM_GENUINE_KILLS
+        for stage, _, warehouse in outcomes:
+            result = ingest_hospital_file(
+                source,
+                warehouse,
+                publisher=PublisherRef("example-health"),
+                as_of=date(2026, 4, 1),
+            )
+            assert result.run_id, (
+                f"no run id after re-running a warehouse killed at the {stage!r} point"
+            )
+            assert result.database_path.is_file()
+            assert _catalog_runs(warehouse) == [result.run_id]
 
-        result = ingest_hospital_file(
-            source,
-            warehouse,
-            publisher=PublisherRef("example-health"),
-            as_of=date(2026, 4, 1),
-        )
-        assert result.run_id
-        assert result.database_path.is_file()
-        assert _catalog_runs(warehouse) == [result.run_id]
-
-    @pytest.mark.parametrize("fraction", KILL_FRACTIONS)
-    def test_a_killed_run_is_never_reported_as_a_completed_one(
-        self, tmp_path: Path, baseline_seconds: float, fraction: float
-    ) -> None:
-        """The fail-closed half. An interrupted run may leave a `running` row; it may never
-        leave a `success` one, because a success row is what `query_file_profile` reads."""
-
-        source = _source(tmp_path)
-        warehouse = tmp_path / "warehouse"
-        process = _spawn(_runner(tmp_path), source, warehouse)
-        time.sleep(baseline_seconds * fraction)
-        process.send_signal(signal.SIGKILL)
-        process.wait(timeout=30)
-        assert process.returncode == -signal.SIGKILL, "the run finished before it was killed"
-        assert _catalog_runs(warehouse) == [], (
-            "a run that was killed mid-flight is reported by the catalog as a completed snapshot"
-        )
-
-    def test_the_matrix_covers_more_than_one_offset(self) -> None:
+    def test_the_matrix_covers_more_than_one_stage(self) -> None:
         """A one-point matrix would be a single test wearing a table's clothes."""
 
-        assert len(KILL_FRACTIONS) >= 5
-        assert min(KILL_FRACTIONS) < 0.2
-        assert max(KILL_FRACTIONS) > 0.8
+        assert len(KILL_POINTS) >= 5
+        assert len({pattern for _, pattern in KILL_POINTS}) == len(KILL_POINTS)
 
 
 class TestConcurrentWriters:

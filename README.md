@@ -261,9 +261,9 @@ Still open:
   retrieves their bodies, because those bodies are not committed;
 - supported warehouse migrations, fsync behaviour, and the one-statement window between artifact
   promotion and the catalog commit. Crash and concurrency durability is now measured rather than
-  disclaimed: an ingest is killed with SIGKILL at seven offsets and the catalog is required never
-  to report a snapshot it does not hold, three deterministic fault injections cover the windows a
-  sampled kill misses, and two racing writers produce one snapshot; and
+  disclaimed: an ingest is killed with SIGKILL at six named progress markers and the catalog is
+  required never to report a snapshot it does not hold, three deterministic fault injections cover
+  the windows a sampled kill misses, and two racing writers produce one snapshot; and
 - the phase-5 release process. The dataset export, the static JSON API and the read-only MCP
   server landed; `dataset.csv`, `dataset.schema.json` and `api/` are written by the same render
   as the pages, and `mrf-honest mcp` serves them.
