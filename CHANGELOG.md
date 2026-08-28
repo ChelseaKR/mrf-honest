@@ -21,7 +21,9 @@ no version tags yet; until the first dated release (phase 5 of
   than for the index alone, because a subject who finds a wrong grade lands on that file's page.
   The page ends with ten things that have already gone wrong here, each naming the commit that
   fixed it, and a test resolves every cited commit against this repository and requires it to be
-  an ancestor of the default branch. Six of the ten are one shape: this project's own limitation
+  an ancestor of the default branch. That check needs history to check against, so CI now
+  checks out with `fetch-depth: 0`, and a shallow clone fails the suite loudly rather than
+  letting the citation checks skip in the one place they run automatically. Six of the ten are one shape: this project's own limitation
   published as a statement about somebody else.
 
 - **A read-only MCP server that refuses what the site refuses (phase 9).** `mrf-honest mcp`

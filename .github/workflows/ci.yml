@@ -20,6 +20,12 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          # `docs/CORRECTIONS.md` names the commit that fixed each thing this project got
+          # wrong, and `tests/test_corrections.py` resolves every one of them and requires it
+          # to be an ancestor of the default branch. A citation nobody can follow is a claim,
+          # not evidence, so the gate needs the history to follow it in. The default shallow
+          # clone has one commit and fails that check, which is how this was found.
+          fetch-depth: 0
           persist-credentials: false # this workflow only reads; it never pushes
 
       - name: Install uv

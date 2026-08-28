@@ -31,6 +31,27 @@ def test_the_page_cites_commits_at_all() -> None:
     assert len(CITED_COMMITS) >= 6, CITED_COMMITS
 
 
+def test_the_history_needed_to_check_the_citations_is_present() -> None:
+    """A shallow clone fails this loudly rather than letting the citation checks skip.
+
+    CI's default checkout fetches one commit, and every citation below then fails to resolve
+    for a reason that has nothing to do with whether the citation is good. Skipping on a
+    shallow clone would be worse: the checks would be green in the one place they run
+    automatically, which is precisely the shape of guardrail this project exists to avoid.
+    """
+
+    shallow = subprocess.run(  # noqa: S603 - fixed argv, no shell
+        ["git", "-C", str(ROOT), "rev-parse", "--is-shallow-repository"],  # noqa: S607
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert shallow.stdout.strip() == "false", (
+        "this is a shallow clone, so the commits docs/CORRECTIONS.md cites cannot be resolved. "
+        "Check out with fetch-depth: 0."
+    )
+
+
 @pytest.mark.parametrize("sha", CITED_COMMITS)
 def test_every_cited_commit_resolves_in_this_repository(sha: str) -> None:
     """A citation nobody can follow is a claim, not evidence."""
