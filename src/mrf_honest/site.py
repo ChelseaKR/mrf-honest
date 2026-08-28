@@ -61,7 +61,7 @@ NON_TEXT_TOKENS: frozenset[str] = frozenset({"line"})
 # instead of fixed.
 TEXT_ON_BACKGROUND: tuple[tuple[str, str, str], ...] = (
     ("ink", "paper", "body copy"),
-    ("ink", "wash", "code spans and .dist pills"),
+    ("ink", "wash", "code spans, .dist pills, and .shares column headers"),
     ("muted", "paper", ".lede, .meta, .caveat, .eyebrow, footer, .facts dt"),
     ("muted", "wash", ".status-not_assessed and the default .sev chip"),
     ("accent", "paper", "links"),
@@ -129,6 +129,11 @@ _DIMENSION_TITLES = {
     "interpretability": "Interpretability",
     "freshness": "Freshness",
 }
+
+#: The one heading and the one sentence the deploy path looks for, so the check and the render
+#: cannot drift apart into two different strings.
+SHARES_HEADING = "What share of the drawn sample this is"
+SHARES_REFUSAL = "No share is published for this cohort"
 
 _CAVEAT = (
     "A grade describes one published file under one stated policy on one date. It does not rank "
@@ -500,6 +505,108 @@ def _coverage_sentence(comparison: Mapping[str, object]) -> str:
     )
 
 
+def missing_shares(comparison: Mapping[str, object], html: str) -> list[str]:
+    """Report every published share that did not reach the rendered page.
+
+    The deploy path calls this. `make verify` is a separate workflow, so a red run there does
+    not stop a deployment; a share that is computed and never rendered is not published, and a
+    refusal that is silently dropped teaches a reader that the absence of a number means there
+    was nothing to say. An empty list means the page carries what the document says.
+    """
+
+    statistics = comparison.get("statistics")
+    if not isinstance(statistics, Mapping):
+        return ["the comparison document carries no statistics block"]
+    if SHARES_HEADING not in html:
+        return [f"the page does not carry the heading {SHARES_HEADING!r}"]
+    estimates = statistics.get("estimates")
+    listed = list(estimates) if isinstance(estimates, Sequence) else []
+    if not listed:
+        if statistics.get("refusal") is None:
+            return ["the document carries neither an estimate nor a stated refusal"]
+        if SHARES_REFUSAL not in html:
+            return ["a refused cohort rendered no refusal on the page"]
+        return []
+    problems: list[str] = []
+    for estimate in listed:
+        entry = cast(Mapping[str, object], estimate)
+        needle = f"{entry.get('numerator')} of {entry.get('denominator')}"
+        if needle not in html:
+            problems.append(f"{needle} is in the document but not on the page")
+    return problems
+
+
+def _statistics_section(comparison: Mapping[str, object]) -> str:
+    """Render the cohort's population shares, or render the refusal as a refusal.
+
+    A refusal is a paragraph, not an omitted section. A page that simply drops the block when
+    nothing could be estimated teaches a reader that the absence of a number means there was
+    nothing to say, which is the one reading this project exists to prevent.
+    """
+
+    statistics = comparison.get("statistics")
+    if not isinstance(statistics, Mapping):
+        return (
+            f"<h3>{SHARES_HEADING}</h3>"
+            "<p>This comparison document predates the statistics layer and carries no shares. "
+            "Regenerate it with <code>mrf-honest compare</code> to see them.</p>"
+        )
+    refusal = statistics.get("refusal")
+    if isinstance(refusal, Mapping):
+        return (
+            f"<h3>{SHARES_HEADING}</h3>"
+            f'<p class="refusal"><strong>{SHARES_REFUSAL}:</strong> '
+            f"{_e(refusal.get('reason'))}."
+            f"{_refusal_detail(refusal)}</p>"
+        )
+    estimates = statistics.get("estimates")
+    if not isinstance(estimates, Sequence) or not estimates:
+        return (
+            f"<h3>{SHARES_HEADING}</h3>"
+            f'<p class="refusal"><strong>{SHARES_REFUSAL}.</strong> The '
+            "document carries neither an estimate nor a stated refusal, which is a defect in "
+            "whatever produced it.</p>"
+        )
+    rows = "".join(_estimate_row(cast(Mapping[str, object], e)) for e in estimates)
+    return (
+        f"<h3>{SHARES_HEADING}</h3>"
+        f"<p>{_e(statistics.get('basis'))} Every share carries its own denominator and a "
+        f"{_percent(statistics.get('confidence'))} interval computed by the "
+        f"{_e(statistics.get('method'))} method.</p>"
+        '<table class="shares"><thead><tr><th scope="col">Disposition</th>'
+        '<th scope="col">Count</th><th scope="col">Share</th>'
+        '<th scope="col">Interval</th></tr></thead>'
+        f"<tbody>{rows}</tbody></table>"
+    )
+
+
+def _refusal_detail(refusal: Mapping[str, object]) -> str:
+    """Name the denominator a refusal saw, where it saw one, so the reader can check it."""
+
+    denominator = refusal.get("denominator")
+    if not isinstance(denominator, int) or isinstance(denominator, bool):
+        return ""
+    return f" The accounting this document carries covers {denominator} facilities."
+
+
+def _percent(value: object) -> str:
+    return f"{float(cast(float, value)) * 100:.0f}%" if isinstance(value, int | float) else "?"
+
+
+def _share(value: object) -> str:
+    return f"{float(cast(float, value)) * 100:.1f}%" if isinstance(value, int | float) else "?"
+
+
+def _estimate_row(estimate: Mapping[str, object]) -> str:
+    return (
+        f'<tr><th scope="row">{_e(estimate.get("label"))}</th>'
+        f"<td>{_e(estimate.get('numerator'))} of {_e(estimate.get('denominator'))}</td>"
+        f"<td>{_share(estimate.get('point'))}</td>"
+        f"<td>{_share(estimate.get('interval_low'))} to "
+        f"{_share(estimate.get('interval_high'))}</td></tr>"
+    )
+
+
 def _cohort_section(
     comparison: Mapping[str, object],
     references: Mapping[str, tuple[str, str]],
@@ -524,6 +631,7 @@ def _cohort_section(
         f"({_e(cohort.get('as_of'))})</h2>"
         f'<p class="coverage">{_coverage_sentence(comparison)}</p>'
         f'<div class="dist-row">{_distribution_html(summary)}</div>'
+        f"{_statistics_section(comparison)}"
         f'<ul class="cards">{cards}</ul>'
         f"{exclusion_block}"
     )
@@ -904,6 +1012,12 @@ code { background: var(--wash); padding: .1em .3em; border-radius: 3px;
   color: var(--muted); }
 .facts dd { margin: 0; overflow-wrap: anywhere; }
 .exclusions li { margin: .5rem 0; }
+.shares { border-collapse: collapse; width: 100%; margin: .6rem 0; font-size: .9rem; }
+.shares th, .shares td { border: 1px solid var(--line); padding: .4rem .6rem;
+  text-align: left; vertical-align: top; }
+.shares thead th { background: var(--wash); }
+.shares tbody th { font-weight: 400; }
+.refusal { border-left: 3px solid var(--line); padding-left: .8rem; margin: .6rem 0; }
 .method-card { border: 1px solid var(--line); border-radius: 8px;
   padding: .8rem 1rem; margin: .8rem 0; }
 .caveat { margin-top: 2.5rem; padding-top: .8rem; border-top: 1px solid var(--line);

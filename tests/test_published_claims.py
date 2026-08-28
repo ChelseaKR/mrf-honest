@@ -465,3 +465,64 @@ def test_the_readme_lead_states_the_csv_cohort_the_comparison_actually_contains(
     assert claimed(r"(\d+) of the 25 begin with a UTF-8", "the CSV BOM count") == len(
         cast(list[object], matrix["CMS_CSV_UTF8_BOM_PRESENT"]["files"])
     )
+
+
+# --- published shares (phase 7) --------------------------------------------------------------
+
+
+@pytest.mark.parametrize("comparison_path", PUBLISHED, ids=lambda path: path.name)
+def test_every_published_share_is_re_derivable_from_the_document_it_sits_in(
+    comparison_path: Path,
+) -> None:
+    """A share on the site must be recomputable from the same document's own rows.
+
+    The byte-for-byte re-derivation above proves the document is what the code produces. This
+    proves the numbers inside it are what the document's own contents say, so a share cannot
+    drift from the rows a reader can count for themselves.
+    """
+
+    document = json.loads(comparison_path.read_text(encoding="utf-8"))
+    statistics = document["statistics"]
+    assert statistics["policy_version"] == "population-statistics-v1"
+    estimates = statistics["estimates"]
+    if not estimates:
+        assert statistics["refusal"], f"{comparison_path.name} carries neither estimate nor reason"
+        assert statistics["refusal"]["reason"].strip()
+        return
+    assert statistics["refusal"] is None
+
+    carry_forward = set(
+        document["collection"].get("sampling_frame", {}).get("stratum_a_carry_forward", [])
+    )
+    published = sum(1 for row in document["files"] if row["slug"] not in carry_forward)
+    by_basis: dict[str, int] = {}
+    for exclusion in document["exclusions"]:
+        by_basis.setdefault(exclusion.get("basis") or "unstated_basis", 0)
+        by_basis[exclusion.get("basis") or "unstated_basis"] += 1
+    expected = {"published as a row of this cohort": published}
+    expected.update({f"excluded: {basis}": count for basis, count in by_basis.items()})
+
+    assert {estimate["label"]: estimate["numerator"] for estimate in estimates} == expected
+    denominator = published + sum(by_basis.values())
+    for estimate in estimates:
+        assert estimate["denominator"] == denominator
+        assert estimate["point"] == estimate["numerator"] / denominator
+        assert estimate["interval_low"] <= estimate["point"] <= estimate["interval_high"]
+    assert sum(estimate["numerator"] for estimate in estimates) == denominator
+
+
+@pytest.mark.parametrize("comparison_path", PUBLISHED, ids=lambda path: path.name)
+def test_a_published_share_reaches_the_rendered_page(comparison_path: Path, tmp_path: Path) -> None:
+    """The share is only published if it is on the page. A block computed and never rendered
+    would satisfy every test above and tell a reader nothing."""
+
+    document = json.loads(comparison_path.read_text(encoding="utf-8"))
+    render_site(document, tmp_path, origin="https://example.test")
+    html = (tmp_path / "index.html").read_text(encoding="utf-8")
+    assert "What share of the drawn sample this is" in html
+    estimates = document["statistics"]["estimates"]
+    if estimates:
+        for estimate in estimates:
+            assert f"{estimate['numerator']} of {estimate['denominator']}" in html
+    else:
+        assert "No share is published for this cohort" in html

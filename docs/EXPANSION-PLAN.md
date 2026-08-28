@@ -91,12 +91,12 @@ inferred at render time is exactly the fragility this project criticises elsewhe
 *Goal: put phase 6's numbers where a reader sees them, under the same fail-closed discipline the
 rest of the site already has.*
 
-- [ ] The comparison document carries a statistics block: every proportion with its interval, its
+- [x] The comparison document carries a statistics block: every proportion with its interval, its
       denominator, its stratum, and its suppression state
-- [ ] The site renders it, and renders a refusal as a refusal rather than omitting the section
-- [ ] The publish workflow's byte-for-byte re-derivation covers the new block, so a stale statistic
+- [x] The site renders it, and renders a refusal as a refusal rather than omitting the section
+- [x] The publish workflow's byte-for-byte re-derivation covers the new block, so a stale statistic
       cannot deploy
-- [ ] `comparison_version` moves, and the change is recorded
+- [x] `comparison_version` moves, and the change is recorded
 
 **Depends on:** phase 6.
 

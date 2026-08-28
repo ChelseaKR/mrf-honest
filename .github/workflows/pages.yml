@@ -118,6 +118,13 @@ jobs:
             targeted="$(python -c "import json,sys;print(json.load(open(sys.argv[1]))['summary']['targeted'])" "${comparison}")"
             grep -Fq "<strong>${targeted}</strong> machine-readable files" site/index.html
             total_targeted=$((total_targeted + targeted))
+            # Phase 7. A share that is computed and never rendered is not published, and a
+            # refusal that is silently dropped teaches a reader that the absence of a number
+            # means there was nothing to say. `mrf_honest.site.missing_shares` is the same
+            # function the test suite exercises, so the deploy check and the render cannot
+            # drift into two different strings.
+            python -c "import json,sys;from mrf_honest.site import missing_shares;p=missing_shares(json.load(open(sys.argv[1])),open(sys.argv[2],encoding='utf-8').read());sys.exit('::error title=Published share missing from the page::'+'; '.join(p) if p else 0)" "${comparison}" site/index.html
+            echo "shares checked for ${comparison}"
             # Every graded file gets its own page, or the index links somewhere that 404s. The
             # count check above passes on a render that emitted no file pages at all.
             python -c "import json,sys;print('\n'.join(row['slug'] for row in json.load(open(sys.argv[1]))['files']))" \

@@ -9,6 +9,24 @@ no version tags yet; until the first dated release (phase 5 of
 
 ### Added
 
+- **The first population statistic this project has published (phase 7, comparison version 3).**
+  The comparison document now carries a `statistics` block, always present so that a refusal
+  cannot read as an older document. For the 2026-08-19 JSON cohort it publishes the disposition
+  of the seeded draw with a 95 percent Wilson interval on every share: 11 of 48 published as a
+  row (22.9%, 13.4 to 36.4), 32 of 48 outside the profile (66.7%, 52.7 to 78.2), 4 of 48 whose
+  `cms-hpt.txt` could not be retrieved (8.3%, 3.3 to 19.4), and 1 of 48 published without an
+  `mrf-url` (2.1%, 0.4 to 10.8), each with the finite-population correction applied against the
+  3,024-facility frame. The disposition labels are read from the manifest's own exclusion `basis`
+  values, so a basis this code has never seen appears rather than vanishing into an unaccounted
+  remainder, and a test asserts the shares partition the stratum exactly. The other two committed
+  cohorts publish a stated refusal instead: 2026-08-14 has no sampling frame, and the CSV cohort
+  accounts for 25 of a draw of 48 with its sibling holding the rest, so rescaling to 25 would
+  publish a share of a population nobody drew. The site renders a refusal as a paragraph rather
+  than omitting the section, and `mrf_honest.site.missing_shares` runs on the deploy path, so a
+  share computed and never rendered fails the publish before it deploys. All three committed
+  comparison documents were regenerated; `docs/how-we-compare.md`, the README's "Still open" list
+  and the metrics ledger follow.
+
 - **Suppression, uncertainty, and the refusal that guards them (ADR 0007, phase 6).**
   `mrf_honest.statistics` is the only place a proportion is produced, and it returns either a
   `Proportion` carrying its own stratum, denominator and interval or a `Refusal` carrying the
