@@ -83,11 +83,13 @@ README quotes a ledger figure, this table is the source and the README follows i
 | Lakehouse persistent/transient storage | measured by artifact inventory and spool sizes | clean CLI acceptance | REVIEW | DB 117,977,088; 13 Parquets 52,459,578; archive 64,828,148; nine spools 251,678,531 bytes, 2026-08-09 |
 | Manifest body integrity and recovery | immutable body tampering rejected; prepared state recoverable after commit | deterministic integrity/transaction tests | AUTO (tests) | schema 4 digest passes; inspection/envelope/metrics tampering rejected; full SIGKILL/fsync matrix pending, 2026-08-09 |
 | Base runtime dependency count | 0 (DuckDB remains an optional lakehouse extra, ADRs 0002-0003) | `pyproject.toml` `[project] dependencies` | REVIEW | 0, 2026-08-15 |
+| Published shares re-derivable from the document they sit in | every share | `tests/test_published_claims.py` recomputes each numerator and denominator from the same document's rows and exclusions, and asserts each interval brackets its point | AUTO (`make verify`, and again on the deploy path via `mrf_honest.site.missing_shares`) | 4 shares on the JSON cohort; the other two cohorts carry a stated refusal, 2026-08-28 |
 | Fabricated figures in docs | 0 | every published number traces to a run or a query | REVIEW (house rule, `docs/CONTEXT.md`), now partly AUTO via `tests/test_published_claims.py` | **2 found and corrected on 2026-08-16**: this row's own "116 pinned distributions" (the export has always carried 51), and `perf/baseline.json` describing a nine-page audit as ten. Both are now re-derived by a test rather than dated. 0 known otherwise |
 
-Planned ledger rows that only become meaningful later: multi-publisher grade distribution and
-denominator-honesty checks (phases 3-4), suppression/uncertainty coverage (phase 4), and scheduled
-job plus site availability (phase 5).
+Planned ledger rows that only become meaningful later: multi-publisher grade distribution
+(phase 3-4) and scheduled job plus site availability (phase 5). Suppression and uncertainty
+coverage is no longer planned; it is the row above, and ADR 0007 records the floor and the
+interval method it measures against.
 
 Retrieval politeness is no longer an operator procedure. `src/mrf_honest/politeness.py` fetches
 and obeys `robots.txt` before the first request with no override flag, holds a per-host minimum

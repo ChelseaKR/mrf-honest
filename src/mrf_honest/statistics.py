@@ -48,6 +48,7 @@ class RefusalCode(StrEnum):
     POOLED_STRATA = "pooled_strata"
     EMPTY_DENOMINATOR = "empty_denominator"
     BELOW_SUPPRESSION_THRESHOLD = "below_suppression_threshold"
+    INCOMPLETE_ACCOUNTING = "incomplete_accounting"
 
 
 _REFUSAL_TEXT = {
@@ -69,6 +70,10 @@ _REFUSAL_TEXT = {
     RefusalCode.BELOW_SUPPRESSION_THRESHOLD: (
         f"the denominator is below the stated floor of {SUPPRESSION_THRESHOLD}, at which a 95 "
         "percent interval already spans more than 0.40 of the scale"
+    ),
+    RefusalCode.INCOMPLETE_ACCOUNTING: (
+        "this cohort accounts for only part of its stratum, so a proportion computed here would "
+        "have a denominator the frame does not recognise"
     ),
 }
 

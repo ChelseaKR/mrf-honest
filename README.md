@@ -232,9 +232,10 @@ Built:
 
 Still open:
 
-- structural separation of dollar, percentage, and algorithm representations exists; the
-  phase-4 small-cell suppression and uncertainty intervals do not, so **no price comparison is
-  published anywhere**;
+- structural separation of dollar, percentage, and algorithm representations exists, and so now
+  do small-cell suppression and uncertainty intervals (ADR 0007), but they are applied to the
+  disposition of a drawn sample rather than to prices: **no price comparison is published
+  anywhere**, and none will be until a rate comparison can carry its own uncertainty;
 - a payer-MRF pipeline, ZIP-container handling, and warehouse (lakehouse) support for the CSV
   profile: the warehouse remains JSON-v3-only, so CSV cohort pages state that no contract
   evidence exists rather than implying a pass (a `.zip` publication is still recorded and
