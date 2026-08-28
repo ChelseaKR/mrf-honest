@@ -592,13 +592,15 @@ def test_refusal_evidence_obeys_the_same_cohort_binding(tmp_path: Path) -> None:
 
 
 def test_comparison_version_announces_the_document_shape(tmp_path: Path) -> None:
-    """The refused branch changed what ``files[].lakehouse`` can be, so the schema moved.
+    """Version 2 changed what ``files[].lakehouse`` can be; version 3 added ``statistics``.
 
-    The grade policy did not: the rule table is untouched and every grade is unchanged, so the
-    fingerprint must stay put rather than announce a regrade that did not happen (ADR 0005).
+    The grade policy moved for neither: the rule table is untouched and every grade is
+    unchanged, so the fingerprint must stay put rather than announce a regrade that did not
+    happen (ADR 0005).
     """
     comparison = build_comparison(_two_records(tmp_path), _manifest(), generated_at=GENERATED_AT)
-    assert comparison["comparison_version"] == COMPARISON_VERSION == 2
+    assert comparison["comparison_version"] == COMPARISON_VERSION == 3
+    assert "statistics" in comparison
     cohort = cast(dict[str, object], comparison["cohort"])
     policy = cast(dict[str, object], cohort["grade_policy"])
     assert policy["fingerprint"] == GRADE_POLICY_FINGERPRINT
@@ -698,3 +700,109 @@ def test_cli_compare_reports_refusals_without_a_traceback(
     status = main(["compare", "--assessments", str(assessments), "--manifest", str(manifest)])
     assert status == 1
     assert "operator-controlled collection run" in capsys.readouterr().err
+
+
+# --- the statistics block (phase 7) ---------------------------------------------------------
+
+
+def _framed_manifest(
+    *,
+    sample_size: int,
+    exclusions: int,
+    carry_forward: tuple[str, ...] = (),
+    eligible: int | None = 3024,
+) -> dict[str, object]:
+    manifest = _manifest()
+    draw: dict[str, object] = {"seed": 1, "sample_size": sample_size}
+    if eligible is not None:
+        draw["eligible_count"] = eligible
+    frame: dict[str, object] = {"document": "docs/SAMPLING-FRAME.md", "stratum_b_random_draw": draw}
+    if carry_forward:
+        frame["stratum_a_carry_forward"] = list(carry_forward)
+    cast(dict[str, object], manifest["collection"])["sampling_frame"] = frame
+    manifest["exclusions"] = [
+        {"id": f"held-out-{index}", "basis": "format_outside_profile", "reason": "not JSON"}
+        for index in range(exclusions)
+    ]
+    return manifest
+
+
+def _comparison_with(manifest: dict[str, object], tmp_path: Path) -> dict[str, object]:
+    return build_comparison(_two_records(tmp_path), manifest, generated_at=GENERATED_AT)
+
+
+def test_statistics_is_always_present_so_a_refusal_cannot_read_as_an_old_document(
+    tmp_path: Path,
+) -> None:
+    comparison = _comparison_with(_manifest(), tmp_path)
+    statistics = cast(dict[str, object], comparison["statistics"])
+    assert statistics["policy_version"] == "population-statistics-v1"
+    assert statistics["estimates"] == []
+    assert cast(dict[str, object], statistics["refusal"])["code"] == "no_sampling_frame"
+
+
+def test_a_cohort_that_accounts_for_its_whole_draw_publishes_shares(tmp_path: Path) -> None:
+    manifest = _framed_manifest(sample_size=22, exclusions=20)
+    statistics = cast(dict[str, object], _comparison_with(manifest, tmp_path)["statistics"])
+    assert statistics["refusal"] is None
+    estimates = cast(list[dict[str, object]], statistics["estimates"])
+    assert [estimate["numerator"] for estimate in estimates] == [2, 20]
+    assert {estimate["denominator"] for estimate in estimates} == {22}
+    for estimate in estimates:
+        assert estimate["interval_low"] <= estimate["point"] <= estimate["interval_high"]
+        assert estimate["finite_population_correction"] is True
+
+
+def test_a_cohort_that_accounts_for_part_of_its_draw_refuses_rather_than_rescaling(
+    tmp_path: Path,
+) -> None:
+    """The CSV cohort's real shape: 25 targets of a draw of 48. Silently taking 25 as the
+    denominator would publish a share of a population nobody drew."""
+
+    manifest = _framed_manifest(sample_size=48, exclusions=20)
+    statistics = cast(dict[str, object], _comparison_with(manifest, tmp_path)["statistics"])
+    assert statistics["estimates"] == []
+    refusal = cast(dict[str, object], statistics["refusal"])
+    assert refusal["code"] == "incomplete_accounting"
+    assert refusal["denominator"] == 22
+
+
+def test_carry_forward_rows_are_excluded_from_the_probability_denominator(
+    tmp_path: Path,
+) -> None:
+    records = _two_records(tmp_path)
+    del records
+    carried = "alpha-health/main"
+    manifest = _framed_manifest(sample_size=21, exclusions=20, carry_forward=(carried,))
+    statistics = cast(dict[str, object], _comparison_with(manifest, tmp_path)["statistics"])
+    assert statistics["refusal"] is None
+    estimates = cast(list[dict[str, object]], statistics["estimates"])
+    assert estimates[0]["numerator"] == 1
+    assert estimates[0]["denominator"] == 21
+
+
+def test_a_draw_below_the_floor_suppresses_the_whole_block(tmp_path: Path) -> None:
+    manifest = _framed_manifest(sample_size=12, exclusions=10)
+    statistics = cast(dict[str, object], _comparison_with(manifest, tmp_path)["statistics"])
+    assert statistics["estimates"] == []
+    assert cast(dict[str, object], statistics["refusal"])["code"] == "below_suppression_threshold"
+
+
+def test_an_exclusion_without_a_basis_is_counted_not_dropped(tmp_path: Path) -> None:
+    """A basis this code has never seen must appear, not vanish into an unaccounted remainder."""
+
+    manifest = _framed_manifest(sample_size=22, exclusions=19)
+    cast(list[dict[str, object]], manifest["exclusions"]).append({"id": "odd", "reason": "?"})
+    statistics = cast(dict[str, object], _comparison_with(manifest, tmp_path)["statistics"])
+    estimates = cast(list[dict[str, object]], statistics["estimates"])
+    labels = [estimate["label"] for estimate in estimates]
+    assert "excluded: unstated_basis" in labels
+    assert sum(cast(int, estimate["numerator"]) for estimate in estimates) == 22
+
+
+def test_the_shares_partition_the_stratum_exactly(tmp_path: Path) -> None:
+    manifest = _framed_manifest(sample_size=22, exclusions=20)
+    statistics = cast(dict[str, object], _comparison_with(manifest, tmp_path)["statistics"])
+    estimates = cast(list[dict[str, object]], statistics["estimates"])
+    assert sum(cast(int, estimate["numerator"]) for estimate in estimates) == 22
+    assert abs(sum(cast(float, estimate["point"]) for estimate in estimates) - 1.0) < 1e-9

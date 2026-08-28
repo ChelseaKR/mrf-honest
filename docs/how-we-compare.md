@@ -66,7 +66,16 @@ One JSON document per cohort, fully derived from persisted inputs:
 - one row per file: grade with its one-sentence reason, five dimension statuses and notes, every
   finding, coverage flags, content SHA-256, byte size, observation timestamp, and the outcome of
   the warehouse ingest attempt (below);
-- a finding matrix: every emitted finding code and exactly which files emitted it.
+- a finding matrix: every emitted finding code and exactly which files emitted it;
+- a statistics block, always present: the disposition of the cohort's probability stratum, each
+  share carrying its own numerator, denominator and 95 percent Wilson interval, or one stated
+  refusal in place of every share. See [ADR 0007](adr/0007-suppression-uncertainty-and-refusal.md)
+  for the interval method, the suppression floor, and the five refusals.
+
+A refusal there is a published outcome, not an absence. A cohort with no sampling frame, a cohort
+whose only stratum is a convenience sample, and a cohort that accounts for part of a draw (the CSV
+cohort covers the 25 CSV-retrievable targets of a draw of 48; its sibling holds the rest) each
+state why no share was computed rather than omitting the section.
 
 A code absent from the matrix was not emitted by any graded file. For files whose scan completed,
 that means the implemented check found nothing; it is not a claim that the data is valid.

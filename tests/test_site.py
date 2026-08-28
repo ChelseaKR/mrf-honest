@@ -12,6 +12,7 @@ import pytest
 from test_cohort import (
     GENERATED_AT,
     _failure_record,
+    _framed_manifest,
     _manifest,
     _subject,
     _success_record,
@@ -25,8 +26,11 @@ from mrf_honest.site import (
     MIN_CONTRAST,
     NON_TEXT_TOKENS,
     PALETTE,
+    SHARES_HEADING,
+    SHARES_REFUSAL,
     TEXT_ON_BACKGROUND,
     contrast_ratio,
+    missing_shares,
     render_site,
 )
 
@@ -300,3 +304,130 @@ def test_the_index_and_methods_pages_state_whether_the_cohort_has_a_sampling_fra
     assert "Only CMS hospital JSON documents are graded." in methods
     assert "docs/SAMPLING-FRAME.md" in methods
     assert "This cohort has no stated sampling frame" not in methods
+
+
+# --- the statistics section (phase 7) -------------------------------------------------------
+
+
+def _index_html(tmp_path: Path, manifest: dict[str, object]) -> str:
+    comparison = build_comparison(
+        _two_records(tmp_path / "bodies"), manifest, generated_at=GENERATED_AT
+    )
+    out = tmp_path / "site"
+    render_site(comparison, out, origin=DEFAULT_ORIGIN)
+    return (out / "index.html").read_text(encoding="utf-8")
+
+
+def test_shares_reach_the_page_with_their_denominator_and_interval(tmp_path: Path) -> None:
+    html = _index_html(tmp_path, _framed_manifest(sample_size=22, exclusions=20))
+    assert "What share of the drawn sample this is" in html
+    assert "2 of 22" in html
+    assert "20 of 22" in html
+    assert "95% interval" in html or "95%" in html
+    assert "wilson-score" in html
+
+
+def test_a_refusal_renders_as_a_refusal_and_not_as_a_missing_section(tmp_path: Path) -> None:
+    """The section is the point. Dropping it would teach a reader that no number means there
+    was nothing to say, which is the reading this project exists to prevent."""
+
+    html = _index_html(tmp_path, _framed_manifest(sample_size=48, exclusions=20))
+    assert "What share of the drawn sample this is" in html
+    assert "No share is published for this cohort" in html
+    assert "accounts for only part of its stratum" in html
+    assert "covers 22 facilities" in html
+
+
+def test_an_unframed_cohort_states_that_it_has_no_population(tmp_path: Path) -> None:
+    html = _index_html(tmp_path, _manifest())
+    assert "No share is published for this cohort" in html
+    assert "records no sampling frame" in html
+
+
+def test_a_document_predating_the_statistics_layer_says_so(tmp_path: Path) -> None:
+    """A version-2 document rendered by version-3 code must not render as a refusal, because
+    "this cohort could not be estimated" and "nobody asked" are different facts."""
+
+    comparison = build_comparison(
+        _two_records(tmp_path / "bodies"),
+        _framed_manifest(sample_size=22, exclusions=20),
+        generated_at=GENERATED_AT,
+    )
+    del comparison["statistics"]
+    out = tmp_path / "legacy"
+    render_site(comparison, out, origin=DEFAULT_ORIGIN)
+    html = (out / "index.html").read_text(encoding="utf-8")
+    assert "predates the statistics layer" in html
+    assert "No share is published for this cohort" not in html
+
+
+def test_the_shares_table_keeps_its_heading_order_and_scopes(tmp_path: Path) -> None:
+    html = _index_html(tmp_path, _framed_manifest(sample_size=22, exclusions=20))
+    assert '<table class="shares">' in html
+    assert '<th scope="col">Disposition</th>' in html
+    assert '<th scope="row">published as a row of this cohort</th>' in html
+
+
+def test_missing_shares_is_silent_when_the_page_carries_the_document(tmp_path: Path) -> None:
+    comparison = build_comparison(
+        _two_records(tmp_path / "bodies"),
+        _framed_manifest(sample_size=22, exclusions=20),
+        generated_at=GENERATED_AT,
+    )
+    out = tmp_path / "site"
+    render_site(comparison, out, origin=DEFAULT_ORIGIN)
+    html = (out / "index.html").read_text(encoding="utf-8")
+    assert missing_shares(comparison, html) == []
+
+
+def test_missing_shares_names_each_share_the_page_dropped(tmp_path: Path) -> None:
+    """This is the deploy path's check. It has to be able to fail, so here it is failing."""
+
+    comparison = build_comparison(
+        _two_records(tmp_path / "bodies"),
+        _framed_manifest(sample_size=22, exclusions=20),
+        generated_at=GENERATED_AT,
+    )
+    out = tmp_path / "site"
+    render_site(comparison, out, origin=DEFAULT_ORIGIN)
+    html = (out / "index.html").read_text(encoding="utf-8")
+    stripped = re.sub(r'<table class="shares">.*?</table>', "", html, flags=re.S)
+    problems = missing_shares(comparison, stripped)
+    assert "2 of 22 is in the document but not on the page" in problems
+    assert "20 of 22 is in the document but not on the page" in problems
+
+
+def test_missing_shares_catches_a_dropped_refusal(tmp_path: Path) -> None:
+    comparison = build_comparison(
+        _two_records(tmp_path / "bodies"),
+        _framed_manifest(sample_size=48, exclusions=20),
+        generated_at=GENERATED_AT,
+    )
+    out = tmp_path / "site"
+    render_site(comparison, out, origin=DEFAULT_ORIGIN)
+    html = (out / "index.html").read_text(encoding="utf-8").replace(SHARES_REFUSAL, "nothing here")
+    assert missing_shares(comparison, html) == ["a refused cohort rendered no refusal on the page"]
+
+
+def test_missing_shares_catches_a_document_with_no_block_at_all(tmp_path: Path) -> None:
+    assert missing_shares({}, "<html></html>") == [
+        "the comparison document carries no statistics block"
+    ]
+
+
+def test_missing_shares_catches_a_page_that_lost_the_whole_section(tmp_path: Path) -> None:
+    comparison = build_comparison(
+        _two_records(tmp_path / "bodies"),
+        _framed_manifest(sample_size=22, exclusions=20),
+        generated_at=GENERATED_AT,
+    )
+    problems = missing_shares(comparison, "<html>no section</html>")
+    assert problems == [f"the page does not carry the heading {SHARES_HEADING!r}"]
+
+
+def test_missing_shares_catches_a_block_with_neither_estimate_nor_reason(tmp_path: Path) -> None:
+    comparison = {"statistics": {"estimates": [], "refusal": None}}
+    html = f"<h3>{SHARES_HEADING}</h3>"
+    assert missing_shares(comparison, html) == [
+        "the document carries neither an estimate nor a stated refusal"
+    ]
