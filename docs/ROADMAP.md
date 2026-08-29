@@ -28,8 +28,34 @@ the digest itself. Reuse validates that digest, manifest/catalog identity, and e
 artifact before returning; tampered inspection, envelope, or metrics fail closed, while a valid
 `prepared` manifest attached to a successful catalog run is recoverably finalized. Contract
 failures roll back model rows, and handled promotion failures clean the run's deterministic
-artifacts. This is not a claim of full crash durability: concurrent writers, historical warehouse
-migrations, and a full SIGKILL/fsync matrix remain open.
+artifacts.
+
+Two of the three durability gaps this paragraph used to leave open are now measured, and the
+third is not. `tests/test_durability.py` kills a real ingest subprocess with SIGKILL at six named
+progress markers and asserts, after every kill, that the catalog reports no completed snapshot and
+that any run it does report has its manifest and every named Parquet on disk; a killed warehouse
+is then re-run to completion at every marker. The kill points are markers rather than wall-clock
+offsets because offsets were tried first and abandoned: a kill scheduled at a fraction of a run
+measured a second earlier lands wherever the machine's load puts it, interrupting a different
+stage on every run and sometimes none at all. A marker is the same point on a fast machine and a
+slow one, and the sweep fails outright if fewer than four of its six samples were genuinely
+killed, so a run of quiet non-interruptions cannot pass as evidence. Two writers are raced against
+one warehouse and one source, and one snapshot is the measured result.
+
+One observed state is recorded rather than asserted away: killing at the instant DuckDB first
+creates `warehouse.duckdb` leaves a file it will not open read-only, because the file exists
+before its header does. That is not a false claim, which is what this suite guards against, and it
+is not permanent; a re-run recovers it, and the recovery test covers that marker like every other.
+
+**Sampled kills are evidence, not proof**, and that was measured too: reordering the catalog
+commit ahead of artifact promotion left every marker green, because the window between them is too
+narrow for a kill to land in. Three deterministic fault injections cover it, at promotion, at the
+Parquet write, and at the manifest write, and the reordering fails them.
+
+Still open, and named rather than implied: historical warehouse migrations; fsync behaviour, which
+needs a filesystem-level fault injector rather than a signal; and the one-statement window between
+promotion and the catalog commit that `_clean_promoted` guards, which no fault this suite can
+inject lands inside (`tests/test_durability.py::test_one_window_this_suite_does_not_reach`).
 
 The hosted surface is a static GitHub Pages site rebuilt exclusively from data committed to this
 repository by a SHA-pinned workflow (`.github/workflows/pages.yml`). The build fails closed
@@ -55,7 +81,7 @@ README quotes a ledger figure, this table is the source and the README follows i
 
 | Metric | Target | Measured by | Gate | Last measured |
 |---|---|---|---|---|
-| Branch coverage | >= 85% | `pytest --cov` (branch mode, `fail_under = 85`) | AUTO (`make verify`) | 92.44%, 445 tests passing, 2026-08-21 |
+| Branch coverage | >= 85% | `pytest --cov` (branch mode, `fail_under = 85`) | AUTO (`make verify`) | 92.79%, 644 tests passing and 4 skipped, 2026-08-28 |
 | Lint findings (ruff `E,F,I,B,S,C90,UP,RUF`, `max-complexity=10`) | 0 | `ruff check src tests perf` | AUTO (`make verify`) | 0, 2026-08-16 |
 | Formatting findings | 0 | `ruff format --check src tests perf` | AUTO (`make verify`) | 0, 2026-08-16 |
 | `mypy --strict` errors | 0 | `mypy` over `src` and `perf` | AUTO (`make verify`) | 0, 2026-08-16 |
@@ -83,11 +109,14 @@ README quotes a ledger figure, this table is the source and the README follows i
 | Lakehouse persistent/transient storage | measured by artifact inventory and spool sizes | clean CLI acceptance | REVIEW | DB 117,977,088; 13 Parquets 52,459,578; archive 64,828,148; nine spools 251,678,531 bytes, 2026-08-09 |
 | Manifest body integrity and recovery | immutable body tampering rejected; prepared state recoverable after commit | deterministic integrity/transaction tests | AUTO (tests) | schema 4 digest passes; inspection/envelope/metrics tampering rejected; full SIGKILL/fsync matrix pending, 2026-08-09 |
 | Base runtime dependency count | 0 (DuckDB remains an optional lakehouse extra, ADRs 0002-0003) | `pyproject.toml` `[project] dependencies` | REVIEW | 0, 2026-08-15 |
+| Published shares re-derivable from the document they sit in | every share | `tests/test_published_claims.py` recomputes each numerator and denominator from the same document's rows and exclusions, and asserts each interval brackets its point | AUTO (`make verify`, and again on the deploy path via `mrf_honest.site.missing_shares`) | 4 shares on the JSON cohort; the other two cohorts carry a stated refusal, 2026-08-28 |
+| Crash and concurrency durability | catalog never reports a snapshot it does not hold | `tests/test_durability.py`: SIGKILL at 6 named progress markers, 3 deterministic fault injections, and 2 racing writers | AUTO (`make verify`) | 16 cases, 0 failures over four consecutive runs; migrations, fsync, and the promote-to-commit window remain open and are named, 2026-08-28 |
 | Fabricated figures in docs | 0 | every published number traces to a run or a query | REVIEW (house rule, `docs/CONTEXT.md`), now partly AUTO via `tests/test_published_claims.py` | **2 found and corrected on 2026-08-16**: this row's own "116 pinned distributions" (the export has always carried 51), and `perf/baseline.json` describing a nine-page audit as ten. Both are now re-derived by a test rather than dated. 0 known otherwise |
 
-Planned ledger rows that only become meaningful later: multi-publisher grade distribution and
-denominator-honesty checks (phases 3-4), suppression/uncertainty coverage (phase 4), and scheduled
-job plus site availability (phase 5).
+Planned ledger rows that only become meaningful later: multi-publisher grade distribution
+(phase 3-4) and scheduled job plus site availability (phase 5). Suppression and uncertainty
+coverage is no longer planned; it is the row above, and ADR 0007 records the floor and the
+interval method it measures against.
 
 Retrieval politeness is no longer an operator procedure. `src/mrf_honest/politeness.py` fetches
 and obeys `robots.txt` before the first request with no override flag, holds a per-host minimum

@@ -120,7 +120,24 @@ uv run mrf-honest compare \
   $(for e in data/cohorts/2026-08-19.ingest/*.json; do printf ' --ingest-result %s' "$e"; done) \
   > comparison.json
 uv run mrf-honest site --comparison comparison.json --out site
+
+# Serve the published dataset to an MCP client. Read-only, offline, no network at answer time:
+# the site directory's api/ documents are the entire source.
+uv run mrf-honest mcp --site site
 ```
+
+The render writes more than pages: `site/dataset.csv`, `site/dataset.schema.json` (a Frictionless
+Table Schema) and a static JSON API under `site/api/`, all from the same comparison documents, so
+the dataset cannot describe a cohort the site does not show.
+
+`mrf-honest mcp` speaks JSON-RPC 2.0 over stdio with five tools: `list_cohorts`, `list_files`,
+`get_file`, `cohort_statistics`, and `grading_method`. It refuses the questions the site refuses.
+Asking for a grade filter without naming a cohort returns a stated refusal rather than a pooled
+count, because a letter counted across cohorts pools rows produced under different profiles and
+policies. `grading_method` reads the rule table from the policy the published grades were minted
+under, not from a summary that could drift from it. There is no tool that retrieves a hospital's
+file. The server is not registered with any MCP registry: that would name a released package, and
+there is no release yet.
 
 Re-running that command over the committed inputs reproduces
 [the committed comparison](data/cohorts/2026-08-19.comparison.json) byte for byte, and both
@@ -232,16 +249,24 @@ Built:
 
 Still open:
 
-- structural separation of dollar, percentage, and algorithm representations exists; the
-  phase-4 small-cell suppression and uncertainty intervals do not, so **no price comparison is
-  published anywhere**;
-- a payer-MRF pipeline, ZIP-container handling, and warehouse (lakehouse) support for the CSV
-  profile: the warehouse remains JSON-v3-only, so CSV cohort pages state that no contract
-  evidence exists rather than implying a pass (a `.zip` publication is still recorded and
-  excluded rather than mis-graded);
-- safe concurrent-writer coordination, supported warehouse migrations, and a full SIGKILL/fsync
-  crash matrix; and
-- the phase-5 dataset export, API, MCP server, and release process.
+- structural separation of dollar, percentage, and algorithm representations exists, and so now
+  do small-cell suppression and uncertainty intervals (ADR 0007), but they are applied to the
+  disposition of a drawn sample rather than to prices: **no price comparison is published
+  anywhere**, and none will be until a rate comparison can carry its own uncertainty;
+- a payer-MRF pipeline, and warehouse (lakehouse) support for the CSV profile: the warehouse
+  remains JSON-v3-only, so CSV cohort pages state that no contract evidence exists rather than
+  implying a pass. ZIP containers are now read: `mrf-honest inspect` opens an archive, selects
+  the one document inside it, and refuses rather than choosing when there is not exactly one.
+  The seven ZIP publications of the committed draw remain recorded exclusions until an operator
+  retrieves their bodies, because those bodies are not committed;
+- supported warehouse migrations, fsync behaviour, and the one-statement window between artifact
+  promotion and the catalog commit. Crash and concurrency durability is now measured rather than
+  disclaimed: an ingest is killed with SIGKILL at six named progress markers and the catalog is
+  required never to report a snapshot it does not hold, three deterministic fault injections cover
+  the windows a sampled kill misses, and two racing writers produce one snapshot; and
+- the phase-5 release process. The dataset export, the static JSON API and the read-only MCP
+  server landed; `dataset.csv`, `dataset.schema.json` and `api/` are written by the same render
+  as the pages, and `mrf-honest mcp` serves them.
 
 ## Documents
 
@@ -258,6 +283,7 @@ Still open:
 | [docs/how-we-grade.md](docs/how-we-grade.md) | Assessment semantics and the source-cited finding catalog |
 | [docs/how-we-compare.md](docs/how-we-compare.md) | The comparison boundary and the published file-grade policy |
 | [docs/findings/](docs/findings/) | Written-up findings from published cohorts, with evidence |
+| [docs/CORRECTIONS.md](docs/CORRECTIONS.md) | How to dispute or remove a published row, and the record of what this project has already got wrong |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Current position, observability declaration, metrics ledger |
 | [docs/RESPONSIBLE-TECH-AUDITS.md](docs/RESPONSIBLE-TECH-AUDITS.md) | Responsible-tech declarations for the current scope |
 | [docs/adr/0006-ai-narration-outside-the-graded-path.md](docs/adr/0006-ai-narration-outside-the-graded-path.md) | Why a model may narrate a finished grade, and the verifier that keeps it honest |
@@ -270,7 +296,7 @@ ADR in [docs/adr/](docs/adr/). No blank rows, no silent skips.
 
 | Standard | State |
 |---|---|
-| Code Quality | Applies: `make verify` runs six gates — `ruff check` (security `S` rules, `max-complexity=10`), `ruff format --check`, `mypy --strict`, pytest with a branch-coverage floor of 85, `uv lock --check`, and `pip-audit --strict` over the exported lockfile. Current: 445 tests, 92.44% branch coverage, zero lint/format/type findings, lockfile in sync, zero known vulnerabilities (2026-08-21). Floors: Python >= 3.12 (`.python-version` pins 3.14), ruff >= 0.15, mypy >= 1.18, locked in `uv.lock`. Dev tooling is a PEP 735 `[dependency-groups]` group, so `uv sync` installs it and a published wheel never carries it. |
+| Code Quality | Applies: `make verify` runs six gates — `ruff check` (security `S` rules, `max-complexity=10`), `ruff format --check`, `mypy --strict`, pytest with a branch-coverage floor of 85, `uv lock --check`, and `pip-audit --strict` over the exported lockfile. Current: 644 tests passing and 4 skipped, 92.79% branch coverage, zero lint/format/type findings, lockfile in sync, zero known vulnerabilities (2026-08-28). Floors: Python >= 3.12 (`.python-version` pins 3.14), ruff >= 0.15, mypy >= 1.18, locked in `uv.lock`. Dev tooling is a PEP 735 `[dependency-groups]` group, so `uv sync` installs it and a published wheel never carries it. |
 | Security & Supply-Chain | Applies: the streaming, inspection, discovery, fetch, registry, comparison, and site path is standard-library-only; DuckDB is an optional lakehouse dependency ([ADRs 0002-0003](docs/adr/)) and the `anthropic` SDK an optional `ai` extra that only the narration layer imports ([ADR 0006](docs/adr/0006-ai-narration-outside-the-graded-path.md)). The lockfile, ruff `S` gate, HTTPS/redirect validation, bounded downloads, and SHA-pinned CI actions reduce the current surface. Hosted CodeQL (Python and Actions) and a checksum-pinned full-history gitleaks scan run on push, PR, and weekly schedule (`.github/workflows/security.yml`). `make verify` runs `pip-audit --strict` against the whole exported lockfile — every extra and the dev group — with no ignore list, so the audit runs on a laptop and in CI rather than only in CI. The lockfile-drift gate is `uv lock --check`, not `uv sync --frozen`: measured on a deliberately drifted project under uv 0.12.1, `uv lock --check` and `uv sync --locked` exit 1 and `uv sync --frozen` exits 0, because `--frozen` installs from the lockfile without reading `pyproject.toml` and so cannot see the two disagree. |
 | CI/CD | Applies: SHA-pinned workflows mirror `make verify` on Python 3.12 and 3.14, build distributions, and publish the site from committed data only. The publish job first re-derives the newest comparison from its committed assessments, manifest, and ingest evidence and requires a byte-for-byte match, then requires one rendered page per row in it; a generator that no longer reproduces its own published artifact cannot deploy. `make verify` runs the same derivation, but that is a separate workflow whose failure would not by itself stop a deploy, which is why the check is on both paths. |
 | Observability | Applies to the local batch shape plus a static published artifact: finalized run manifests and DuckDB `model_metric` rows retain counts, bytes, and wall time; the site is rebuilt from committed data with no availability objective declared. See [docs/ROADMAP.md](docs/ROADMAP.md). |

@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: How corrections, disputes and removals work
+    url: https://github.com/ChelseaKR/mrf-honest/blob/master/docs/CORRECTIONS.md
+    about: What is published, what is not, and why a removal request needs no justification.

@@ -43,6 +43,19 @@ from dataclasses import dataclass
 from typing import cast
 
 from mrf_honest.scorecard import require_comparable
+from mrf_honest.statistics import (
+    CONFIDENCE,
+    STATISTICS_POLICY_VERSION,
+    SUPPRESSION_THRESHOLD,
+    Proportion,
+    Refusal,
+    RefusalCode,
+    Stratum,
+    estimate_proportion,
+    probability_strata,
+    read_strata,
+    refuse,
+)
 
 GRADE_POLICY_VERSION = "cms-hospital-json-v3-file-grade-v1"
 
@@ -57,11 +70,16 @@ CSV_GRADE_POLICY_VERSION = "cms-hospital-csv-v3-file-grade-v1"
 #: evidence became a discriminated record instead of "an object or ``null``", so a consumer
 #: reading version 1 cannot assume a present object means a completed load.
 #:
+#: Version 3 added ``statistics``: the disposition of the cohort's probability stratum, each
+#: share carrying its own denominator and interval, or one stated refusal (ADR 0007). It is
+#: always present and never null, because a consumer that has to test for a key cannot tell a
+#: refusal from an older document.
+#:
 #: This is deliberately *not* ``GRADE_POLICY_VERSION``. Warehouse evidence is not a grading
 #: input, the rule table below is byte-identical, and every grade in a re-derived cohort is
 #: unchanged; moving the grade fingerprint would announce a regrade that did not happen and
 #: would make old and new cohorts falsely incomparable (ADR 0005).
-COMPARISON_VERSION = 2
+COMPARISON_VERSION = 3
 
 #: ``status`` of an ingest attempt the warehouse declined for scope reasons.
 INGEST_REFUSED = "refused"
@@ -510,6 +528,123 @@ def _summary(rows: Sequence[Mapping[str, object]]) -> dict[str, object]:
     }
 
 
+#: What the published shares describe. Stated in the document so a consumer never has to infer
+#: the population from the numbers.
+STATISTICS_BASIS = (
+    "the disposition of every facility in this cohort's probability stratum: each published row "
+    "of that stratum, and each recorded exclusion, as a share of the sample the frame recorded. "
+    "Shares describe the drawn sample; they are not weighted by bed count, discharge volume, or "
+    "spend, and they are never pooled across strata or across cohorts."
+)
+
+
+def _statistics_envelope(
+    estimates: Sequence[Proportion], refusal: Refusal | None
+) -> dict[str, object]:
+    """The always-present statistics block, shaped so a refusal cannot read as an absence."""
+
+    return {
+        "policy_version": STATISTICS_POLICY_VERSION,
+        "method": "wilson-score",
+        "confidence": CONFIDENCE,
+        "suppression_threshold": SUPPRESSION_THRESHOLD,
+        "basis": STATISTICS_BASIS,
+        "estimates": [estimate.as_dict() for estimate in estimates],
+        "refusal": refusal.as_dict() if refusal is not None else None,
+    }
+
+
+def _carry_forward_slugs(collection: Mapping[str, object]) -> frozenset[str]:
+    """Slugs the frame names as carry-forward, which are the convenience stratum's members."""
+
+    frame = collection.get("sampling_frame")
+    if not isinstance(frame, Mapping):
+        return frozenset()
+    listed = frame.get("stratum_a_carry_forward")
+    if not isinstance(listed, Sequence) or isinstance(listed, str | bytes):
+        return frozenset()
+    return frozenset(slug for slug in listed if isinstance(slug, str))
+
+
+def _stratum_dispositions(
+    rows: Sequence[Mapping[str, object]],
+    exclusions: Sequence[Mapping[str, object]],
+    carry_forward: frozenset[str],
+) -> tuple[list[tuple[str, int]], int]:
+    """Partition the probability stratum into published rows and exclusions, by basis.
+
+    The exclusion labels are read from the manifest's own ``basis`` values rather than from a
+    list maintained here, so a basis this code has never seen still appears in the output
+    instead of vanishing into an unaccounted remainder.
+    """
+
+    published = sum(1 for row in rows if cast(str, row["slug"]) not in carry_forward)
+    by_basis: dict[str, int] = {}
+    for exclusion in exclusions:
+        basis = exclusion.get("basis")
+        key = basis if isinstance(basis, str) and basis else "unstated_basis"
+        by_basis[key] = by_basis.get(key, 0) + 1
+    dispositions: list[tuple[str, int]] = [("published as a row of this cohort", published)]
+    dispositions.extend(("excluded: " + basis, count) for basis, count in sorted(by_basis.items()))
+    return dispositions, published + sum(by_basis.values())
+
+
+def _population_statistics(
+    rows: Sequence[Mapping[str, object]],
+    collection: Mapping[str, object],
+    exclusions: Sequence[Mapping[str, object]],
+) -> dict[str, object]:
+    """Estimate the stratum's disposition, or state in one place why nothing was estimated.
+
+    Every refusal here is a published outcome. The one that fires most often in practice is
+    ``incomplete_accounting``: a cohort that covers part of a draw (the CSV cohort covers the 25
+    CSV-retrievable targets of a draw of 48) cannot carry a share of that draw by itself, and
+    the sibling cohort holds the rest.
+    """
+
+    strata = read_strata(collection)
+    if not strata:
+        return _statistics_envelope((), refuse(RefusalCode.NO_SAMPLING_FRAME))
+    drawn = probability_strata(strata)
+    if len(drawn) != 1:
+        code = RefusalCode.POOLED_STRATA if drawn else RefusalCode.CONVENIENCE_STRATUM
+        return _statistics_envelope((), refuse(code))
+    stratum = drawn[0]
+    dispositions, denominator = _stratum_dispositions(
+        rows, exclusions, _carry_forward_slugs(collection)
+    )
+    if denominator != stratum.sample_size:
+        return _statistics_envelope(
+            (),
+            refuse(
+                RefusalCode.INCOMPLETE_ACCOUNTING,
+                stratum=stratum.identifier,
+                denominator=denominator,
+            ),
+        )
+    return _estimate_dispositions(dispositions, stratum, denominator)
+
+
+def _estimate_dispositions(
+    dispositions: Sequence[tuple[str, int]], stratum: Stratum, denominator: int
+) -> dict[str, object]:
+    """Estimate every disposition, refusing the whole block if any one of them refuses.
+
+    A block that published some shares and silently dropped others would invite a reader to add
+    up what is shown and conclude that the rest is zero.
+    """
+
+    estimates: list[Proportion] = []
+    for label, numerator in dispositions:
+        estimate = estimate_proportion(
+            label=label, stratum=stratum, numerator=numerator, denominator=denominator
+        )
+        if isinstance(estimate, Refusal):
+            return _statistics_envelope((), estimate)
+        estimates.append(estimate)
+    return _statistics_envelope(estimates, None)
+
+
 def _cohort_header(
     records: Sequence[Mapping[str, object]],
     manifest: Mapping[str, object],
@@ -580,6 +715,11 @@ def build_comparison(
         "discovery": manifest.get("discovery"),
         "exclusions": manifest.get("exclusions", []),
         "summary": _summary(file_rows),
+        "statistics": _population_statistics(
+            file_rows,
+            collection,
+            cast(Sequence[Mapping[str, object]], manifest.get("exclusions", [])),
+        ),
         "files": file_rows,
         "finding_matrix": _finding_matrix(file_rows),
     }

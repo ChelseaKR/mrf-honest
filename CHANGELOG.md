@@ -9,6 +9,142 @@ no version tags yet; until the first dated release (phase 5 of
 
 ### Added
 
+- **The release path, up to the one act no automation here should take (phase 14).**
+  `.github/workflows/release.yml` verifies that a tag carries a signature from a key in
+  `.github/allowed_signers`, requires the tag and `pyproject.toml` to agree, refuses a
+  pre-release version, requires a `CHANGELOG.md` entry for it, re-runs `make verify` at the
+  tagged commit with the uv cache disabled, and builds and SHA-256-hashes the distributions.
+  It holds no signing key, no passphrase and no registry credential; it creates no tag; it
+  publishes nothing. `.github/allowed_signers` is deliberately **not** shipped: a committed
+  placeholder would look like a configured trust root while trusting nobody, so the workflow
+  stops at that step with the reason stated instead, and a test asserts the placeholder is
+  absent. Twenty-three assertions in `tests/test_release_workflow.py` pin all of that, including
+  that every action is SHA-pinned, no checkout persists credentials, and the version this
+  repository declares today (`0.1.0.dev0`) would be refused, which is the honest state of it.
+
+- **Crash and concurrency durability is measured rather than disclaimed (phase 12).**
+  `docs/ROADMAP.md` has said since the lakehouse landed that "concurrent writers, historical
+  warehouse migrations, and a full SIGKILL/fsync crash matrix remain open". Two of those three
+  now have evidence. `tests/test_durability.py` runs a real ingest in a subprocess and kills it
+  with SIGKILL at six named progress markers; after every kill the catalog must report no
+  completed snapshot, every run it does report must have its manifest and every named Parquet on
+  disk, and the warehouse must be re-runnable to completion. The kill points are markers rather
+  than wall-clock offsets because offsets were tried first and were flaky: a kill scheduled at a
+  fraction of a run measured a second earlier lands wherever the machine's load puts it. The
+  sweep also fails outright if fewer than four of its six samples were genuinely killed, so a run
+  of quiet non-interruptions cannot pass as evidence. Two writers are raced against one warehouse
+  and one source, and one snapshot is the measured result. One observed state is recorded rather
+  than asserted away: killing at the instant DuckDB creates `warehouse.duckdb` leaves a file it
+  will not open read-only, because the file exists before its header does; a re-run recovers it.
+  The interesting part is what the matrix could **not** show: reordering the catalog commit ahead
+  of artifact promotion left every marker green, because that window is too narrow for a kill to
+  land in. Three deterministic fault injections close it, at promotion, at the Parquet write and
+  at the manifest write, and the reordering fails them. What stays open is named rather than
+  implied: historical migrations, fsync behaviour (which needs a filesystem fault injector, not a
+  signal), and the one-statement window `_clean_promoted` guards, which no fault this suite can
+  inject reaches. That last one has a test whose only job is to say so.
+
+
+- **ZIP publications are read rather than excluded (phase 11, first half).** Seven publications
+  in the committed 2026-08-19 draw are ZIP archives, and every one was a recorded exclusion on
+  the stated ground that a container is not a CSV file. That is right about grading the
+  container and says nothing about the document inside it. `mrf_honest.container` opens an
+  archive under stated bounds and selects the one gradeable member, or refuses with the reason:
+  at most 64 members, at most 1 GiB of declared uncompressed bytes, at most a 200-to-1 expansion
+  ratio on any member (that is what a zip bomb is, and the ratio is read from the central
+  directory so nothing is decompressed to find out), no encrypted member, no member name that
+  escapes the archive root, and no nested archive, because a nested container is a second
+  unbounded read wearing the first one's clothes. Two gradeable members are refused rather than
+  chosen between, since choosing would be this project deciding which file a publisher meant to
+  publish. A member is classified by its leading bytes, never by the name it was stored under.
+  `mrf-honest inspect` reads a ZIP publication end to end, records the container step in its JSON
+  output, and removes the lifted member afterwards; a refused container exits nonzero and emits
+  no inspection, so an archive nobody opened can never report zero findings. **The seven
+  committed ZIPs stay exclusions**: their bodies were never retrieved, and retrieval is an
+  operator-invoked act. The warehouse's CSV profile, the other half of this phase, is not built.
+
+- **A correction and removal flow, and the record of what this project got wrong (phase 10).**
+  [docs/CORRECTIONS.md](docs/CORRECTIONS.md) says what is published about a named institution,
+  gives four routes for raising a problem, and states the rule the rest of the page is built on:
+  **a removal request is honoured on request, with no proof asked for and no case to make.** A
+  withdrawn row leaves a stated trace in the cohort's accounting, because a cohort that quietly
+  shrinks would misstate its own denominator and the statistics layer would then compute a share
+  of a population edited after the fact. Two GitHub issue forms match, and a test asserts the
+  removal form has exactly one required field and that neither form requires a reason, a proof,
+  or evidence. Every page's footer carries the route, asserted for every rendered page rather
+  than for the index alone, because a subject who finds a wrong grade lands on that file's page.
+  The page ends with ten things that have already gone wrong here, each naming the commit that
+  fixed it, and a test resolves every cited commit against this repository and requires it to be
+  an ancestor of the default branch. That check needs history to check against, so CI now
+  checks out with `fetch-depth: 0`, and a shallow clone fails the suite loudly rather than
+  letting the citation checks skip in the one place they run automatically. Six of the ten are one shape: this project's own limitation
+  published as a statement about somebody else.
+
+- **A read-only MCP server that refuses what the site refuses (phase 9).** `mrf-honest mcp`
+  speaks JSON-RPC 2.0 over stdio, standard library only, and answers entirely from the `api/`
+  documents the render wrote. Five tools: `list_cohorts`, `list_files`, `get_file`,
+  `cohort_statistics` and `grading_method`. There is deliberately no tool that retrieves a
+  hospital's file. The refusals are the point: `list_files` with a grade filter and no
+  `cohort_id` returns a stated refusal, because a letter counted across cohorts pools rows
+  produced under different profiles and policies, and an assistant would get that number in one
+  sentence without ever seeing the page that explains why it is meaningless. A slug published in
+  two cohorts refuses until one is named, an unknown tool refuses rather than answering
+  approximately, and a cohort published before the statistics layer says so instead of reporting
+  an empty result. `grading_method` reads each rule table from the policy the published grades
+  were minted under rather than from a summary that could drift from it. A test asserts the
+  module names no network module at all. The server is not registered with any MCP registry,
+  which would name a released package; there is no release yet.
+
+- **The grades leave the HTML: `dataset.csv`, a Table Schema, and a static JSON API (phase 8).**
+  All three are written by the same render as the pages, from the same comparison documents, so
+  there is no second pipeline to drift: a row that is not on the site is not in the dataset. The
+  dataset carries one row per published file with 34 columns, and every row carries its cohort,
+  profile, publisher type, URL provenance and all three policy fingerprints, because a grade with
+  no profile beside it invites exactly the pooling `docs/how-we-compare.md` forbids. A refused
+  warehouse load is a stated `lakehouse_status`, never a blank. The Table Schema is generated from
+  the same column tuple as the CSV header, so a column cannot appear in the data and be missing
+  from its own description, and it carries the site's caveat so a consumer who never opens a page
+  still meets the boundary. `api/index.json` lists every cohort with its scope, its summary and
+  its statistics outcome, including a refusal as a stated field rather than a missing key;
+  `api/cohorts/<id>.json` carries the rows, exclusions and finding matrix.
+  `mrf_honest.dataset.missing_exports` runs on the deploy path and fails a publish where the
+  exports have been truncated, reordered, or dropped.
+
+- **The first population statistic this project has published (phase 7, comparison version 3).**
+  The comparison document now carries a `statistics` block, always present so that a refusal
+  cannot read as an older document. For the 2026-08-19 JSON cohort it publishes the disposition
+  of the seeded draw with a 95 percent Wilson interval on every share: 11 of 48 published as a
+  row (22.9%, 13.4 to 36.4), 32 of 48 outside the profile (66.7%, 52.7 to 78.2), 4 of 48 whose
+  `cms-hpt.txt` could not be retrieved (8.3%, 3.3 to 19.4), and 1 of 48 published without an
+  `mrf-url` (2.1%, 0.4 to 10.8), each with the finite-population correction applied against the
+  3,024-facility frame. The disposition labels are read from the manifest's own exclusion `basis`
+  values, so a basis this code has never seen appears rather than vanishing into an unaccounted
+  remainder, and a test asserts the shares partition the stratum exactly. The other two committed
+  cohorts publish a stated refusal instead: 2026-08-14 has no sampling frame, and the CSV cohort
+  accounts for 25 of a draw of 48 with its sibling holding the rest, so rescaling to 25 would
+  publish a share of a population nobody drew. The site renders a refusal as a paragraph rather
+  than omitting the section, and `mrf_honest.site.missing_shares` runs on the deploy path, so a
+  share computed and never rendered fails the publish before it deploys. All three committed
+  comparison documents were regenerated; `docs/how-we-compare.md`, the README's "Still open" list
+  and the metrics ledger follow.
+
+- **Suppression, uncertainty, and the refusal that guards them (ADR 0007, phase 6).**
+  `mrf_honest.statistics` is the only place a proportion is produced, and it returns either a
+  `Proportion` carrying its own stratum, denominator and interval or a `Refusal` carrying the
+  reason no number was produced. There is no third outcome and no entry point returning a bare
+  float, so a point estimate cannot be rendered without the qualifiers that make it readable.
+  `docs/SAMPLING-FRAME.md` has said since 2026-08-19 that a proportion is computed over stratum B
+  alone and that the two strata must not be pooled; that was prose, and this is the gate. Five
+  refusals fire: no sampling frame, a convenience stratum, pooled strata (on the count of strata,
+  not their kind), an empty denominator, and a denominator below the stated floor of 20. The
+  interval is Wilson score at 95 percent with a finite-population correction applied when the
+  frame records a universe larger than the sample, which for the committed draw of 48 from 3,024
+  is an effective size of 48.758. A property test found, on its first run, that at
+  numerator == denominator the arithmetic put the observed 1.0 outside its own interval
+  (upper bound 0.9999999999999999); the interval is now clamped to contain its point estimate and
+  the case is pinned by a named regression test. Nothing is published by this change: phase 7 puts
+  the results in the comparison document and on the site.
+
 - **A plan for phases 6 through 14 ([docs/EXPANSION-PLAN.md](docs/EXPANSION-PLAN.md)).**
   [docs/IMPLEMENTATION-PLAN.md](docs/IMPLEMENTATION-PLAN.md) stopped at phase 5, with four of
   phase 4's five boxes and six of phase 5's seven still unticked. The expansion plan continues it
@@ -125,7 +261,44 @@ no version tags yet; until the first dated release (phase 5 of
   re-checked before anything was recorded, ten hospitals would have been published as having
   failed to publish, and two of those in fact publish conforming JSON and are graded here.
 
+### Security
+
+- **A cohort id reached the filesystem before anything checked it was a published cohort.**
+  `mrf-honest mcp` built the path to a cohort document by interpolating the caller's
+  `cohort_id` straight into `site/api/cohorts/{cohort_id}.json`, so a tool argument was a
+  filename. Reproduced against the real handler: `cohort_id="../../../secretplace/notacohort"`
+  answered `list_files` with an unpublished document whose `comparison_scope` was `null` --
+  grades with no scope, served by the one component whose stated purpose is to refuse what the
+  site refuses, and exactly the claim `docs/how-we-compare.md` establishes may never be
+  published. `list_files` and `cohort_statistics` were both reachable; an absolute path, a
+  symlink planted inside the cohorts directory, and a real but unlisted file in that same
+  directory all served it too, and `cohort_id="../index"` read the API index as though it were
+  a cohort. The id is now checked for membership in the published index *before* it becomes a
+  path, so the published set is the guard rather than the string's shape, and an id the index
+  does not list is refused by name with the cohorts that do exist. An index that itself named
+  an escaping id would raise rather than read the file. `tests/test_mcp.py` exercises fifteen
+  hostile spellings -- traversal, dot segments, trailing and backslash separators, single and
+  double URL encoding, embedded null bytes, absolute paths, symlink and unlisted files -- as a
+  set across every tool that takes a cohort id, with the unpublished document planted wherever
+  each spelling would land, because a guard verified one case at a time is how a boundary ends
+  up holding at four call sites and open at the fifth.
+
 ### Fixed
+
+- **The release workflow would have failed its own gate on the first tag push.** `release.yml`'s
+  `build` job checked out at the default depth and then ran `make verify`, which runs
+  `tests/test_corrections.py`, which asserts the clone is not shallow because a citation nobody
+  can resolve is a claim rather than evidence. `ci.yml` was given `fetch-depth: 0` when that
+  check went in and `release.yml` never was. Latent, because `release.yml` only fires on a tag
+  push and this project has never been tagged; measured against a real `--depth 1` clone of this
+  branch, 17 of the 25 corrections tests go red. One line.
+
+- **The metrics ledger still reported the suite this stack replaced.** `docs/ROADMAP.md` and the
+  README's Code Quality row both read `92.44%, 445 tests passing, 2026-08-21` while phases 6
+  through 14 took the suite to 644 passing and 4 skipped at 92.79% branch coverage. Publishing a
+  measured number and then leaving it behind is item 9 of `docs/CORRECTIONS.md`, which this same
+  stack added. Both rows now carry the numbers `make verify` produced at this commit on
+  2026-08-28.
 
 - **A web page served where a file was requested was published as a hospital's unreadable
   file.** An HTTP 200 that returns an HTML landing page instead of the document was described by

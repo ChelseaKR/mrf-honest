@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -592,3 +593,82 @@ def test_invalid_typed_options_are_usage_errors(argv: list[str]) -> None:
     with pytest.raises(SystemExit) as raised:
         cli.main(argv)
     assert raised.value.code == 2
+
+
+# --- ZIP publications (phase 11) --------------------------------------------------------------
+
+
+def _cms_document() -> bytes:
+    return json.dumps(
+        {
+            "hospital_name": "Example Hospital",
+            "last_updated_on": "2026-08-01",
+            "version": "3.0.0",
+            "hospital_location": ["Main"],
+            "hospital_address": ["1 Example St"],
+            "standard_charge_information": [
+                {
+                    "description": "Example item",
+                    "code_information": [{"code": "1", "type": "CPT"}],
+                    "standard_charges": [{"gross_charge": 100.0, "setting": "inpatient"}],
+                }
+            ],
+        }
+    ).encode()
+
+
+def _zip_publication(path: Path, members: dict[str, bytes]) -> Path:
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as archive:
+        for name, body in members.items():
+            archive.writestr(name, body)
+    return path
+
+
+def test_inspect_reads_the_document_inside_a_zip_publication(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Seven publications in the committed draw are ZIP archives. A container is not the
+    document, and until now every one of them was a recorded exclusion."""
+
+    archive = _zip_publication(
+        tmp_path / "standardcharges.zip",
+        {"standardcharges.json": _cms_document(), "README.txt": b"how to read this"},
+    )
+    assert cli.main(["inspect", str(archive), "--as-of", "2026-08-27", "--format", "json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["container"]["outcome"] == "selected"
+    assert payload["container"]["name"] == "standardcharges.json"
+    assert payload["charge_group_count"] == 1
+    assert payload["scan_completed"] is True
+    assert payload["problem_count"] == 0
+
+
+def test_inspect_refuses_a_zip_holding_two_gradeable_documents(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    archive = _zip_publication(
+        tmp_path / "two.zip", {"a.json": _cms_document(), "b.json": _cms_document()}
+    )
+    assert cli.main(["inspect", str(archive), "--as-of", "2026-08-27", "--format", "json"]) == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["container"]["reason"] == "ambiguous_members"
+
+
+def test_a_refused_container_never_reports_as_a_clean_inspection(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The failure this guards: an archive nobody opened reporting zero findings."""
+
+    archive = _zip_publication(tmp_path / "empty.zip", {"notes.txt": b"nothing to grade"})
+    assert cli.main(["inspect", str(archive), "--as-of", "2026-08-27", "--format", "json"]) == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["container"]["outcome"] == "refused"
+    assert "scan_completed" not in payload
+
+
+def test_the_lifted_member_is_not_left_behind(tmp_path: Path) -> None:
+    archive = _zip_publication(
+        tmp_path / "standardcharges.zip", {"standardcharges.json": _cms_document()}
+    )
+    cli.main(["inspect", str(archive), "--as-of", "2026-08-27", "--format", "json"])
+    assert sorted(path.name for path in tmp_path.iterdir()) == ["standardcharges.zip"]

@@ -167,6 +167,20 @@ dated reason. That distinction is the whole point: Northside Hospital Duluth and
 Regional Hospital both publish JSON and both files answered an error, so they are graded; four
 other targets published CSV through extensionless endpoints and are not.
 
+## 2026-08-28: the ZIP publications are readable, and still excluded
+
+The format rule above says a ZIP archive "is a container, not a CSV file, and grading one
+against this profile would measure the wrong thing". That is exactly right about grading the
+container and says nothing about the document inside it, which is what a hospital actually
+published. `mrf_honest.container` now opens the container under stated bounds and selects the one
+gradeable member, refusing rather than choosing where there is not exactly one, because choosing
+would be this project deciding which file a publisher meant to publish.
+
+**The seven ZIP publications of the committed draw are still recorded exclusions.** Their bodies
+were never retrieved, and retrieval is an operator-invoked act under the politeness gate. Nothing
+about the committed cohorts changes on this date; what changed is that a future collection can
+grade them instead of recording them.
+
 ## Revisit
 
 Before the next cohort, or before any statement about hospitals in general is published from

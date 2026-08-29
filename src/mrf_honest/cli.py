@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import sys
 from collections.abc import Callable, Sequence
 from datetime import UTC, date, datetime
@@ -11,6 +12,7 @@ from pathlib import Path
 from typing import cast
 
 from mrf_honest.cohort import build_comparison
+from mrf_honest.container import ArchiveRefused, looks_like_archive, open_member, select_member
 from mrf_honest.fetch import PROBE_SAMPLE_BYTES, FetchPolicy, default_open, fetch_url, probe_url
 from mrf_honest.inspect import FileInspection, explain_finding, inspect_hospital_file
 from mrf_honest.inspect_csv import (
@@ -19,6 +21,7 @@ from mrf_honest.inspect_csv import (
     inspect_hospital_csv_file,
 )
 from mrf_honest.lakehouse import LakehouseScopeRefusal, ingest_hospital_file, query_file_profile
+from mrf_honest.mcp import serve as serve_mcp
 from mrf_honest.politeness import Politeness
 from mrf_honest.registry import Registry, discover_domain
 from mrf_honest.scorecard import (
@@ -39,6 +42,9 @@ from mrf_honest.types import PublisherRef
 #: CLI names for the implemented assessment profiles; the JSON profile stays the default so
 #: every existing invocation keeps its meaning.
 _CLI_PROFILES: dict[str, AssessmentProfile] = {"json": JSON_PROFILE, "csv": CSV_PROFILE}
+
+#: Copy buffer for lifting one member out of a container, so peak memory stays bounded.
+_COPY_CHUNK_BYTES = 1 << 20
 
 _SUCCESS = 0
 _FAILURE = 1
@@ -135,22 +141,58 @@ def _emit_assessment_human(assessment: FileAssessment) -> None:
         print(f"  [{finding.severity}] {finding.code}{occurrences}: {finding.message}")
 
 
+def _inspect_source(path: Path, output_format: str) -> tuple[Path, dict[str, object] | None, int]:
+    """Resolve what to inspect: the file itself, or the one document inside its container.
+
+    Seven publications in the committed draw are ZIP archives. A container is not the document,
+    so this returns the member to read and the record of how it was chosen, or a refusal that
+    stops the run rather than letting an unopened archive report as an unreadable file.
+    """
+
+    if not looks_like_archive(path):
+        return path, None, _SUCCESS
+    outcome = select_member(path)
+    if isinstance(outcome, ArchiveRefused):
+        if output_format == "json":
+            _emit_json({"container": outcome.as_dict()})
+        else:
+            print(f"Refused: {outcome.detail}", file=sys.stderr)
+        return path, outcome.as_dict(), _FAILURE
+    extracted = path.parent / f".{path.name}.{Path(outcome.name).name}"
+    with open_member(path, outcome) as source, extracted.open("wb") as sink:
+        shutil.copyfileobj(source, sink, length=_COPY_CHUNK_BYTES)
+    return extracted, outcome.as_dict(), _SUCCESS
+
+
 def _run_inspect(args: argparse.Namespace) -> int:
     publisher_id = cast(str | None, args.publisher_id)
     publisher = PublisherRef(publisher_id) if publisher_id is not None else None
     as_of = cast(date | None, args.as_of) or date.today()
-    if args.output_format == "human":
+    output_format = cast(str, args.output_format)
+    if output_format == "human":
         print(f"Inspecting {args.file} ...", file=sys.stderr)
+    source, container, code = _inspect_source(cast(Path, args.file), output_format)
+    if code != _SUCCESS:
+        return code
+    if container is not None and output_format == "human":
+        print(f"Container: reading {container['name']!r} from the archive", file=sys.stderr)
     inspect = (
         inspect_hospital_csv_file if cast(str, args.profile) == "csv" else inspect_hospital_file
     )
-    inspection = inspect(
-        cast(Path, args.file),
-        publisher,
-        as_of=as_of,
-    )
-    if args.output_format == "json":
-        _emit_json(inspection.to_dict())
+    try:
+        inspection = inspect(
+            source,
+            publisher,
+            as_of=as_of,
+        )
+    finally:
+        if container is not None:
+            source.unlink(missing_ok=True)
+    if output_format == "json":
+        payload: dict[str, object] = dict(inspection.to_dict())
+        if container is not None:
+            payload["container"] = container
+        _emit_json(payload)
     else:
         _emit_inspection_human(inspection)
     # Findings are observations about the source, not failures of the inspection tool.
@@ -344,6 +386,12 @@ def _run_compare(args: argparse.Namespace) -> int:
     else:
         _emit_comparison_human(comparison)
     return _SUCCESS
+
+
+def _run_mcp(args: argparse.Namespace) -> int:
+    """Serve the published dataset over stdio. Reads committed files; never reaches a network."""
+
+    return serve_mcp(cast(Path, args.site))
 
 
 def _run_site(args: argparse.Namespace) -> int:
@@ -564,6 +612,18 @@ def _build_parser() -> argparse.ArgumentParser:
     site_parser.add_argument("--out", type=Path, required=True)
     site_parser.add_argument("--origin", default=DEFAULT_ORIGIN)
     site_parser.set_defaults(handler=_run_site)
+
+    mcp_parser = commands.add_parser(
+        "mcp",
+        help="serve the published dataset to an MCP client over stdio, read-only and offline",
+    )
+    mcp_parser.add_argument(
+        "--site",
+        type=Path,
+        default=Path("site"),
+        help="a directory written by `mrf-honest site`; its api/ documents are the whole source",
+    )
+    mcp_parser.set_defaults(handler=_run_mcp)
 
     explain_parser = commands.add_parser("explain", help="explain a quality finding code")
     explain_parser.add_argument("finding_code", metavar="FINDING_CODE")

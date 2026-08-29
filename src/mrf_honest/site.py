@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import cast
 
 from mrf_honest.cohort import INGEST_REFUSED, LOCAL_DIMENSIONS, NOT_GRADED
+from mrf_honest.dataset import api_documents, dataset_csv, encode, table_schema
 from mrf_honest.inspect import FINDING_CATALOG
 from mrf_honest.inspect_csv import CSV_FINDING_CATALOG
 from mrf_honest.scorecard import RETRIEVAL_FINDING_CATALOG
@@ -61,7 +62,7 @@ NON_TEXT_TOKENS: frozenset[str] = frozenset({"line"})
 # instead of fixed.
 TEXT_ON_BACKGROUND: tuple[tuple[str, str, str], ...] = (
     ("ink", "paper", "body copy"),
-    ("ink", "wash", "code spans and .dist pills"),
+    ("ink", "wash", "code spans, .dist pills, and .shares column headers"),
     ("muted", "paper", ".lede, .meta, .caveat, .eyebrow, footer, .facts dt"),
     ("muted", "wash", ".status-not_assessed and the default .sev chip"),
     ("accent", "paper", "links"),
@@ -129,6 +130,13 @@ _DIMENSION_TITLES = {
     "interpretability": "Interpretability",
     "freshness": "Freshness",
 }
+
+#: The one heading and the one sentence the deploy path looks for, so the check and the render
+#: cannot drift apart into two different strings.
+CORRECTIONS_URL = "https://github.com/ChelseaKR/mrf-honest/blob/master/docs/CORRECTIONS.md"
+
+SHARES_HEADING = "What share of the drawn sample this is"
+SHARES_REFUSAL = "No share is published for this cohort"
 
 _CAVEAT = (
     "A grade describes one published file under one stated policy on one date. It does not rank "
@@ -500,6 +508,108 @@ def _coverage_sentence(comparison: Mapping[str, object]) -> str:
     )
 
 
+def missing_shares(comparison: Mapping[str, object], html: str) -> list[str]:
+    """Report every published share that did not reach the rendered page.
+
+    The deploy path calls this. `make verify` is a separate workflow, so a red run there does
+    not stop a deployment; a share that is computed and never rendered is not published, and a
+    refusal that is silently dropped teaches a reader that the absence of a number means there
+    was nothing to say. An empty list means the page carries what the document says.
+    """
+
+    statistics = comparison.get("statistics")
+    if not isinstance(statistics, Mapping):
+        return ["the comparison document carries no statistics block"]
+    if SHARES_HEADING not in html:
+        return [f"the page does not carry the heading {SHARES_HEADING!r}"]
+    estimates = statistics.get("estimates")
+    listed = list(estimates) if isinstance(estimates, Sequence) else []
+    if not listed:
+        if statistics.get("refusal") is None:
+            return ["the document carries neither an estimate nor a stated refusal"]
+        if SHARES_REFUSAL not in html:
+            return ["a refused cohort rendered no refusal on the page"]
+        return []
+    problems: list[str] = []
+    for estimate in listed:
+        entry = cast(Mapping[str, object], estimate)
+        needle = f"{entry.get('numerator')} of {entry.get('denominator')}"
+        if needle not in html:
+            problems.append(f"{needle} is in the document but not on the page")
+    return problems
+
+
+def _statistics_section(comparison: Mapping[str, object]) -> str:
+    """Render the cohort's population shares, or render the refusal as a refusal.
+
+    A refusal is a paragraph, not an omitted section. A page that simply drops the block when
+    nothing could be estimated teaches a reader that the absence of a number means there was
+    nothing to say, which is the one reading this project exists to prevent.
+    """
+
+    statistics = comparison.get("statistics")
+    if not isinstance(statistics, Mapping):
+        return (
+            f"<h3>{SHARES_HEADING}</h3>"
+            "<p>This comparison document predates the statistics layer and carries no shares. "
+            "Regenerate it with <code>mrf-honest compare</code> to see them.</p>"
+        )
+    refusal = statistics.get("refusal")
+    if isinstance(refusal, Mapping):
+        return (
+            f"<h3>{SHARES_HEADING}</h3>"
+            f'<p class="refusal"><strong>{SHARES_REFUSAL}:</strong> '
+            f"{_e(refusal.get('reason'))}."
+            f"{_refusal_detail(refusal)}</p>"
+        )
+    estimates = statistics.get("estimates")
+    if not isinstance(estimates, Sequence) or not estimates:
+        return (
+            f"<h3>{SHARES_HEADING}</h3>"
+            f'<p class="refusal"><strong>{SHARES_REFUSAL}.</strong> The '
+            "document carries neither an estimate nor a stated refusal, which is a defect in "
+            "whatever produced it.</p>"
+        )
+    rows = "".join(_estimate_row(cast(Mapping[str, object], e)) for e in estimates)
+    return (
+        f"<h3>{SHARES_HEADING}</h3>"
+        f"<p>{_e(statistics.get('basis'))} Every share carries its own denominator and a "
+        f"{_percent(statistics.get('confidence'))} interval computed by the "
+        f"{_e(statistics.get('method'))} method.</p>"
+        '<table class="shares"><thead><tr><th scope="col">Disposition</th>'
+        '<th scope="col">Count</th><th scope="col">Share</th>'
+        '<th scope="col">Interval</th></tr></thead>'
+        f"<tbody>{rows}</tbody></table>"
+    )
+
+
+def _refusal_detail(refusal: Mapping[str, object]) -> str:
+    """Name the denominator a refusal saw, where it saw one, so the reader can check it."""
+
+    denominator = refusal.get("denominator")
+    if not isinstance(denominator, int) or isinstance(denominator, bool):
+        return ""
+    return f" The accounting this document carries covers {denominator} facilities."
+
+
+def _percent(value: object) -> str:
+    return f"{float(cast(float, value)) * 100:.0f}%" if isinstance(value, int | float) else "?"
+
+
+def _share(value: object) -> str:
+    return f"{float(cast(float, value)) * 100:.1f}%" if isinstance(value, int | float) else "?"
+
+
+def _estimate_row(estimate: Mapping[str, object]) -> str:
+    return (
+        f'<tr><th scope="row">{_e(estimate.get("label"))}</th>'
+        f"<td>{_e(estimate.get('numerator'))} of {_e(estimate.get('denominator'))}</td>"
+        f"<td>{_share(estimate.get('point'))}</td>"
+        f"<td>{_share(estimate.get('interval_low'))} to "
+        f"{_share(estimate.get('interval_high'))}</td></tr>"
+    )
+
+
 def _cohort_section(
     comparison: Mapping[str, object],
     references: Mapping[str, tuple[str, str]],
@@ -524,6 +634,7 @@ def _cohort_section(
         f"({_e(cohort.get('as_of'))})</h2>"
         f'<p class="coverage">{_coverage_sentence(comparison)}</p>'
         f'<div class="dist-row">{_distribution_html(summary)}</div>'
+        f"{_statistics_section(comparison)}"
         f'<ul class="cards">{cards}</ul>'
         f"{exclusion_block}"
     )
@@ -538,6 +649,14 @@ def index_page(comparisons: Sequence[Mapping[str, object]], origin: str) -> Page
         f'<a href="data/{_e(_cohort_data_name(comparison))}">machine-readable comparison '
         f"({_e(_cohort_title(comparison))})</a>"
         for comparison in comparisons
+    )
+    # The dataset and the API are generated by this render from these same documents, so a
+    # consumer that takes the CSV is reading the numbers on this page rather than a second
+    # pipeline's answer to the same question.
+    export_links = (
+        '<a href="dataset.csv">dataset.csv</a> · '
+        '<a href="dataset.schema.json">its Table Schema</a> · '
+        '<a href="api/index.json">JSON API</a>'
     )
     jsonld = _json_ld(
         {
@@ -559,7 +678,7 @@ def index_page(comparisons: Sequence[Mapping[str, object]], origin: str) -> Page
         "separate profiles and never pooled into one distribution.</p></header>"
         f"{sections}"
         '<p><a href="how-we-grade/">How grading works, and what it deliberately does not '
-        f"claim</a> · {data_links} · "
+        f"claim</a> · {data_links} · {export_links} · "
         '<a href="https://github.com/ChelseaKR/mrf-honest/tree/master/docs/findings">'
         "written-up findings with evidence</a></p>"
         f'<p class="caveat">{_CAVEAT}</p>{jsonld}'
@@ -769,6 +888,8 @@ def _shell(page: Page, origin: str, generated_at: str) -> str:
 <p>Generated {_e(generated_at)} from the committed comparison document. Only public,
 CMS-mandated machine-readable files are read; retrieval is identified, bounded, and respects
 robots.txt. <a href="https://github.com/ChelseaKR/mrf-honest">Source and methodology</a>.</p>
+<p>Something here wrong about your file? <a href="{CORRECTIONS_URL}">Corrections, disputes and
+removal</a>. A removal request is honoured on request: you are not asked to prove anything.</p>
 </footer>
 </body>
 </html>
@@ -784,6 +905,31 @@ def write_page(out_dir: Path, page: Page, origin: str, generated_at: str) -> Pat
         target = directory / "index.html"
     target.write_text(_shell(page, origin, generated_at), encoding="utf-8")
     return target
+
+
+def write_dataset(
+    out_dir: Path, comparisons: Sequence[Mapping[str, object]], origin: str
+) -> list[Path]:
+    """Write `dataset.csv`, its Table Schema, and the static JSON API.
+
+    Written by the render, from the same comparison documents the pages were rendered from, so
+    the dataset cannot describe a cohort the site does not show or carry a number the page does
+    not carry.
+    """
+
+    written: list[Path] = []
+    dataset_path = out_dir / "dataset.csv"
+    dataset_path.write_text(dataset_csv(comparisons), encoding="utf-8", newline="")
+    written.append(dataset_path)
+    schema_path = out_dir / "dataset.schema.json"
+    schema_path.write_text(encode(table_schema()), encoding="utf-8")
+    written.append(schema_path)
+    for relative, document in sorted(api_documents(comparisons, origin).items()):
+        path = out_dir / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(encode(document), encoding="utf-8")
+        written.append(path)
+    return written
 
 
 def render_site(
@@ -833,6 +979,7 @@ def render_site(
             compat_path = data_dir / "comparison.json"
             compat_path.write_text(encoded, encoding="utf-8")
             written.append(compat_path)
+    written.extend(write_dataset(out_dir, comparisons, origin))
     sitemap_path = out_dir / "sitemap.xml"
     sitemap_path.write_text(sitemap(pages, origin), encoding="utf-8")
     written.append(sitemap_path)
@@ -904,6 +1051,12 @@ code { background: var(--wash); padding: .1em .3em; border-radius: 3px;
   color: var(--muted); }
 .facts dd { margin: 0; overflow-wrap: anywhere; }
 .exclusions li { margin: .5rem 0; }
+.shares { border-collapse: collapse; width: 100%; margin: .6rem 0; font-size: .9rem; }
+.shares th, .shares td { border: 1px solid var(--line); padding: .4rem .6rem;
+  text-align: left; vertical-align: top; }
+.shares thead th { background: var(--wash); }
+.shares tbody th { font-weight: 400; }
+.refusal { border-left: 3px solid var(--line); padding-left: .8rem; margin: .6rem 0; }
 .method-card { border: 1px solid var(--line); border-radius: 8px;
   padding: .8rem 1rem; margin: .8rem 0; }
 .caveat { margin-top: 2.5rem; padding-top: .8rem; border-top: 1px solid var(--line);

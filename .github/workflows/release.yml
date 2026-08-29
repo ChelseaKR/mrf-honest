@@ -1,0 +1,158 @@
+name: release
+
+# Everything a release needs, up to but not including the one act no automation here should
+# take: signing the tag. The key belongs to the maintainer, and this workflow deliberately holds
+# nothing that could stand in for it. It refuses to proceed unless a signature it can verify
+# against a committed allowed-signers file is already on the tag.
+#
+# There is no publish step and no registry credential. This project has never been released and
+# is not on any index; a job that could push an artifact somewhere would be a capability nobody
+# has asked for and a credential nobody has to hold.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: The existing signed tag to verify and build from
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify-tag:
+    name: Verify the tag before anything is built
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.resolve.outputs.tag }}
+    steps:
+      - name: Check out the repository at the tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+          fetch-depth: 0 # the tag object and its signature, not just the commit
+          persist-credentials: false
+
+      - name: Resolve the tag
+        id: resolve
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${{ github.event.inputs.tag || github.ref_name }}"
+          if [ -z "${tag}" ]; then
+            echo "::error title=No tag::nothing to release from."
+            exit 1
+          fi
+          echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
+
+      # The allowed-signers file is the maintainer's to create, and this repository does not
+      # ship a placeholder. A placeholder key would look like a configured trust root while
+      # trusting nobody, which is worse than an absent one that stops the job here.
+      - name: Require an allowed-signers file
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -s .github/allowed_signers ]; then
+            echo "::error title=No allowed signers::.github/allowed_signers is missing or empty."
+            echo "The maintainer must commit the public half of the release signing key before"
+            echo "a release can be verified. No automation here can stand in for that."
+            exit 1
+          fi
+
+      - name: Verify the tag is signed by an allowed signer
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${{ steps.resolve.outputs.tag }}"
+          git config gpg.ssh.allowedSignersFile .github/allowed_signers
+          if ! git verify-tag "${tag}"; then
+            echo "::error title=Unsigned or untrusted tag::${tag} does not carry a signature"
+            echo "from a key in .github/allowed_signers."
+            exit 1
+          fi
+
+      # The tag names a version; pyproject.toml states one. A release where they disagree ships
+      # a wheel whose metadata contradicts the tag a reader followed to find it.
+      - name: Require the tag and the declared version to agree
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${{ steps.resolve.outputs.tag }}"
+          declared="$(python -c "import tomllib,sys;print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")"
+          if [ "${tag}" != "v${declared}" ]; then
+            echo "::error title=Version disagreement::tag ${tag} against pyproject version ${declared}."
+            exit 1
+          fi
+          case "${declared}" in
+            *dev*|*rc*|*a*|*b*)
+              echo "::error title=Pre-release version::${declared} is not a release version."
+              exit 1
+              ;;
+          esac
+
+      - name: Require a changelog entry for this version
+        shell: bash
+        run: |
+          set -euo pipefail
+          declared="$(python -c "import tomllib,sys;print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")"
+          if ! grep -Fq "[${declared}]" CHANGELOG.md; then
+            echo "::error title=No changelog entry::CHANGELOG.md has no [${declared}] section."
+            exit 1
+          fi
+
+  build:
+    name: Re-run the gate at the tagged commit and build
+    needs: verify-tag
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository at the tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.verify-tag.outputs.tag }}
+          # `make verify` below runs tests/test_corrections.py, which resolves every commit
+          # docs/CORRECTIONS.md cites and fails loudly on a shallow clone rather than skipping.
+          # ci.yml was given this depth when that check went in; release.yml was not, so this
+          # job would have failed its own gate on the first tag push. Measured against a real
+          # --depth 1 clone of this branch: 17 of the 25 corrections tests go red.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          enable-cache: false # a release must not build from a cache it did not verify
+
+      - name: Install Python
+        run: uv python install 3.12
+
+      - name: Sync locked development environment
+        run: uv sync --locked --all-extras
+
+      # The gate ran on the branch. It runs again here, at the exact commit the tag names,
+      # because a release is a claim about that commit and nothing else.
+      - name: Run the repository gate at the tagged commit
+        run: make verify
+
+      - name: Build the distributions
+        run: uv build
+
+      - name: Record what was built
+        shell: bash
+        run: |
+          set -euo pipefail
+          ls -l dist/
+          python - <<'PY'
+          import hashlib, pathlib
+          for path in sorted(pathlib.Path("dist").iterdir()):
+              digest = hashlib.sha256(path.read_bytes()).hexdigest()
+              print(f"{digest}  {path.name}")
+          PY
+
+      - name: Upload the distributions for the maintainer to inspect
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: dist-${{ needs.verify-tag.outputs.tag }}
+          path: dist/
+          if-no-files-found: error
