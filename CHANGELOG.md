@@ -21,6 +21,20 @@ no version tags yet; until the first dated release (phase 5 of
 
 ### Fixed
 
+- **The Lighthouse gate scored the error page against a floor that asks it to be
+  indexable.** `seo` embeds the `is-crawlable` audit, which fails on any page
+  carrying `robots: noindex`, so making the error page correctly non-indexable
+  dropped it to 0.63 against a floor of 1.0. Lowering the floor for all 45 pages
+  to accommodate one would be the wrong trade, so `NOT_INDEXABLE_ROUTES` exempts
+  `/404.html` from the `seo` floor only, and `is-crawlable` is now asserted
+  directly and in both directions instead: this route must be blocked from
+  indexing, and every other route must not be. That is strictly stronger than
+  what it replaces. Nothing previously checked either, and a category score
+  cannot tell the two intents apart, since 0.63 looks the same whether a page is
+  correctly non-indexable or accidentally so. A missing or null `is-crawlable`
+  audit is a failure rather than an assumed pass, matching how every other
+  category is treated here.
+
 - **The error page told crawlers its preferred URL was a dead one.** `404.html` is written
   from a `Page` whose `path` is `"404"`, so the canonical built from that path was
   `https://chelseakr.github.io/mrf-honest/404/`, an address that does not exist and that

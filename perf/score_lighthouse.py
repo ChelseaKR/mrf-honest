@@ -33,6 +33,22 @@ from typing import Any
 
 CATEGORIES = ("accessibility", "best-practices", "seo", "performance")
 
+# Routes that are deliberately not indexable, and are therefore not scored against the `seo`
+# category floor.
+#
+# Lighthouse's `seo` category includes the `is-crawlable` audit, which fails whenever a page
+# declares `robots: noindex`. The error page declares exactly that, on purpose: it is reached
+# by a URL that does not exist, so there is nothing there to index. Scoring it against a floor
+# of 1.0 asks it to be indexable, which is the opposite of what it should be, and the honest
+# answer is not to lower the floor for everyone.
+#
+# So the floor is not applied here, and something stronger is applied instead: `is-crawlable`
+# is asserted DIRECTLY, in both directions. This route must be blocked from indexing, and
+# every other route must not be. Before this, nothing checked either -- a page that silently
+# became `noindex` would have dropped the category score without anyone learning why, and the
+# error page's `noindex` was not verified at all.
+NOT_INDEXABLE_ROUTES = frozenset({"/404.html"})
+
 
 def route_of(page: str, root: str = "site") -> str:
     """Site path to served route.
@@ -104,12 +120,52 @@ def budget_failures(report: Mapping[str, Any], budget: Mapping[str, Any]) -> lis
     return failures
 
 
-def _category_failures(report: Mapping[str, Any], baseline: Mapping[str, Any]) -> list[str]:
+def _crawlability_failures(report: Mapping[str, Any], route: str) -> list[str]:
+    """Assert each route is indexable, or deliberately is not. Never merely "scored well".
+
+    `is-crawlable` is the audit inside the `seo` category that fails on `robots: noindex`.
+    Checking it directly says which of the two intents a page has, which a category score
+    cannot: 0.63 looks the same whether a page is correctly non-indexable or accidentally so.
+    """
+    audits = report.get("audits")
+    if not isinstance(audits, Mapping):
+        return [f"{route}: the report has no audits section to read is-crawlable from"]
+    audit = audits.get("is-crawlable")
+    if not isinstance(audit, Mapping):
+        return [f"{route}: the report has no is-crawlable audit"]
+    score = audit.get("score")
+    if not isinstance(score, int | float):
+        return [
+            f"{route}: is-crawlable has no score. A broken audit is a failure; "
+            "treating it as indexable is how a red run turns green."
+        ]
+    blocked = float(score) == 0.0
+    if route in NOT_INDEXABLE_ROUTES and not blocked:
+        return [
+            f"{route} is indexable, and must not be: it is an error page, reached by a URL "
+            "that does not exist. Expected robots noindex."
+        ]
+    if route not in NOT_INDEXABLE_ROUTES and blocked:
+        return [
+            f"{route} is blocked from indexing. If that is intended, add it to "
+            "NOT_INDEXABLE_ROUTES with the reason; if not, a page that should be found "
+            "cannot be."
+        ]
+    return []
+
+
+def _category_failures(
+    report: Mapping[str, Any], baseline: Mapping[str, Any], route: str = ""
+) -> list[str]:
     floors = baseline["floors"]
     metrics = baseline["metrics"]
     direction = baseline["direction"]
     failures: list[str] = []
     for category in CATEGORIES:
+        # See NOT_INDEXABLE_ROUTES: `seo` embeds `is-crawlable`, which this route is meant to
+        # fail. `_crawlability_failures` asserts the intent directly instead.
+        if category == "seo" and route in NOT_INDEXABLE_ROUTES:
+            continue
         observed = _category_score(report, category)
         if observed is None:
             failures.append(
@@ -169,7 +225,11 @@ def score(
             failures.append(f"{route}: {report}")
             continue
         audited += 1
-        problems = budget_failures(report, budget) + _category_failures(report, baseline)
+        problems = (
+            budget_failures(report, budget)
+            + _category_failures(report, baseline, route)
+            + _crawlability_failures(report, route)
+        )
         failures.extend(f"{route}: {problem}" for problem in problems)
 
     if audited != len(page_list):

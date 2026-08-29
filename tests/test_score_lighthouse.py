@@ -33,8 +33,12 @@ def _report(
     resource_summary: bool = True,
     script_bytes: int = 0,
     script_requests: int = 0,
+    seo: float | None = 1.0,
+    crawlable: float | None = 1.0,
 ) -> dict[str, Any]:
-    categories: dict[str, Any] = {"best-practices": {"score": 1.0}, "seo": {"score": 1.0}}
+    categories: dict[str, Any] = {"best-practices": {"score": 1.0}}
+    if seo is not None:
+        categories["seo"] = {"score": seo}
     if accessibility is not None:
         categories["accessibility"] = {"score": accessibility}
     if performance is not None:
@@ -58,6 +62,8 @@ def _report(
                 ]
             }
         }
+    if crawlable is not None:
+        audits["is-crawlable"] = {"score": crawlable}
     return {"categories": categories, "audits": audits}
 
 
@@ -112,6 +118,58 @@ def test_a_null_score_is_a_failure(tmp_path: Path) -> None:
     assert any("'accessibility' is missing or null" in failure for failure in failures)
 
 
+def test_the_error_page_must_be_non_indexable_and_is_not_scored_for_seo(
+    tmp_path: Path,
+) -> None:
+    """`/404.html` declares `robots: noindex`, so Lighthouse's `seo` score drops by design.
+
+    `seo` embeds the `is-crawlable` audit, which fails on any page blocked from indexing.
+    The error page is reached by a URL that does not exist, so there is nothing there to
+    index and being non-indexable is correct. Measured in CI: it scored 0.63 against a floor
+    of 1.0. Lowering the floor for all 45 pages to accommodate one would be the wrong trade,
+    so the floor is not applied to this route and the intent is asserted directly instead.
+    """
+    # Correctly non-indexable: the low seo score is not a failure here.
+    _write(tmp_path, "/404.html", _report(seo=0.63, crawlable=0.0))
+    assert score(["site/404.html"], tmp_path, _floors_only(), BUDGET) == []
+
+    # The same low score on a page that is NOT meant to be blocked is still a failure.
+    _write(tmp_path, "/", _report(seo=0.63, crawlable=1.0))
+    failures = score(["site/index.html"], tmp_path, _floors_only(), BUDGET)
+    assert any("seo 0.63 below the floor of 1.0" in failure for failure in failures)
+
+
+def test_an_error_page_that_became_indexable_is_a_failure(tmp_path: Path) -> None:
+    """The check runs in both directions, so the exemption cannot hide a regression.
+
+    Skipping the `seo` floor for this route means a category score can no longer notice that
+    its `noindex` was dropped. Asserting `is-crawlable` directly is what replaces it.
+    """
+    _write(tmp_path, "/404.html", _report(crawlable=1.0))
+    failures = score(["site/404.html"], tmp_path, _floors_only(), BUDGET)
+    assert any("is indexable, and must not be" in failure for failure in failures)
+
+
+def test_a_real_page_blocked_from_indexing_is_a_failure(tmp_path: Path) -> None:
+    """A page that should be found and cannot be is the more expensive direction."""
+    _write(tmp_path, "/", _report(crawlable=0.0))
+    failures = score(["site/index.html"], tmp_path, _floors_only(), BUDGET)
+    assert any("is blocked from indexing" in failure for failure in failures)
+
+
+def test_a_missing_or_null_crawlable_audit_is_a_failure(tmp_path: Path) -> None:
+    """A broken audit is a failure. Assuming it passed is how a red run turns green."""
+    _write(tmp_path, "/", _report(crawlable=None))
+    failures = score(["site/index.html"], tmp_path, _floors_only(), BUDGET)
+    assert any("no is-crawlable audit" in failure for failure in failures)
+
+    report = _report()
+    report["audits"]["is-crawlable"] = {"score": None}
+    _write(tmp_path, "/", report)
+    failures = score(["site/index.html"], tmp_path, _floors_only(), BUDGET)
+    assert any("is-crawlable has no score" in failure for failure in failures)
+
+
 def test_a_score_below_the_floor_is_a_failure(tmp_path: Path) -> None:
     # 0.98 is exactly what the index scored before the heading-order fix.
     _write(tmp_path, "/", _report(accessibility=0.98))
@@ -132,10 +190,23 @@ def test_adding_a_script_fails_the_budget() -> None:
     assert any("total made 2 requests" in failure for failure in failures)
 
 
+def _clean_report_for(page: str) -> dict[str, Any]:
+    """A passing report for one route, as the real site produces it.
+
+    The error page is `robots: noindex`, so its `is-crawlable` audit scores 0 and its `seo`
+    category drops with it. A fixture that showed `/404.html` as indexable would describe a
+    site this repository does not publish, and would quietly assert the opposite of what
+    `NOT_INDEXABLE_ROUTES` exists to hold.
+    """
+    if route_of(page) == "/404.html":
+        return _report(seo=0.63, crawlable=0.0)
+    return _report()
+
+
 def test_a_clean_cohort_passes(tmp_path: Path) -> None:
     pages = ["site/index.html", "site/how-we-grade/index.html", "site/404.html"]
     for page in pages:
-        _write(tmp_path, route_of(page), _report())
+        _write(tmp_path, route_of(page), _clean_report_for(page))
     assert score(pages, tmp_path, BASELINE, BUDGET) == []
 
 
@@ -166,7 +237,7 @@ def test_main_returns_nonzero_when_a_page_went_unaudited(tmp_path: Path) -> None
 def test_main_returns_zero_on_a_clean_run(tmp_path: Path) -> None:
     reports = tmp_path / "reports"
     for page in ("site/index.html", "site/404.html"):
-        _write(reports, route_of(page), _report())
+        _write(reports, route_of(page), _clean_report_for(page))
     pages = tmp_path / "pages.txt"
     pages.write_text("site/index.html\n\nsite/404.html\n", encoding="utf-8")
     baseline = tmp_path / "baseline.json"
