@@ -36,6 +36,18 @@ no version tags yet; until the first dated release (phase 5 of
 
 ### Added
 
+- **The README said what this project is not, but never that it speaks for nobody.** It
+  already stated that a grade is not the official CMS validator, not a certificate of
+  validity, and not a determination of legal compliance, and the Provenance section already
+  disclaimed any employer or client. None of that said the thing a reader of a page naming a
+  real hospital most needs told: that the project is independent of CMS, of every other
+  regulator, and of every hospital it grades. `grep -i endors README.md` returned nothing,
+  and so did the same search across `docs/` and the rendered site. Provenance now states the
+  non-affiliation and non-endorsement directly, and repeats the scope the grade section
+  already carries: naming a hospital is a statement about one published file on one date
+  under one fingerprinted policy, never about the hospital, its prices, or its care. This
+  adds a limitation rather than a capability.
+
 - **A canonical that names each page, and a social card, on every rendered page.**
   Every page already carried a canonical; none carried any Open Graph or Twitter tag, so a
   shared link to a hospital's grade previewed as a bare URL with no title and no

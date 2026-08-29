@@ -317,6 +317,12 @@ ADR in [docs/adr/](docs/adr/). No blank rows, no silent skips.
 Personal open-source project, planned and built on personal time and equipment, unaffiliated with
 any employer or client, past or present.
 
+Independent of everyone it writes about. This project is not affiliated with, endorsed by,
+sponsored by, or acting on behalf of CMS, any other regulator, or any hospital it names, and
+nothing here should be read as speaking for any of them. Naming a hospital is a statement
+about one published file on one date under one fingerprinted policy, never a statement about
+the hospital, its prices, or the care it gives.
+
 Built AI-assisted (Claude Code and OpenAI Codex). Every number in the docs and this README was
 measured or generated from committed data, never invented; the maintainer reviews and owns every
 line.
