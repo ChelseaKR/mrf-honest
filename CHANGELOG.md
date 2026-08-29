@@ -351,6 +351,19 @@ no version tags yet; until the first dated release (phase 5 of
   stack added. Both rows now carry the numbers `make verify` produced at this commit on
   2026-08-28.
 
+- **`narrate` called the model on a record with nothing to quote, then withheld everything it
+  wrote (#26).** A record with every finding removed, or whose findings cite only documents the
+  corpus does not retain, offers the model no passage; every claim it writes is withheld for
+  lack of a citation, so the promise held at the cost of a model call that could only say
+  nothing (962 input tokens per language, observed 2026-08-22). `narrate` now refuses before
+  the call when no passage can be offered. The refusal is recorded in the narration's
+  provenance (`refusal`, `model_called: false`, zero tokens, provider and model named) rather
+  than as a narration with zero claims, the CLI prints the reason instead of an AI-generated
+  label on text nobody generated, and the grounding eval counts
+  `records_refused_before_model_call` separately so a refusal is never read as a call that
+  failed. A fixture test built from cohort record 0 with its findings stripped proves the
+  provider is not invoked.
+
 - **A web page served where a file was requested was published as a hospital's unreadable
   file.** An HTTP 200 that returns an HTML landing page instead of the document was described by
   exactly the sentence a genuinely malformed JSON file earns — measured on the composition path
