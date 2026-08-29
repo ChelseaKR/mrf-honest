@@ -190,6 +190,28 @@ no version tags yet; until the first dated release (phase 5 of
   re-checked before anything was recorded, ten hospitals would have been published as having
   failed to publish, and two of those in fact publish conforming JSON and are graded here.
 
+### Security
+
+- **A cohort id reached the filesystem before anything checked it was a published cohort.**
+  `mrf-honest mcp` built the path to a cohort document by interpolating the caller's
+  `cohort_id` straight into `site/api/cohorts/{cohort_id}.json`, so a tool argument was a
+  filename. Reproduced against the real handler: `cohort_id="../../../secretplace/notacohort"`
+  answered `list_files` with an unpublished document whose `comparison_scope` was `null` --
+  grades with no scope, served by the one component whose stated purpose is to refuse what the
+  site refuses, and exactly the claim `docs/how-we-compare.md` establishes may never be
+  published. `list_files` and `cohort_statistics` were both reachable; an absolute path, a
+  symlink planted inside the cohorts directory, and a real but unlisted file in that same
+  directory all served it too, and `cohort_id="../index"` read the API index as though it were
+  a cohort. The id is now checked for membership in the published index *before* it becomes a
+  path, so the published set is the guard rather than the string's shape, and an id the index
+  does not list is refused by name with the cohorts that do exist. An index that itself named
+  an escaping id would raise rather than read the file. `tests/test_mcp.py` exercises fifteen
+  hostile spellings -- traversal, dot segments, trailing and backslash separators, single and
+  double URL encoding, embedded null bytes, absolute paths, symlink and unlisted files -- as a
+  set across every tool that takes a cohort id, with the unpublished document planted wherever
+  each spelling would land, because a guard verified one case at a time is how a boundary ends
+  up holding at four call sites and open at the fifth.
+
 ### Fixed
 
 - **A web page served where a file was requested was published as a hospital's unreadable

@@ -149,6 +149,208 @@ class TestRefusals:
         assert "run 'mrf-honest site'" in str(raised.value)
 
 
+#: Strings that appear only in a document this project never published. The slug is kept
+#: separate from the marker because a refusal quotes back the slug it was asked for, and a
+#: quoted argument is not a leak.
+UNPUBLISHED_MARKER = "this-document-was-never-published"
+UNPUBLISHED_SLUG = "unpublished-hospital"
+
+#: Every hostile spelling of a cohort id, exercised as a set rather than one at a time. A
+#: guard checked case by case is how a boundary ends up holding in four call sites and open in
+#: the fifth; the traversal this sweep exists for was reachable from three tools and was
+#: noticed in one. The absolute-path case is appended by the fixture, which alone knows where
+#: the planted document lives.
+HOSTILE_COHORT_IDS: tuple[tuple[str, str], ...] = (
+    ("relative traversal", "../../../secretplace/notacohort"),
+    (
+        "traversal behind a real prefix",
+        "hospital-json-v3-2026-08-19/../../../secretplace/notacohort",
+    ),
+    ("one step out, onto the index itself", "../index"),
+    ("dot segment first", "./../../secretplace/notacohort"),
+    ("bare dot", "."),
+    ("bare dot dot", ".."),
+    ("trailing separator", "../../../secretplace/notacohort/"),
+    ("backslash separators", "..\\..\\..\\secretplace\\notacohort"),
+    ("url-encoded traversal", "%2e%2e%2f%2e%2e%2f%2e%2e%2fsecretplace%2fnotacohort"),
+    ("double-encoded traversal", "%252e%252e%252fsecretplace%252fnotacohort"),
+    ("null byte after a real id", "hospital-json-v3-2026-08-19\x00/../../secretplace/notacohort"),
+    ("null byte alone", "notacohort\x00"),
+    ("symlink planted inside the cohorts directory", "escape-hatch"),
+    ("a real file in the cohorts directory that is not published", "unlisted"),
+)
+
+#: The tools that take a cohort id, and how each is asked. Every one of them reached
+#: `_load_cohort` with unchecked text.
+COHORT_ID_CALLS: tuple[tuple[str, str], ...] = (
+    ("list_files", "cohort_id"),
+    ("cohort_statistics", "cohort_id"),
+    ("get_file", "cohort_id"),
+)
+
+
+def _answered(site_dir: Path, tool: str, arguments: dict[str, Any]) -> dict[str, Any] | None:
+    """The tool's answer, or None if the call raised rather than answering."""
+
+    try:
+        return _call(site_dir, tool, **arguments)
+    except Exception:
+        return None
+
+
+def _secret_document() -> dict[str, Any]:
+    """Shaped like a cohort document, published nowhere, and carrying no comparison scope.
+
+    `comparison_scope: null` is the tell. `docs/how-we-compare.md` refuses to produce a
+    comparison at all unless every row shares one attested scope, so a document that serves
+    grades without one is a claim this project has undertaken never to make.
+    """
+
+    return {
+        "comparison_scope": None,
+        "statistics": {"note": UNPUBLISHED_MARKER},
+        "files": [
+            {
+                "slug": UNPUBLISHED_SLUG,
+                "publisher_name": UNPUBLISHED_MARKER,
+                "grade": {"grade": "A", "reason": UNPUBLISHED_MARKER},
+            }
+        ],
+    }
+
+
+@pytest.fixture
+def planted(site: Path, tmp_path: Path) -> tuple[Path, tuple[tuple[str, str], ...]]:
+    """A published site with the unpublished document planted wherever a hostile id would land.
+
+    Planting is what makes this a test rather than a spelling exercise. Each id is resolved
+    exactly the way the unguarded code resolved it -- `site/api/cohorts/{cohort_id}.json` --
+    and the secret document is written there when the filesystem allows, so a case that can
+    escape actually escapes. A sweep of invented names that happen not to exist would pass
+    against a server with no guard at all.
+    """
+
+    secret = tmp_path / "secretplace" / "notacohort.json"
+    secret.parent.mkdir(parents=True, exist_ok=True)
+    secret.write_text(json.dumps(_secret_document()), encoding="utf-8")
+
+    cases = (*HOSTILE_COHORT_IDS, ("absolute path", str(secret.with_suffix(""))))
+    cohorts = site / "api" / "cohorts"
+    (cohorts / "escape-hatch.json").symlink_to(secret)
+    (cohorts / "unlisted.json").write_text(json.dumps(_secret_document()), encoding="utf-8")
+    for _, cohort_id in cases:
+        try:
+            target = cohorts / f"{cohort_id}.json"
+            if target.exists():
+                continue  # never clobber the real render, and never re-plant
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(json.dumps(_secret_document()), encoding="utf-8")
+        except (OSError, ValueError):
+            continue  # a null byte cannot be written to a path; the guard must still refuse it
+    return site, cases
+
+
+class TestACohortIdIsNeverAPath:
+    """A cohort id is tool input, so it is checked against the published set, not sanitized.
+
+    The defect these cover served an unpublished document, `comparison_scope` and all, to
+    anything that could name a path: the one server whose stated purpose is to refuse what the
+    site refuses handed over grades with no scope.
+    """
+
+    def test_no_hostile_cohort_id_reaches_a_document(
+        self, planted: tuple[Path, tuple[tuple[str, str], ...]]
+    ) -> None:
+        site_dir, cases = planted
+        served: list[str] = []
+        for label, cohort_id in cases:
+            for tool, key in COHORT_ID_CALLS:
+                arguments: dict[str, Any] = {key: cohort_id}
+                if tool == "get_file":
+                    arguments["slug"] = UNPUBLISHED_SLUG
+                try:
+                    answer = _call(site_dir, tool, **arguments)
+                except Exception as exc:  # a crash is not a refusal either
+                    served.append(f"{label} via {tool}: raised {type(exc).__name__}: {exc}")
+                    continue
+                if answer.get("outcome") != "refused":
+                    served.append(f"{label} via {tool}: answered {json.dumps(answer)[:200]}")
+                elif UNPUBLISHED_MARKER in json.dumps(answer):
+                    served.append(f"{label} via {tool}: refusal leaked the document")
+        assert not served, "an unpublished document was reachable:\n" + "\n".join(served)
+
+    def test_a_grade_filter_cannot_ride_a_hostile_cohort_id(
+        self, planted: tuple[Path, tuple[tuple[str, str], ...]]
+    ) -> None:
+        """`list_files` reads the cohort only once a grade filter has a cohort_id to sit on."""
+
+        site_dir, cases = planted
+        for label, cohort_id in cases:
+            try:
+                answer = _call(site_dir, "list_files", cohort_id=cohort_id, grade="A")
+            except Exception as exc:
+                raise AssertionError(f"{label}: raised {type(exc).__name__}: {exc}") from exc
+            assert answer.get("outcome") == "refused", label
+            assert UNPUBLISHED_MARKER not in json.dumps(answer), label
+
+    def test_every_refusal_names_the_cohorts_that_do_exist(
+        self, planted: tuple[Path, tuple[tuple[str, str], ...]]
+    ) -> None:
+        """Loud, not silent: the refusal says what is published instead of returning nothing."""
+
+        site_dir, cases = planted
+        published = _call(site_dir, "list_cohorts")["cohorts"]
+        expected = sorted(entry["cohort_id"] for entry in published)
+        for label, cohort_id in cases:
+            for tool in ("list_files", "cohort_statistics"):
+                answer = _call(site_dir, tool, cohort_id=cohort_id)
+                assert answer["outcome"] == "refused", label
+                assert sorted(answer["available_cohorts"]) == expected, f"{label} via {tool}"
+
+    def test_the_published_cohorts_still_answer(
+        self, planted: tuple[Path, tuple[tuple[str, str], ...]]
+    ) -> None:
+        """The guard is membership, so it must not have narrowed the published set."""
+
+        site_dir, _ = planted
+        for entry in _call(site_dir, "list_cohorts")["cohorts"]:
+            answer = _call(site_dir, "list_files", cohort_id=entry["cohort_id"])
+            assert answer.get("outcome") != "refused"
+            assert answer["comparison_scope"], "a served cohort always carries its scope"
+
+    def test_no_tool_ever_serves_a_document_without_a_comparison_scope(
+        self, planted: tuple[Path, tuple[tuple[str, str], ...]]
+    ) -> None:
+        """The invariant the traversal broke, asserted directly rather than through the path."""
+
+        site_dir, cases = planted
+        for label, cohort_id in cases:
+            for tool, key in COHORT_ID_CALLS:
+                arguments: dict[str, Any] = {key: cohort_id}
+                if tool == "get_file":
+                    arguments["slug"] = UNPUBLISHED_SLUG
+                answer = _answered(site_dir, tool, arguments)
+                if answer is None:
+                    continue  # it raised; the sweep above is where that is reported
+                assert "comparison_scope" not in answer or answer["comparison_scope"], label
+
+    def test_an_index_that_names_an_escaping_cohort_fails_loudly(self, tmp_path: Path) -> None:
+        """Defence in depth: membership cannot help if the published index is itself wrong."""
+
+        site_dir = tmp_path / "site"
+        (site_dir / "api" / "cohorts").mkdir(parents=True)
+        secret = tmp_path / "secretplace" / "notacohort.json"
+        secret.parent.mkdir(parents=True, exist_ok=True)
+        secret.write_text(json.dumps(_secret_document()), encoding="utf-8")
+        escaping = "../../../secretplace/notacohort"
+        (site_dir / "api" / "index.json").write_text(
+            json.dumps({"cohorts": [{"cohort_id": escaping}]}), encoding="utf-8"
+        )
+        with pytest.raises(DatasetUnavailable) as raised:
+            call_tool(site_dir, "cohort_statistics", {"cohort_id": escaping})
+        assert "outside the published cohorts directory" in str(raised.value)
+
+
 class TestAnswers:
     def test_every_answer_carries_the_scope_boundary(self, site: Path) -> None:
         for name, arguments in (

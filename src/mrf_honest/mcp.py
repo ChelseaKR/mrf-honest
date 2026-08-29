@@ -132,9 +132,42 @@ def _load_index(site_dir: Path) -> dict[str, Any]:
     return raw if isinstance(raw, dict) else {}
 
 
+def _cohort_document_path(site_dir: Path, cohort_id: str) -> Path | None:
+    """Resolve a cohort id to its published document, or refuse to build a path at all.
+
+    `cohort_id` is tool input: it arrives from whatever is driving the assistant, so it is
+    attacker-controlled text and never a filename. Membership in the published index is
+    therefore checked *before* the id reaches the filesystem. An id the index does not list
+    never becomes a path, so no spelling of a separator, an escape, or an encoding can name a
+    document outside the published set: the set is the check, not the string's shape.
+
+    Interpolating the id straight into the path is what this replaces, and it was not a
+    theoretical hole. `cohort_id="../../../secretplace/notacohort"` served an unpublished
+    document whose `comparison_scope` was `null` -- grades with no scope, which is precisely
+    what `docs/how-we-compare.md` establishes may never be published, delivered by the one
+    server whose whole purpose is to refuse what the site refuses.
+
+    The containment check below is defence in depth for the case membership cannot cover: an
+    index that itself named an id which walks out of the cohorts directory. That would mean
+    this project's own render wrote something it must not, so it fails loudly rather than
+    reading the file.
+    """
+
+    if cohort_id not in _cohort_ids(_load_index(site_dir)):
+        return None
+    cohorts_dir = (site_dir / "api" / "cohorts").resolve()
+    path = (cohorts_dir / f"{cohort_id}.json").resolve()
+    if path.parent != cohorts_dir:
+        raise DatasetUnavailable(
+            f"published index names cohort {cohort_id!r}, whose document resolves to {path}, "
+            f"outside the published cohorts directory {cohorts_dir}; refusing to read it"
+        )
+    return path
+
+
 def _load_cohort(site_dir: Path, cohort_id: str) -> dict[str, Any] | None:
-    path = site_dir / "api" / "cohorts" / f"{cohort_id}.json"
-    if not path.is_file():
+    path = _cohort_document_path(site_dir, cohort_id)
+    if path is None or not path.is_file():
         return None
     raw = json.loads(path.read_text(encoding="utf-8"))
     return raw if isinstance(raw, dict) else None
