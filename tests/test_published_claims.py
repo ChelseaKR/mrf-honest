@@ -14,16 +14,21 @@ true. Each test here reads a published claim and re-derives it:
   ``data/cohorts/<date>.ingest/`` exist for this: before them, the only copy of each ingest
   result lived inside the derived artifact, so the derivation had no inputs to be re-run
   against and could not be checked at all.
-* the page counts in ``perf/baseline.json``, against what the render actually produces.
+* the page counts in ``perf/baseline.json``, against what the render actually produces, and
+  the README's Performance row against that same baseline.
 * the size of the audited dependency set, against ``uv.lock``.
+* the size of this suite, as the README and the metrics ledger publish it, against collection.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
+import os
 import random
 import re
+import subprocess
+import sys
 from pathlib import Path
 from typing import cast
 
@@ -102,6 +107,47 @@ def test_the_perf_baseline_counts_the_pages_that_are_actually_rendered(tmp_path:
     )
 
 
+def test_the_readme_performance_row_states_what_the_baseline_measured() -> None:
+    """The README retypes the baseline's headline figures, and nothing read them back.
+
+    The test above binds ``perf/baseline.json`` to the render, so the file cannot describe a
+    surface the site does not have. The README's Performance row then retypes that file's
+    date, page count and heaviest-page figures into a sentence, and nothing reads a sentence:
+    the row still said "Measured 2026-08-15 across all nine pages: 1.0 performance, 12,197
+    bytes" long after the baseline had been re-measured on 2026-08-19 over 45 pages with a
+    heaviest page of 52,404 bytes. That is the defect the docstring above describes, one
+    document further out -- and the stale figure was the flattering one, four times smaller
+    than the truth. Every figure in the sentence is now read back from the file it cites.
+    """
+    baseline = json.loads((ROOT / "perf" / "baseline.json").read_text(encoding="utf-8"))
+    meta = cast(dict[str, object], baseline["meta"])
+    metrics = cast(dict[str, object], baseline["metrics"])
+    # Wrapped prose puts line breaks inside the sentence this pattern reads.
+    readme = " ".join((ROOT / "README.md").read_text(encoding="utf-8").split())
+    stated = re.search(
+        r"Measured (\S+) across all ([\d,]+) pages: ([\d.]+) performance, "
+        r"([\d,]+) bytes and one request on the heaviest page",
+        readme,
+    )
+    assert stated is not None, "the README no longer states what perf/baseline.json measured"
+    date, pages, performance, transfer = stated.groups()
+
+    assert date == meta["date"], "the README dates the measurement to a day the baseline does not"
+    assert int(pages.replace(",", "")) == meta["pages_audited"], (
+        "the README counts a different number of audited pages than the baseline"
+    )
+    assert float(performance) == metrics["performance"], (
+        "the README states a performance score the baseline does not"
+    )
+    assert int(transfer.replace(",", "")) == metrics["max_total_transfer_bytes"], (
+        "the README states a heaviest-page transfer size the baseline does not"
+    )
+    assert metrics["max_requests_per_page"] == 1, (
+        "the README's Performance row says one request on the heaviest page, and the baseline "
+        "no longer measures one"
+    )
+
+
 def _rendered_comparisons() -> list[dict[str, object]]:
     """The comparisons the publish workflow renders: the newest of each profile, JSON first.
 
@@ -175,6 +221,49 @@ def test_the_audited_dependency_count_in_the_ledger_matches_the_lockfile() -> No
         f"docs/ROADMAP.md claims {claimed.group(1)} pinned distributions in the audited export; "
         f"uv.lock resolves {locked} packages, so the export carries {exported}."
     )
+
+
+def test_the_published_suite_size_is_the_suite_that_actually_collects() -> None:
+    """The README and the metrics ledger both publish how large this suite is.
+
+    Both said "644 tests passing and 4 skipped" while the suite collected 655. It is the one
+    figure in the Code Quality row that a gate already computes and then throws away: pytest
+    prints the count at the end of every ``make verify`` and nothing compares it to the prose,
+    so each test added since the last hand-edit made the published figure a little more wrong
+    without failing anything.
+
+    Collection is re-run in a subprocess rather than read off the running session, so the
+    answer is the whole suite however this test was invoked -- under ``-k``, or over one file.
+    The coverage plugin's subprocess hooks are stripped from the child's environment so that
+    counting the tests cannot perturb the coverage the parent reports.
+
+    The branch-coverage percentage on the same two lines is deliberately not checked here: it
+    is a measurement of a run, the run that would check it is the one in progress, and a
+    partial invocation would read a number that means nothing. The floor behind it, 85, is
+    enforced by ``fail_under`` instead.
+    """
+    environment = {key: value for key, value in os.environ.items() if not key.startswith("COV_")}
+    collection = subprocess.run(
+        [sys.executable, "-m", "pytest", "--collect-only", "-q", "-p", "no:cacheprovider"],
+        cwd=ROOT,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    reported = re.search(r"(\d+) tests? collected", collection.stdout)
+    assert reported is not None, f"pytest reported no collected count:\n{collection.stdout}"
+    collected = int(reported.group(1))
+
+    for name in ("README.md", "docs/ROADMAP.md"):
+        document = " ".join((ROOT / name).read_text(encoding="utf-8").split())
+        claimed = re.search(r"([\d,]+) tests passing and ([\d,]+) skipped", document)
+        assert claimed is not None, f"{name} no longer states the size of the suite"
+        passing, skipped = (int(group.replace(",", "")) for group in claimed.groups())
+        assert passing + skipped == collected, (
+            f"{name} claims {passing} tests passing and {skipped} skipped, {passing + skipped} "
+            f"in total; pytest collects {collected}."
+        )
 
 
 # --- the sampling frame -------------------------------------------------------------------
