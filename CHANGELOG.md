@@ -7,6 +7,33 @@ no version tags yet; until the first dated release (phase 5 of
 
 ## [Unreleased]
 
+### Fixed
+
+- **The README's Performance row described a site four times smaller than the one that
+  ships.** It read "Measured 2026-08-15 across all nine pages: 1.0 performance, 12,197 bytes
+  and one request on the heaviest page" and cited `perf/baseline.json`, which had said
+  2026-08-19, 45 pages and 52,404 bytes since the CSV cohort was added. Every figure in the
+  sentence except the score and the request count was stale, and all of them were stale in
+  the flattering direction. The corrected figures are the baseline's own, including the
+  transfer size the baseline's note already explains: the heaviest page is the index, it now
+  carries two cohort sections and 42 file cards, and it remains inside the 61,440-byte
+  document budget. `tests/test_published_claims.py` now reads the date, the page count, the
+  score and the transfer size back out of the prose and compares each to the file it cites,
+  which closes the last link of a chain whose other end, the baseline against the render, was
+  already gated. This is the same defect as the "nine pages described as ten" correction that
+  gate was written for, one document further out: the file was checked, the sentence about
+  the file was not.
+
+- **The published size of the test suite was 9 tests behind the suite.** The README's Code
+  Quality row and the `docs/ROADMAP.md` metrics ledger both said "644 tests passing and 4
+  skipped" while collection reported 655. `make verify` computes that number on every run and
+  then discards it, so nothing connected the count pytest printed to the count the documents
+  claimed. Both now read 653 passing and 4 skipped, and a new check in
+  `tests/test_published_claims.py` re-collects the suite in a subprocess and fails when either
+  document's total is not the number of tests that actually collect. The branch-coverage
+  percentage beside it is deliberately left ungated and is stated as a dated measurement: the
+  run that would check it is the one in progress.
+
 ### Added
 
 - **A canonical that names each page, and a social card, on every rendered page.**
