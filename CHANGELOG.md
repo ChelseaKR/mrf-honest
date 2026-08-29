@@ -285,6 +285,21 @@ no version tags yet; until the first dated release (phase 5 of
 
 ### Fixed
 
+- **The release workflow would have failed its own gate on the first tag push.** `release.yml`'s
+  `build` job checked out at the default depth and then ran `make verify`, which runs
+  `tests/test_corrections.py`, which asserts the clone is not shallow because a citation nobody
+  can resolve is a claim rather than evidence. `ci.yml` was given `fetch-depth: 0` when that
+  check went in and `release.yml` never was. Latent, because `release.yml` only fires on a tag
+  push and this project has never been tagged; measured against a real `--depth 1` clone of this
+  branch, 17 of the 25 corrections tests go red. One line.
+
+- **The metrics ledger still reported the suite this stack replaced.** `docs/ROADMAP.md` and the
+  README's Code Quality row both read `92.44%, 445 tests passing, 2026-08-21` while phases 6
+  through 14 took the suite to 644 passing and 4 skipped at 92.79% branch coverage. Publishing a
+  measured number and then leaving it behind is item 9 of `docs/CORRECTIONS.md`, which this same
+  stack added. Both rows now carry the numbers `make verify` produced at this commit on
+  2026-08-28.
+
 - **A web page served where a file was requested was published as a hospital's unreadable
   file.** An HTTP 200 that returns an HTML landing page instead of the document was described by
   exactly the sentence a genuinely malformed JSON file earns — measured on the composition path

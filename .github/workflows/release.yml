@@ -111,6 +111,12 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.verify-tag.outputs.tag }}
+          # `make verify` below runs tests/test_corrections.py, which resolves every commit
+          # docs/CORRECTIONS.md cites and fails loudly on a shallow clone rather than skipping.
+          # ci.yml was given this depth when that check went in; release.yml was not, so this
+          # job would have failed its own gate on the first tag push. Measured against a real
+          # --depth 1 clone of this branch: 17 of the 25 corrections tests go red.
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Install uv
