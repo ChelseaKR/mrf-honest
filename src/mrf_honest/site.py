@@ -643,7 +643,6 @@ def _cohort_section(
 def index_page(comparisons: Sequence[Mapping[str, object]], origin: str) -> Page:
     references = _cross_references(comparisons)
     first_cohort = cast(Mapping[str, object], comparisons[0]["cohort"])
-    targeted_total = sum(cast(int, _summary(c)["targeted"]) for c in comparisons)
     sections = "".join(_cohort_section(comparison, references) for comparison in comparisons)
     data_links = " · ".join(
         f'<a href="data/{_e(_cohort_data_name(comparison))}">machine-readable comparison '
@@ -686,9 +685,16 @@ def index_page(comparisons: Sequence[Mapping[str, object]], origin: str) -> Page
     return Page(
         path="",
         title="mrf-honest: hospital price-transparency file grades",
+        # No count. The number that used to sit here was the sum of every cohort's
+        # `targeted`, and it was the only place in the project that added them up: the page
+        # renders each cohort in its own section precisely because their rows were assessed
+        # under different profiles and must never be pooled into one distribution
+        # (docs/how-we-compare.md, and the comment above `_cohort_section`). A figure the
+        # page declines to state is not a figure its search result should state either, and
+        # a preview card is the one surface where nobody rechecks it.
         description=(
-            f"Deterministic, spec-cited grades for {targeted_total} hospital "
-            "price-transparency files, with fail-closed coverage reporting."
+            "Deterministic, spec-cited grades for hospital price-transparency files, "
+            "with fail-closed coverage reporting."
         ),
         priority="1.0",
         body=body,
@@ -866,8 +872,43 @@ def robots(origin: str) -> str:
     return f"User-agent: *\nAllow: /\nSitemap: {origin}/sitemap.xml\n"
 
 
-def _shell(page: Page, origin: str, generated_at: str) -> str:
+def _discovery_tags(page: Page, origin: str) -> str:
+    """Canonical and social-card tags, or the refusal to issue them for the error page.
+
+    The error page is written to `404.html` but its `Page.path` is `"404"`, so the canonical
+    this function used to build for it was `{origin}/404/` — an address that does not exist
+    and itself returns 404. An error page should not canonicalise anywhere, and should not
+    be indexed at all; it now says so instead of pointing at nothing.
+
+    For every real page the canonical is ABSOLUTE and carries the `/mrf-honest/` path
+    segment, because `origin` does. That matters more than it would elsewhere: this is one
+    of six project sites on the shared `chelseakr.github.io` origin, served from paths
+    rather than from domains of their own, so a canonical of "/" would name a different
+    site's address rather than a shorter form of this one, and all six would claim it.
+
+    There is no `og:image`. This repository ships no image of any kind, deliberately:
+    `perf/resource-budget.json` sets `max_request_count.image` to 0 so that adding one is a
+    failed build rather than a change nobody noticed. `twitter:card` is therefore `summary`,
+    which promises no image, rather than `summary_large_image`, which does.
+    """
+    if page.path == "404":
+        return '<meta name="robots" content="noindex">'
     canonical = f"{origin}/{page.path + '/' if page.path else ''}"
+    return "\n".join(
+        [
+            f'<link rel="canonical" href="{_e(canonical)}">',
+            '<meta property="og:type" content="website">',
+            '<meta property="og:site_name" content="mrf-honest">',
+            f'<meta property="og:title" content="{_e(page.title)}">',
+            f'<meta property="og:description" content="{_e(page.description)}">',
+            f'<meta property="og:url" content="{_e(canonical)}">',
+            '<meta property="og:locale" content="en_US">',
+            '<meta name="twitter:card" content="summary">',
+        ]
+    )
+
+
+def _shell(page: Page, origin: str, generated_at: str) -> str:
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -875,7 +916,7 @@ def _shell(page: Page, origin: str, generated_at: str) -> str:
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{_e(page.title)}</title>
 <meta name="description" content="{_e(page.description)}">
-<link rel="canonical" href="{_e(canonical)}">
+{_discovery_tags(page, origin)}
 <link rel="icon" href="data:,">
 <style>{_STYLE}</style>
 </head>

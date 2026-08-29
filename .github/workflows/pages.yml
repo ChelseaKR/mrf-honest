@@ -112,6 +112,45 @@ jobs:
           test -f site/sitemap.xml
           test -f site/404.html
           grep -Fq 'Sitemap: https://chelseakr.github.io/mrf-honest/sitemap.xml' site/robots.txt
+          # site/robots.txt is published for completeness and is INERT as deployed: a crawler
+          # only reads /robots.txt at the ORIGIN root, and this project cannot publish
+          # https://chelseakr.github.io/robots.txt. The sitemap is discoverable by submission,
+          # not by this file. Do not treat its presence as crawl control.
+          #
+          # Every indexable page names ITSELF. Six project sites share this origin on paths,
+          # so a canonical of "/" would name a different site and all six would claim it.
+          python - <<'SEO'
+          import pathlib, re, sys
+          origin = "https://chelseakr.github.io/mrf-honest"
+          problems = []
+          for path in sorted(pathlib.Path("site").rglob("*.html")):
+              html = path.read_text(encoding="utf-8")
+              where = path.as_posix()
+              if path.name == "404.html":
+                  if '<meta name="robots" content="noindex">' not in html:
+                      problems.append(f"{where} is indexable")
+                  if 'rel="canonical"' in html:
+                      problems.append(f"{where} claims a canonical URL")
+                  continue
+              canonical = re.search(r'<link rel="canonical" href="([^"]*)">', html)
+              if not canonical:
+                  problems.append(f"{where} has no canonical")
+                  continue
+              url = canonical.group(1)
+              if not url.startswith(origin + "/"):
+                  problems.append(f"{where} canonicalises to {url}")
+              og_url = re.search(r'<meta property="og:url" content="([^"]*)">', html)
+              if not og_url or og_url.group(1) != url:
+                  problems.append(f"{where} og:url disagrees with its canonical")
+              for tag in ("og:title", "og:description", "og:type"):
+                  if f'property="{tag}"' not in html:
+                      problems.append(f"{where} has no {tag}")
+              if 'name="twitter:card"' not in html:
+                  problems.append(f"{where} has no twitter:card")
+          if problems:
+              sys.exit("::error title=Page discovery metadata::" + "; ".join(problems))
+          print("canonical and card tags checked on every rendered page")
+          SEO
           total_rendered=0
           total_targeted=0
           while read -r comparison; do
