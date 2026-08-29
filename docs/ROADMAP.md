@@ -81,7 +81,7 @@ README quotes a ledger figure, this table is the source and the README follows i
 
 | Metric | Target | Measured by | Gate | Last measured |
 |---|---|---|---|---|
-| Branch coverage | >= 85% | `pytest --cov` (branch mode, `fail_under = 85`) | AUTO (`make verify`) | 92.79%, 654 tests passing and 4 skipped, 2026-08-29 |
+| Branch coverage | >= 85% | `pytest --cov` (branch mode, `fail_under = 85`) | AUTO (`make verify`) | 92.79%, 662 tests passing and 4 skipped, 2026-08-29 |
 | Lint findings (ruff `E,F,I,B,S,C90,UP,RUF`, `max-complexity=10`) | 0 | `ruff check src tests perf` | AUTO (`make verify`) | 0, 2026-08-16 |
 | Formatting findings | 0 | `ruff format --check src tests perf` | AUTO (`make verify`) | 0, 2026-08-16 |
 | `mypy --strict` errors | 0 | `mypy` over `src` and `perf` | AUTO (`make verify`) | 0, 2026-08-16 |
@@ -111,6 +111,7 @@ README quotes a ledger figure, this table is the source and the README follows i
 | Base runtime dependency count | 0 (DuckDB remains an optional lakehouse extra, ADRs 0002-0003) | `pyproject.toml` `[project] dependencies` | REVIEW | 0, 2026-08-15 |
 | Published shares re-derivable from the document they sit in | every share | `tests/test_published_claims.py` recomputes each numerator and denominator from the same document's rows and exclusions, and asserts each interval brackets its point | AUTO (`make verify`, and again on the deploy path via `mrf_honest.site.missing_shares`) | 4 shares on the JSON cohort; the other two cohorts carry a stated refusal, 2026-08-28 |
 | Crash and concurrency durability | catalog never reports a snapshot it does not hold | `tests/test_durability.py`: SIGKILL at 6 named progress markers, 3 deterministic fault injections, and 2 racing writers | AUTO (`make verify`) | 16 cases, 0 failures over four consecutive runs; migrations, fsync, and the promote-to-commit window remain open and are named, 2026-08-28 |
+| Recorded narration evaluations re-derived from their own contents | every figure the result files publish | `tests/test_published_claims.py` re-runs `summarize` over each file's own rows, recounts every row against its own claim lists, re-verifies every cited quote against the committed `corpus/`, and reads the CHANGELOG's two grounding sentences back off the results | AUTO (`make verify`) | 2 results, 25 rows and 131 citations re-verified; the live model call that produced the sentences is not reproducible and is excluded, 2026-08-29 |
 | Fabricated figures in docs | 0 | every published number traces to a run or a query | REVIEW (house rule, `docs/CONTEXT.md`), now partly AUTO via `tests/test_published_claims.py` | **2 found and corrected on 2026-08-16**: this row's own "116 pinned distributions" (the export has always carried 51), and `perf/baseline.json` describing a nine-page audit as ten. Both are now re-derived by a test rather than dated. 0 known otherwise |
 
 Planned ledger rows that only become meaningful later: multi-publisher grade distribution

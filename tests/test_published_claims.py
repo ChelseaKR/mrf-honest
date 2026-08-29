@@ -34,6 +34,8 @@ from typing import cast
 
 import pytest
 
+from mrf_honest.ai.corpus import CorpusIndex
+from mrf_honest.ai.eval import summarize
 from mrf_honest.cohort import build_comparison
 from mrf_honest.scorecard import AssessmentRegistry
 from mrf_honest.site import render_site
@@ -615,3 +617,176 @@ def test_a_published_share_reaches_the_rendered_page(comparison_path: Path, tmp_
             assert f"{estimate['numerator']} of {estimate['denominator']}" in html
     else:
         assert "No share is published for this cohort" in html
+
+
+# ---------------------------------------------------------------------------
+# The recorded narration-grounding evaluations.
+#
+# `evals/ai/results/*.json` is the only committed artifact in this repository whose
+# *generator* cannot be re-run by a gate: producing it calls a hosted model, so the rows are a
+# record of one live run and are not reproducible offline. Nothing followed from that to the
+# parts of the file that ARE reproducible, and so nothing checked them at all. Before these
+# tests the only gate over the directory was `test_committed_results_carry_provenance`, which
+# reads the `run` block and `summary.records` and never looks at a single number the
+# CHANGELOG quotes.
+#
+# Three things in these files are pure functions of the file's own committed contents, and
+# every one of them is a published figure:
+#
+#   * the `summary` block, which is `summarize()` over the `records` list;
+#   * each row's claim counts, which are the lengths of that row's own `claims` and
+#     `withheld_reasons`;
+#   * the verdict "shown", which is `CorpusIndex.verify_quote` over the committed `corpus/`.
+#
+# The third is the load-bearing one. "39 of 48 claims shown" is a statement about what the
+# verifier does, and the verifier and the corpus are both committed here. A change to
+# `normalize_for_match`, to `MIN_QUOTE_CHARS`, or to a retained document would leave every
+# published grounding percentage describing a verifier this repository no longer has, and the
+# result files, the CHANGELOG, and the README would go on quoting it.
+# ---------------------------------------------------------------------------
+
+EVAL_RESULTS = sorted((ROOT / "evals" / "ai" / "results").glob("*.json"))
+
+
+def test_at_least_one_evaluation_is_recorded() -> None:
+    """An empty glob would make every parametrized case below vacuous."""
+    assert EVAL_RESULTS, f"no recorded evaluations under {ROOT / 'evals' / 'ai' / 'results'}"
+
+
+@pytest.mark.parametrize("result_path", EVAL_RESULTS, ids=lambda path: path.name)
+def test_the_recorded_summary_is_what_the_code_computes_from_its_own_rows(
+    result_path: Path,
+) -> None:
+    """Every figure the summary publishes, re-derived by `summarize` from the same file's rows.
+
+    Scoped to the keys the committed summary actually publishes, and every one of them must
+    still be a key `summarize` produces, so a metric that is renamed, dropped, or redefined
+    fails here rather than being quoted forever from a file nobody re-read.
+
+    `records_refused_before_model_call` is deliberately outside the comparison: it was added
+    after both committed runs (CHANGELOG, "narrate called the model on a record with nothing to
+    quote"), the rows of a pre-fix run carry no `model_called` field for it to be counted from,
+    and asserting a value those runs never measured would be writing a number by hand, which
+    `CONTRIBUTING.md` forbids. It is the one key `summarize` emits that these files do not, and
+    the assertion below names that so the exclusion cannot silently widen.
+    """
+
+    payload = json.loads(result_path.read_text(encoding="utf-8"))
+    committed = payload["summary"]
+    rederived = summarize(payload["records"])
+
+    missing = sorted(set(committed) - set(rederived))
+    assert not missing, (
+        f"{result_path.name} publishes {missing}, which `summarize` no longer computes. "
+        "The recorded run describes a measurement this code does not make."
+    )
+    assert sorted(set(rederived) - set(committed)) == ["records_refused_before_model_call"], (
+        f"{result_path.name} is missing more than the one field its run predates: "
+        f"{sorted(set(rederived) - set(committed))}"
+    )
+    for key in sorted(committed):
+        assert committed[key] == rederived[key], (
+            f"{result_path.name} publishes {key}={committed[key]!r}; `summarize` computes "
+            f"{rederived[key]!r} from the rows in that same file."
+        )
+
+
+@pytest.mark.parametrize("result_path", EVAL_RESULTS, ids=lambda path: path.name)
+def test_every_recorded_row_counts_the_claims_it_actually_carries(result_path: Path) -> None:
+    """A row's counts are the lengths of its own lists, so the summary cannot be built on a
+    row that already disagrees with itself."""
+
+    payload = json.loads(result_path.read_text(encoding="utf-8"))
+    assert payload["records"], f"{result_path.name} records no rows"
+    for row in payload["records"]:
+        shown = len(row["claims"])
+        withheld = len(row["withheld_reasons"])
+        assert row["claims_shown"] == shown, f"{result_path.name} row {row['index']}"
+        assert row["claims_withheld"] == withheld, f"{result_path.name} row {row['index']}"
+        assert row["claims_generated"] == shown + withheld, (
+            f"{result_path.name} row {row['index']} says {row['claims_generated']} claims "
+            f"generated; it carries {shown} shown and {withheld} withheld."
+        )
+
+
+@pytest.mark.parametrize("result_path", EVAL_RESULTS, ids=lambda path: path.name)
+def test_every_shown_claim_still_verifies_against_the_committed_corpus(result_path: Path) -> None:
+    """The recorded grounding rate is a claim about the verifier, re-run against the corpus.
+
+    A claim is shown only because every quote it cites verified verbatim against the retained
+    document. Both the verifier and the retained documents are committed, so that verdict is
+    reproducible offline even though the model call that produced the sentence is not. If a
+    quote no longer verifies, the published percentage is describing a verifier this repository
+    no longer has, and the recorded run has to be re-run rather than re-quoted.
+    """
+
+    corpus = CorpusIndex.load(ROOT)
+    payload = json.loads(result_path.read_text(encoding="utf-8"))
+    checked = 0
+    for row in payload["records"]:
+        for position, claim in enumerate(row["claims"]):
+            assert claim["citations"], (
+                f"{result_path.name} row {row['index']} claim {position} is recorded as shown "
+                "with no citation; the verifier withholds an uncited claim."
+            )
+            for citation in claim["citations"]:
+                passage_id = str(citation["passage_id"])
+                source_id = passage_id.partition("#")[0]
+                assert corpus.passage(passage_id) is not None, (
+                    f"{result_path.name} row {row['index']} cites {passage_id}, which the "
+                    "committed corpus no longer contains."
+                )
+                assert corpus.verify_quote(source_id, str(citation["quote"])) is not None, (
+                    f"{result_path.name} row {row['index']} was recorded as shown on a quote "
+                    f"that no longer verifies against {source_id}: {citation['quote']!r}"
+                )
+                checked += 1
+    assert checked, f"{result_path.name} records no citation to re-verify"
+
+
+def test_the_changelog_states_the_evaluations_that_are_actually_recorded() -> None:
+    """The CHANGELOG retypes both grounding results, and nothing read them back.
+
+    The entry names the cohort each run scored, so each sentence is matched to the result whose
+    `records_file` scored that cohort rather than to whichever file sorts first. The counts are
+    compared exactly; the percentage is compared to a tenth of a point, because 81.25 rounds to
+    81.3 by the convention a reader uses and to 81.2 by the one `format` uses, and pinning the
+    prose to Python's tie-breaking would be asserting a formatting accident rather than a fact.
+    """
+
+    changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    by_cohort = {
+        Path(str(json.loads(path.read_text(encoding="utf-8"))["run"]["records_file"])).name: (
+            path,
+            json.loads(path.read_text(encoding="utf-8"))["summary"],
+        )
+        for path in EVAL_RESULTS
+    }
+    sentences = {
+        "2026-08-19.assessments.jsonl": (
+            r"the (\d+) records of the 2026-08-19 JSON cohort produced (\d+)\s+claims, "
+            r"(\d+) shown \((\d+\.\d)%\), (\d+) withheld"
+        ),
+        "2026-08-19-csv.assessments.jsonl": (
+            r"(\d+) records\s+of the 2026-08-19 CSV cohort produced (\d+) claims, "
+            r"(\d+) shown \((\d+\.\d)%\), (\d+) withheld"
+        ),
+    }
+    for records_file, pattern in sentences.items():
+        assert records_file in by_cohort, (
+            f"the CHANGELOG describes a run over {records_file}; no committed result under "
+            f"evals/ai/results/ names that records file."
+        )
+        path, summary = by_cohort[records_file]
+        match = re.search(pattern, changelog)
+        assert match, f"the CHANGELOG no longer states the result recorded in {path.name}"
+        records, generated, shown, percent, withheld = match.groups()
+        assert int(records) == summary["records"], path.name
+        assert int(generated) == summary["claims_generated"], path.name
+        assert int(shown) == summary["claims_shown"], path.name
+        assert int(withheld) == summary["claims_withheld"], path.name
+        recorded = summary["fraction_claims_with_verified_citations"] * 100
+        assert abs(float(percent) - recorded) < 0.1, (
+            f"the CHANGELOG says {percent}% of the claims in {path.name} were shown; the file "
+            f"records {recorded}%."
+        )
