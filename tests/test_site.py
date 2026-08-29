@@ -161,6 +161,101 @@ def test_methods_page_documents_the_policy_and_emitted_codes(tmp_path: Path) -> 
     assert "not the official CMS validator" in methods
 
 
+def test_every_indexable_page_names_itself_and_not_the_shared_origin(
+    tmp_path: Path,
+) -> None:
+    """Canonical and card tags on every page, naming that page under this project's path.
+
+    These pages are one of six project sites on the shared `chelseakr.github.io` origin,
+    served from PATHS rather than from domains of their own. So a canonical of "/" is not
+    a shorter spelling of this site's root: it is a different address, and all six sites
+    would claim the identical one. A crawler that believes them folds six unrelated
+    projects into one document.
+
+    Every page already had a canonical. None had any Open Graph or Twitter tag, so a
+    shared link to a hospital's grade previewed as a bare URL with no title and no
+    description. This holds both, and holds them against each other, so a card cannot
+    drift into describing a different page than the one it sits on.
+    """
+    out = _render(tmp_path, _comparison(tmp_path))
+    expected = {
+        "index.html": f"{DEFAULT_ORIGIN}/",
+        "how-we-grade/index.html": f"{DEFAULT_ORIGIN}/how-we-grade/",
+        "hospital/alpha-health/main/index.html": (f"{DEFAULT_ORIGIN}/hospital/alpha-health/main/"),
+    }
+    for name, url in expected.items():
+        html = (out / name).read_text(encoding="utf-8")
+
+        canonical = re.search(r'<link rel="canonical" href="([^"]*)">', html)
+        assert canonical, f"{name} has no canonical URL"
+        assert canonical.group(1) == url, (
+            f"{name} canonicalises to {canonical.group(1)!r}, not {url!r}"
+        )
+        assert canonical.group(1).rstrip("/") != "https://chelseakr.github.io", (
+            f"{name} points at the shared origin, which is a different site"
+        )
+
+        def meta(attribute: str, key: str, *, page: str = html, where: str = name) -> str:
+            found = re.search(rf'<meta {attribute}="{key}" content="([^"]*)">', page)
+            assert found, f"{where} has no {key}"
+            return found.group(1)
+
+        assert meta("property", "og:url") == url, f"{name} og:url disagrees with canonical"
+        title = re.search(r"<title>([^<]*)</title>", html)
+        assert title, f"{name} has no title"
+        assert meta("property", "og:title") == title.group(1), f"{name} og:title disagrees"
+        assert meta("property", "og:description") == meta("name", "description"), name
+        assert meta("property", "og:type") == "website", name
+
+        # This project ships no image at all, and `perf/resource-budget.json` sets
+        # `max_request_count.image` to 0 so that adding one is a failed build rather than
+        # a change nobody noticed. The card must therefore not promise an image it has
+        # none of. If an image is ever committed, this fails until og:image comes with it.
+        card = meta("name", "twitter:card")
+        assert card in ("summary", "summary_large_image"), f"{name} card is {card!r}"
+        if card == "summary_large_image":
+            assert meta("property", "og:image"), f"{name} promises an image it lacks"
+
+
+def test_the_error_page_canonicalises_nowhere_and_is_not_indexable(
+    tmp_path: Path,
+) -> None:
+    """The error page is written to `404.html`, but its `Page.path` is `"404"`.
+
+    So the canonical built from that path was `{origin}/404/`, an address that does not
+    exist and that itself returns 404: the page told crawlers its preferred URL was a
+    dead one. An error page has no canonical URL to state, and should not be indexed at
+    all, so it now says `noindex` and states nothing.
+    """
+    out = _render(tmp_path, _comparison(tmp_path))
+    not_found = (out / "404.html").read_text(encoding="utf-8")
+    assert '<meta name="robots" content="noindex">' in not_found
+    assert 'rel="canonical"' not in not_found, (
+        "the error page claims a canonical URL; the one it used to claim was a 404"
+    )
+    assert "og:url" not in not_found
+
+
+def test_the_index_does_not_pool_cohorts_its_own_page_keeps_apart(
+    tmp_path: Path,
+) -> None:
+    """The meta description must not state a total the page refuses to state.
+
+    Cohorts are rendered as separate sections on purpose: their rows were assessed under
+    different profiles and must never be pooled into one distribution
+    (`docs/how-we-compare.md`). The description was the one place in the project that
+    summed every cohort's `targeted` into a single figure, and a search result is the
+    surface where nobody rechecks it. It now states no count.
+    """
+    out = _render(tmp_path, _comparison(tmp_path))
+    index = (out / "index.html").read_text(encoding="utf-8")
+    description = re.search(r'<meta name="description" content="([^"]*)">', index)
+    assert description, "the index has no description"
+    assert not re.search(r"[0-9]", description.group(1)), (
+        f"the description states a count: {description.group(1)!r}"
+    )
+
+
 def test_sitemap_robots_404_and_data_export(tmp_path: Path) -> None:
     comparison = _comparison(tmp_path)
     out = _render(tmp_path, comparison)

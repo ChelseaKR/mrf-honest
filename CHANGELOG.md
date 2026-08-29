@@ -9,6 +9,43 @@ no version tags yet; until the first dated release (phase 5 of
 
 ### Added
 
+- **A canonical that names each page, and a social card, on every rendered page.**
+  Every page already carried a canonical; none carried any Open Graph or Twitter tag, so a
+  shared link to a hospital's grade previewed as a bare URL with no title and no
+  description. `_shell` now emits `og:type`, `og:site_name`, `og:title`, `og:description`,
+  `og:url` and `twitter:card` from the same `Page` the canonical is built from, so a card
+  cannot drift into describing a different page than the one it sits on. There is no
+  `og:image`: this project ships no image at all, and `perf/resource-budget.json` sets
+  `max_request_count.image` to 0 precisely so that adding one is a failed build rather than
+  a change nobody noticed, so the card is `summary`, which promises none.
+
+### Fixed
+
+- **The error page told crawlers its preferred URL was a dead one.** `404.html` is written
+  from a `Page` whose `path` is `"404"`, so the canonical built from that path was
+  `https://chelseakr.github.io/mrf-honest/404/`, an address that does not exist and that
+  itself returns 404. An error page has no canonical URL to state and should not be indexed
+  at all; it now carries `robots: noindex` and states nothing.
+
+- **The index's meta description pooled two cohorts the page itself keeps apart.** It read
+  "grades for 42 hospital price-transparency files", and that 42 was the sum of every
+  cohort's `targeted` computed for the description alone: it was the only place in the
+  project that added them up. The page renders each cohort in its own section precisely
+  because their rows were assessed under different profiles and must never be pooled into
+  one distribution (`docs/how-we-compare.md`), and the figure appeared nowhere in the
+  page's own visible text, which states 17 and 25 separately. A number the page declines
+  to state is not a number its search result should state either, and a preview card is
+  the surface where nobody rechecks it. The description now states no count, and a test
+  fails if a digit reappears in it.
+
+  Observed failing four ways: the Open Graph block removed; the error page's `noindex`
+  removed so it canonicalises to `/404/` again; the pooled count restored to the
+  description; the canonical pointed at the bare shared origin. The deploy check in
+  `pages.yml` was extended over the same ground, so it reads all 45 rendered pages rather
+  than only the ones the test fixtures cover, and its `robots.txt` line now records that
+  the published `site/robots.txt` is inert as deployed, because a crawler only reads
+  `/robots.txt` at the origin root and this project cannot publish one there.
+
 - **The release path, up to the one act no automation here should take (phase 14).**
   `.github/workflows/release.yml` verifies that a tag carries a signature from a key in
   `.github/allowed_signers`, requires the tag and `pyproject.toml` to agree, refuses a
