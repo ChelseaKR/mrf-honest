@@ -9,6 +9,20 @@ no version tags yet; until the first dated release (phase 5 of
 
 ### Fixed
 
+- **The Bedrock default model was one this project cannot invoke.** `DEFAULT_BEDROCK_MODEL`
+  was `global.anthropic.claude-sonnet-5`, and the AWS account these evaluations run under
+  answers `AccessDeniedException` for it — while the entitlement API reports that model
+  authorized, so the condition is only observable by making a call. Bedrock is the path this
+  repository actually uses: both files in `evals/ai/results/` record
+  `global.anthropic.claude-sonnet-4-6`, which means the Bedrock default had never been
+  exercised by anything, and `mrf-honest narrate --provider bedrock` with no `MRF_AI_MODEL`
+  set would have failed on the first call. The Bedrock default is now the model the recorded
+  runs used. `DEFAULT_ANTHROPIC_MODEL` is deliberately left at `claude-sonnet-5`: the two
+  providers are not the same deployment, and a third-party deployer with ordinary API access
+  should get the current model rather than this account's ceiling. A new test pins the Bedrock
+  constant to a model some committed evaluation run actually invoked, rather than to a second
+  hand-typed copy of the same string, so raising it requires the evidence that it works.
+
 - **The two recorded grounding evaluations were the one committed artifact family with no gate at all.** `evals/ai/results/*.json` records a live model run, so its generator cannot be re-run offline, and nothing followed from that to the parts of the file that are pure functions of its own committed contents. The only existing check, `test_committed_results_carry_provenance`, read the `run` block and `summary.records` and never looked at a number the CHANGELOG quotes. `tests/test_published_claims.py` now re-derives the `summary` block with `summarize` over the file's own rows, recounts every row against its own `claims` and `withheld_reasons`, re-verifies all 131 cited quotes against the committed `corpus/` with the same `verify_quote` the narration layer uses, and reads the CHANGELOG's two grounding sentences back off the results. The load-bearing one is the third: "91 of 95 claims shown" is a statement about the verifier, and the verifier and the retained documents are both committed, so a change to `normalize_for_match`, to `MIN_QUOTE_CHARS`, or to a corpus document would have left every published grounding percentage describing a verifier this repository no longer has. Nothing had drifted: both summaries re-derive exactly and all 131 citations still verify. `summarize`'s `records_refused_before_model_call` is excluded and the exclusion is asserted to be the only one, because both runs predate that field and their rows carry no `model_called` for it to be counted from; writing a value those runs never measured is the hand-typed number `CONTRIBUTING.md` forbids.
 
 - **The README's Performance row described a site four times smaller than the one that
