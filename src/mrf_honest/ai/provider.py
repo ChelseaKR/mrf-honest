@@ -7,8 +7,20 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+#: The first-party API default: the current model, for a deployer with ordinary API access.
 DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-5"
-DEFAULT_BEDROCK_MODEL = "global.anthropic.claude-sonnet-5"
+
+#: The Bedrock default is deliberately a different, older model, and the two are not a
+#: mistake to be tidied up into one constant. The AWS account this project's recorded
+#: evaluations run under can invoke ``global.anthropic.claude-sonnet-4-6`` on Bedrock but
+#: returns ``AccessDeniedException`` for a Sonnet 5 model id, even though the entitlement
+#: API reports that model AUTHORIZED for the account -- entitlement is only observable by
+#: invoking. Bedrock is the only path that has actually run here: both files in
+#: ``evals/ai/results/`` record ``global.anthropic.claude-sonnet-4-6``, so a Sonnet 5
+#: Bedrock default was a default nothing had ever exercised. Raise this when the account
+#: can invoke a newer model, verified by an invocation and not by an availability query.
+DEFAULT_BEDROCK_MODEL = "global.anthropic.claude-sonnet-4-6"
+
 DEFAULT_BEDROCK_REGION = "us-west-2"
 PROVIDERS = ("anthropic", "bedrock")
 
