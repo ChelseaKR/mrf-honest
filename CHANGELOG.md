@@ -36,6 +36,31 @@ no version tags yet; until the first dated release (phase 5 of
   percentage beside it is deliberately left ungated and is stated as a dated measurement: the
   run that would check it is the one in progress.
 
+- **A charged CSV row with no code pairing was excused from the description and setting
+  requirements (issue #28).** In `_check_item_completeness`, `CMS_CSV_DESCRIPTION_MISSING` and
+  `CMS_CSV_SETTING_INVALID` both sat behind `is_item`, which is `complete_codes > 0`. A data row
+  that disclosed a standard charge but paired no code therefore reported
+  `CMS_CSV_CODE_PAIRING_MISSING` and nothing else: the absent pairing switched off two checks
+  the same row still owed. `description` and `setting` are both "Blanks Accepted: No" in the
+  data dictionary's required standard-charge, item/service and coding table
+  (`corpus/cms/csv-data-dictionary.md`), and neither requirement is conditioned on the code
+  columns being populated. A third branch now covers charged rows that are neither items nor
+  modifier rows. Modifier rows are untouched: note 11 makes a description plus one
+  payer-specific charge their minimum and does not list `setting`, so widening the `is_item`
+  gate instead — the approach taken by PR #31, closed unmerged for exactly this reason — would
+  both report a blank `setting` on a conforming modifier row and make
+  `CMS_CSV_MODIFIER_ROW_CONTEXT_MISSING` unreachable for any row carrying a charge. Both
+  behaviours are pinned by new tests, the second of which fails under PR #31's approach.
+- `CSV_INSPECTION_POLICY_VERSION` moves to `cms-hospital-csv-v3-inspection-v2`, because
+  inspection behaviour changed without a catalog or rule-set change. **This invalidates the
+  committed `hospital-csv-v3-2026-08-19` cohort**, whose rows were assessed under v1 semantics:
+  `test_committed_comparison_is_reproducible_from_committed_inputs[2026-08-19-csv.comparison.json]`
+  fails until that cohort is re-assessed and its comparison regenerated. That is the
+  fingerprint doing the job its own comment describes — prior findings cannot be silently
+  reused after grading semantics change — rather than a regression. The re-assessment is an
+  operator-invoked act: it needs the retrieved bodies, and it will change published finding
+  counts for named hospitals.
+
 ### Added
 
 - **The README said what this project is not, but never that it speaks for nobody.** It
