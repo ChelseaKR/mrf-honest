@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import html
 import json
+import shutil
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -26,6 +27,24 @@ from mrf_honest.inspect_csv import CSV_FINDING_CATALOG
 from mrf_honest.scorecard import RETRIEVAL_FINDING_CATALOG
 
 DEFAULT_ORIGIN = "https://chelseakr.github.io/mrf-honest"
+
+SOCIAL_CARD = "social-card.png"
+"""The Open Graph card, copied into the render from `assets/`.
+
+`site/` is not in git; it is rendered from the committed comparison documents on every
+publish. So the card cannot simply be dropped into the output directory and left there --
+the next render would produce a site whose `og:image` 404s. It is a committed source asset
+that the render copies, which is also what lets `test_site.py` assert that the file the
+tags promise is a file the render actually writes.
+"""
+
+SOCIAL_CARD_SOURCE = Path(__file__).resolve().parents[2] / "assets" / SOCIAL_CARD
+
+SOCIAL_CARD_ALT = (
+    "mrf-honest: deterministic, spec-cited grades for hospital price-transparency files, "
+    "with fail-closed coverage reporting. Below, the grade scale A to F, and the note "
+    "'graded per file, not per hospital'."
+)
 
 # Every colour the stylesheet uses, in one place, so the contrast of each text-on-background
 # combination is asserted by a test instead of hoped for. `--c-ink` exists because the amber
@@ -886,10 +905,20 @@ def _discovery_tags(page: Page, origin: str) -> str:
     rather than from domains of their own, so a canonical of "/" would name a different
     site's address rather than a shorter form of this one, and all six would claim it.
 
-    There is no `og:image`. This repository ships no image of any kind, deliberately:
-    `perf/resource-budget.json` sets `max_request_count.image` to 0 so that adding one is a
-    failed build rather than a change nobody noticed. `twitter:card` is therefore `summary`,
-    which promises no image, rather than `summary_large_image`, which does.
+    There is an `og:image`, and the zero-image resource budget still holds, because the two
+    measure different things. `perf/resource-budget.json` caps `image` requests at 0, and it
+    is asserted against Lighthouse's `resource-summary` audit -- a count of what a page
+    actually requests while loading. No page requests this card: it is named in a `<meta>`
+    tag, fetched only by whatever unfurls a pasted link, and never by a browser rendering
+    the site. The budget's own reason ("adding one is a failed build rather than a change
+    nobody noticed") is about page weight, and page weight is unchanged: still no script, no
+    stylesheet, no font, no image request, one request per page.
+
+    What the card does change is the promise. `twitter:card` is `summary_large_image`, which
+    promises an image, so the image has to exist: `test_site.py` requires `og:image` on any
+    page claiming that card, and requires the file it names to be one the render writes. The
+    previous `summary` was honest about having nothing to show, which is not the same as
+    having nothing worth showing.
     """
     if page.path == "404":
         return '<meta name="robots" content="noindex">'
@@ -903,7 +932,14 @@ def _discovery_tags(page: Page, origin: str) -> str:
             f'<meta property="og:description" content="{_e(page.description)}">',
             f'<meta property="og:url" content="{_e(canonical)}">',
             '<meta property="og:locale" content="en_US">',
-            '<meta name="twitter:card" content="summary">',
+            f'<meta property="og:image" content="{_e(origin)}/{SOCIAL_CARD}">',
+            '<meta property="og:image:type" content="image/png">',
+            '<meta property="og:image:width" content="1200">',
+            '<meta property="og:image:height" content="630">',
+            f'<meta property="og:image:alt" content="{_e(SOCIAL_CARD_ALT)}">',
+            '<meta name="twitter:card" content="summary_large_image">',
+            f'<meta name="twitter:image" content="{_e(origin)}/{SOCIAL_CARD}">',
+            f'<meta name="twitter:image:alt" content="{_e(SOCIAL_CARD_ALT)}">',
         ]
     )
 
@@ -1027,6 +1063,9 @@ def render_site(
     robots_path = out_dir / "robots.txt"
     robots_path.write_text(robots(origin), encoding="utf-8")
     written.append(robots_path)
+    card_path = out_dir / SOCIAL_CARD
+    shutil.copyfile(SOCIAL_CARD_SOURCE, card_path)
+    written.append(card_path)
     return written
 
 

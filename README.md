@@ -78,9 +78,28 @@ published until the suppression and uncertainty work exists to publish them hone
 
 ## Quickstart
 
+**`prices.json` below is a file you supply.** This repository ships no sample MRF and will not:
+a hand-written one would be a plausible file that no hospital published, and a tool whose whole
+argument is that published numbers should trace to a real retrieval is the wrong place to put a
+convincing fake. The test suite builds its documents in memory for the same reason — nothing on
+disk can later be mistaken for evidence.
+
+Two ways to get a real one, both of them a single command. Every file this project has graded is
+named, with its exact URL and the SHA-256 of the bytes that were read, in the committed cohorts
+under `data/cohorts/` — so any published grade can be re-derived from its source. Or start from a
+hospital: CMS requires each one to serve `https://<domain>/cms-hpt.txt` pointing at its MRF, which
+is what `discover` reads.
+
 ```sh
 uv sync
 make verify
+
+# Get a real file: resolve one hospital's MRF URL from its CMS-mandated cms-hpt.txt, then
+# retrieve it into the verified cache. robots.txt is consulted first and there is no override.
+uv run mrf-honest discover www.example-hospital.org \
+  --registry data/registry.jsonl --cache-dir data/cache --contact operator@example.org
+uv run mrf-honest fetch https://files.example.org/standardcharges.json \
+  --cache-dir data/cache --contact operator@example.org
 
 # Inspect a local CMS hospital JSON v3 file. Findings are observations, not a compliance ruling.
 uv run mrf-honest inspect prices.json --as-of 2026-08-09 --format json
@@ -296,7 +315,7 @@ ADR in [docs/adr/](docs/adr/). No blank rows, no silent skips.
 
 | Standard | State |
 |---|---|
-| Code Quality | Applies: `make verify` runs six gates — `ruff check` (security `S` rules, `max-complexity=10`), `ruff format --check`, `mypy --strict`, pytest with a branch-coverage floor of 85, `uv lock --check`, and `pip-audit --strict` over the exported lockfile. Current: 663 tests passing and 4 skipped, 92.79% branch coverage, zero lint/format/type findings, lockfile in sync, zero known vulnerabilities (2026-09-01). Floors: Python >= 3.12 (`.python-version` pins 3.14), ruff >= 0.15, mypy >= 1.18, locked in `uv.lock`. Dev tooling is a PEP 735 `[dependency-groups]` group, so `uv sync` installs it and a published wheel never carries it. |
+| Code Quality | Applies: `make verify` runs six gates — `ruff check` (security `S` rules, `max-complexity=10`), `ruff format --check`, `mypy --strict`, pytest with a branch-coverage floor of 85, `uv lock --check`, and `pip-audit --strict` over the exported lockfile. Current: 665 tests passing and 4 skipped, 92.80% branch coverage, zero lint/format/type findings, lockfile in sync, zero known vulnerabilities (2026-09-01). Floors: Python >= 3.12 (`.python-version` pins 3.14), ruff >= 0.15, mypy >= 1.18, locked in `uv.lock`. Dev tooling is a PEP 735 `[dependency-groups]` group, so `uv sync` installs it and a published wheel never carries it. |
 | Security & Supply-Chain | Applies: the streaming, inspection, discovery, fetch, registry, comparison, and site path is standard-library-only; DuckDB is an optional lakehouse dependency ([ADRs 0002-0003](docs/adr/)) and the `anthropic` SDK an optional `ai` extra that only the narration layer imports ([ADR 0006](docs/adr/0006-ai-narration-outside-the-graded-path.md)). The lockfile, ruff `S` gate, HTTPS/redirect validation, bounded downloads, and SHA-pinned CI actions reduce the current surface. Hosted CodeQL (Python and Actions) and a checksum-pinned full-history gitleaks scan run on push, PR, and weekly schedule (`.github/workflows/security.yml`). `make verify` runs `pip-audit --strict` against the whole exported lockfile — every extra and the dev group — with no ignore list, so the audit runs on a laptop and in CI rather than only in CI. The lockfile-drift gate is `uv lock --check`, not `uv sync --frozen`: measured on a deliberately drifted project under uv 0.12.1, `uv lock --check` and `uv sync --locked` exit 1 and `uv sync --frozen` exits 0, because `--frozen` installs from the lockfile without reading `pyproject.toml` and so cannot see the two disagree. |
 | CI/CD | Applies: SHA-pinned workflows mirror `make verify` on Python 3.12 and 3.14, build distributions, and publish the site from committed data only. The publish job first re-derives the newest comparison from its committed assessments, manifest, and ingest evidence and requires a byte-for-byte match, then requires one rendered page per row in it; a generator that no longer reproduces its own published artifact cannot deploy. `make verify` runs the same derivation, but that is a separate workflow whose failure would not by itself stop a deploy, which is why the check is on both paths. |
 | Observability | Applies to the local batch shape plus a static published artifact: finalized run manifests and DuckDB `model_metric` rows retain counts, bytes, and wall time; the site is rebuilt from committed data with no availability objective declared. See [docs/ROADMAP.md](docs/ROADMAP.md). |
@@ -309,7 +328,7 @@ ADR in [docs/adr/](docs/adr/). No blank rows, no silent skips.
 | Incident Response | Applies: [SECURITY.md](SECURITY.md) names a private reporting channel, dated response targets (acknowledgement within 72 hours, triage and severity within 7 days), and the one operational incident this project can actually have — a fetched file found to contain individual-level data, which is reported to the publisher rather than analyzed. There is no deployed service and no on-call rotation; a committed postmortem template and an incident-label convention are not yet in the repository. |
 | Data Governance | Applies: every input is a file its publisher is legally required to post publicly, and it carries prices, not patients. Retrieval records the source URL, provenance tag, fetch time, byte count, and content SHA-256, so a published grade traces back to the exact bytes it graded and the comparison is re-derivable from committed assessments, manifest, and ingest evidence. The datasets and their schemas are documented in [docs/DATA-LANDSCAPE.md](docs/DATA-LANDSCAPE.md), and the handling rule for a file that turns out to contain individual-level data is in [SECURITY.md](SECURITY.md). A standalone data card and a written retention policy for the local blob cache are not yet in the repository. |
 | Responsible-Tech Framework | Applies: [docs/RESPONSIBLE-TECH-AUDITS.md](docs/RESPONSIBLE-TECH-AUDITS.md) (grades files, never organizations or care; dated appendices for the grade-bias review, the site's accessibility scope, and a 2026-08-16 sweep that found three declarations the later work had made false and left published). |
-| Performance | Applies as of the site. The same Lighthouse job asserts a performance floor and a resource budget in which every non-document resource type is zero: no scripts, no external stylesheets, no fonts, no images, no third parties. Measured 2026-08-19 across all 45 pages: 1.0 performance, 52,404 bytes and one request on the heaviest page ([perf/baseline.json](perf/baseline.json)). The k6 latency rows of the performance standard are N/A: there is no server, only static files, and that reason is recorded in the baseline. |
+| Performance | Applies as of the site. The same Lighthouse job asserts a performance floor and a resource budget in which every non-document resource type is zero: no scripts, no external stylesheets, no fonts, no images, no third parties. Measured 2026-08-19 across all 45 pages: 1.0 performance, 52,404 bytes and one request on the heaviest page ([perf/baseline.json](perf/baseline.json)). The repository does contain one image, the Open Graph card in `assets/`, and it is outside this budget by construction rather than by exemption: no page references it, so no page load requests it, and the budget is asserted against Lighthouse's `resource-summary` audit, which counts what a page actually loads. The k6 latency rows of the performance standard are N/A: there is no server, only static files, and that reason is recorded in the baseline. |
 | Release & Versioning | N/A (pre-publication as a package: no tags, no downstream consumers; the site is a continuously rebuilt artifact). [docs/adr/0001-release-versioning-na.md](docs/adr/0001-release-versioning-na.md). |
 
 ## Provenance

@@ -207,14 +207,69 @@ def test_every_indexable_page_names_itself_and_not_the_shared_origin(
         assert meta("property", "og:description") == meta("name", "description"), name
         assert meta("property", "og:type") == "website", name
 
-        # This project ships no image at all, and `perf/resource-budget.json` sets
-        # `max_request_count.image` to 0 so that adding one is a failed build rather than
-        # a change nobody noticed. The card must therefore not promise an image it has
-        # none of. If an image is ever committed, this fails until og:image comes with it.
+        # The card must not promise an image the site does not serve. `summary` promises
+        # none; `summary_large_image` promises one, and then `og:image` has to be there.
+        # `test_the_promised_social_card_is_a_file_the_render_writes` takes it the rest of
+        # the way: the URL in that tag has to resolve to bytes this render produced.
         card = meta("name", "twitter:card")
         assert card in ("summary", "summary_large_image"), f"{name} card is {card!r}"
         if card == "summary_large_image":
             assert meta("property", "og:image"), f"{name} promises an image it lacks"
+
+
+def test_the_promised_social_card_is_a_file_the_render_writes(tmp_path: Path) -> None:
+    """`og:image` names a URL. Something has to put bytes at it.
+
+    `site/` is not in git: it is rendered from the committed comparisons on every publish.
+    A card copied into the output by hand would survive exactly until the next render, and
+    then every page would advertise an image that 404s -- which looks, in every unfurling
+    client, identical to having published no card at all. So the render writes it, and this
+    test is the reason it cannot quietly stop.
+
+    The dimensions are asserted from the file's own IHDR chunk rather than trusted, because
+    `og:image:width` and `og:image:height` are a claim about the bytes and consumers lay the
+    card out from the tags. A 1200x630 promise over a differently shaped image is a stretched
+    card, and nothing else in the build would notice.
+    """
+    out = _render(tmp_path, _comparison(tmp_path))
+    index = (out / "index.html").read_text(encoding="utf-8")
+    found = re.search(r'<meta property="og:image" content="([^"]*)">', index)
+    assert found, "the index promises no og:image"
+    url = found.group(1)
+    assert url.startswith(f"{DEFAULT_ORIGIN}/"), f"og:image {url!r} is not on this site"
+
+    card = out / url[len(DEFAULT_ORIGIN) + 1 :]
+    assert card.is_file(), f"og:image points at {url}, which this render does not write"
+    raw = card.read_bytes()
+    assert raw[:8] == b"\x89PNG\r\n\x1a\n", "the promised card is not a PNG"
+    width = int.from_bytes(raw[16:20], "big")
+    height = int.from_bytes(raw[20:24], "big")
+    assert (width, height) == (1200, 630), f"the card is {width}x{height}"
+    assert f'<meta property="og:image:width" content="{width}">' in index
+    assert f'<meta property="og:image:height" content="{height}">' in index
+
+
+def test_no_page_requests_an_image_so_the_zero_image_budget_still_holds(
+    tmp_path: Path,
+) -> None:
+    """The social card is named in a `<meta>` tag and requested by no page.
+
+    `perf/resource-budget.json` caps image requests at 0 and is asserted in CI against
+    Lighthouse's `resource-summary` audit, which counts what a page loads. That gate needs
+    a browser and a served site, so it cannot run here -- but the thing it would catch is
+    decidable from the markup, and this keeps the budget honest on a laptop: an `<img>`, a
+    `srcset`, or a `url(...)` in the inline stylesheet would each turn one page load into a
+    second request, and the first anyone would hear of it is a red CI run.
+    """
+    out = _render(tmp_path, _comparison(tmp_path))
+    for page in sorted(out.rglob("*.html")):
+        html = page.read_text(encoding="utf-8")
+        name = page.relative_to(out)
+        assert "<img" not in html, f"{name} loads an image"
+        assert "srcset" not in html, f"{name} loads an image"
+        assert "url(" not in html, f"{name} loads a resource from its stylesheet"
+        # The favicon is a data URI precisely so it is not a request.
+        assert '<link rel="icon" href="data:,">' in html, f"{name} lost its inert favicon"
 
 
 def test_the_error_page_canonicalises_nowhere_and_is_not_indexable(
