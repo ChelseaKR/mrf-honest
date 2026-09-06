@@ -33,7 +33,12 @@ floor to make a change pass; fix the change.
   (`docs/adr/0002-stdlib-only-streaming-core.md`). DuckDB begins at the optional lakehouse boundary
   (`docs/adr/0003-local-lakehouse-duckdb-parquet.md`).
 - Every number that appears in a doc or README is measured, never estimated. If you did not run
-  it, do not write it.
+  it, do not write it. For the Code Quality row in the README and the metrics ledger row in
+  `docs/ROADMAP.md`, `make metrics` is how you run it: it takes the passing/skipped split, the
+  branch-coverage percentage and the date from one complete run and writes both documents
+  together, and it refuses to write anything from a run that did not finish. Do not retype
+  those figures; `make verify` fails when the suite's size and the documents disagree, and the
+  two documents are held to each other.
 - Architecture decisions that are expensive to reverse get an ADR in `docs/adr/`
   (`docs/adr/0000-record-architecture-decisions.md`).
 - Changes land with a `CHANGELOG.md` entry under `[Unreleased]`.

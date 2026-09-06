@@ -45,6 +45,24 @@ no version tags yet; until the first dated release (phase 5 of
   and that it certifies nothing), and every grade's fill is asserted against its own text at
   4.5:1 so a palette change made for the page cannot take the badge below the threshold
   unnoticed. `docs/verify-a-grade.md` is written for the person doing the checking. Closes #70.
+- **`make metrics`: the Code Quality figures written from a run, not typed.**
+  `test_the_published_suite_size_is_the_suite_that_actually_collects` already held the README
+  row and the metrics ledger to the size pytest collects, so the *total* could not go stale.
+  The split could: "736 passing and 4 skipped" and "740 passing and 0 skipped" satisfy that
+  check equally, and the four skips here are runtime `pytest.skip()` calls whose conditions
+  depend on which cohorts are published and, in one case, on whether a remote is reachable --
+  nothing offline can tell you how many fired. `tools/publish_metrics.py` takes the split, the
+  branch-coverage percentage and the date from one complete run and writes both documents
+  together. It derives the passing count as `collected - skipped` rather than reading
+  `N passed`, which is what lets it repair the very claim whose staleness makes the suite red,
+  and it refuses to write anything from a run that failed for any other reason: a run that did
+  not finish has no passing count, and publishing one would be an absence rendered as a
+  measurement.
+- **`test_the_two_documents_state_one_measurement`.** The README row and the ledger row are one
+  measurement stated twice, and nothing held them to each other on the split, the percentage or
+  the date -- only on a total each satisfied independently. `docs/CORRECTIONS.md` records that
+  going wrong ("A ledger row said 262 tests when the merged stack had 324; the number came from
+  one branch"). It is checked now.
 
 - **`mrf-honest gate`, a GitHub Action and a pre-commit hook: the same inspector, run by the
   publisher, before the file is posted.** Every finding this project has published was visible

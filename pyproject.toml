@@ -52,7 +52,7 @@ packages = ["src/mrf_honest"]
 [tool.mypy]
 strict = true
 python_version = "3.12"
-files = ["src", "perf"]
+files = ["src", "perf", "tools"]
 
 [tool.ruff]
 line-length = 100
