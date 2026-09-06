@@ -1121,7 +1121,8 @@ def _verify_comparison_scope(
     scope: Mapping[str, object],
     policy_fingerprint: str,
 ) -> None:
-    known = _PROFILES_BY_FINGERPRINT.get(str(record.get("assessment_policy_fingerprint")))
+    fingerprint = str(record.get("assessment_policy_fingerprint"))
+    known = _PROFILES_BY_FINGERPRINT.get(fingerprint)
     expected_scope = {
         "as_of": record.get("as_of"),
         "assessment_policy_fingerprint": record.get("assessment_policy_fingerprint"),
@@ -1132,8 +1133,24 @@ def _verify_comparison_scope(
         "retrieval_policy_fingerprint": policy_fingerprint,
         "url_provenance": subject.get("url_provenance"),
     }
-    if scope != expected_scope:
-        raise ValueError("comparison scope does not match assessment context")
+    if scope == expected_scope:
+        return
+    scope_keys = set(expected_scope) | set(scope)
+    disagreeing = sorted(k for k in scope_keys if scope.get(k) != expected_scope.get(k))
+    # `profile` above is a substitution whenever the fingerprint is unresolvable, so a
+    # disagreement on it alone is not evidence about the scope: it is this build failing to
+    # identify the policy the record was written under. Say that, rather than sending a
+    # reader to a comparison scope that is intact.
+    if known is None and disagreeing == ["profile"]:
+        raise ValueError(
+            f"assessment policy fingerprint {fingerprint} is not a policy this build knows, "
+            f"so the comparison scope was checked against {_PROFILE!r}, the profile assumed "
+            f"for records written before assessment profiles existed; the record itself "
+            f"declares profile {scope.get('profile')!r}"
+        )
+    raise ValueError(
+        "comparison scope does not match assessment context: " + ", ".join(disagreeing)
+    )
 
 
 def _verify_assessment_identity(

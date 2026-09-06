@@ -34,6 +34,8 @@ from mrf_honest.ai.narrate import (
     refusal_reason,
 )
 from mrf_honest.ai.provider import (
+    DEFAULT_ANTHROPIC_MODEL,
+    DEFAULT_BEDROCK_MODEL,
     ProviderError,
     ScriptedProvider,
     SDKProvider,
@@ -415,7 +417,7 @@ def test_sdk_provider_translates_outcomes() -> None:
 def test_settings_and_provider_factory(monkeypatch: pytest.MonkeyPatch) -> None:
     assert Settings.from_environ({}) == Settings("anthropic", "claude-sonnet-5", None)
     bedrock = Settings.from_environ({"MRF_AI_PROVIDER": "bedrock", "AWS_REGION": "us-east-1"})
-    assert bedrock.region == "us-east-1" and bedrock.model == "global.anthropic.claude-sonnet-5"
+    assert bedrock.region == "us-east-1" and bedrock.model == "global.anthropic.claude-sonnet-4-6"
     with pytest.raises(ProviderError, match="MRF_AI_PROVIDER"):
         Settings.from_environ({"MRF_AI_PROVIDER": "openai"})
 
@@ -445,6 +447,33 @@ def test_settings_and_provider_factory(monkeypatch: pytest.MonkeyPatch) -> None:
     scripted = ScriptedProvider([])
     with pytest.raises(ProviderError, match="no response left"):
         scripted.complete_json(system="s", user="u", schema={}, max_tokens=1)
+
+
+def test_the_bedrock_default_is_a_model_this_project_has_actually_invoked() -> None:
+    """A default nobody can call is a default that has never been tested.
+
+    ``DEFAULT_BEDROCK_MODEL`` was ``global.anthropic.claude-sonnet-5``, which the AWS
+    account these evaluations run under cannot invoke: Bedrock answers
+    ``AccessDeniedException`` for it while the entitlement API reports it authorized, so
+    the failure only appears on a real call. Every recorded run in ``evals/ai/results/``
+    is on ``global.anthropic.claude-sonnet-4-6``, which is the evidence that the default
+    is checked against here rather than a second hand-typed copy of the same string. The
+    Anthropic default is deliberately *not* pinned to it: a deployer with ordinary API
+    access should get the current model, and the two constants differ on purpose.
+    """
+
+    recorded = {
+        json.loads(path.read_text(encoding="utf-8"))["run"]["model"]
+        for path in sorted((ROOT / "evals" / "ai" / "results").glob("*.json"))
+    }
+    assert recorded, "no recorded evaluation run to check the Bedrock default against"
+    assert DEFAULT_BEDROCK_MODEL in recorded, (
+        f"DEFAULT_BEDROCK_MODEL is {DEFAULT_BEDROCK_MODEL!r}, which no recorded run in "
+        f"evals/ai/results/ used; the recorded models are {sorted(recorded)}. Raise this "
+        "constant only alongside a recorded run proving the account can invoke the model."
+    )
+    assert DEFAULT_ANTHROPIC_MODEL == "claude-sonnet-5"
+    assert DEFAULT_ANTHROPIC_MODEL != DEFAULT_BEDROCK_MODEL
 
 
 # --- eval and CLI -----------------------------------------------------------

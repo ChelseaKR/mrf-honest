@@ -9,6 +9,38 @@ no version tags yet; until the first dated release (phase 5 of
 
 ### Fixed
 
+- **An assessment policy this build cannot identify was reported as a broken comparison
+  scope.** `_verify_comparison_scope` resolves the profile a persisted record was written
+  under from `_PROFILES_BY_FINGERPRINT`, and when that lookup missed it substituted
+  `_PROFILE` — `cms-hospital-json-v3` — and then verified the record against the
+  substitution. The shim was written for records committed before `AssessmentProfile`
+  existed, which are all JSON records, and it is correct for them; it became a coin flip
+  when a second profile arrived. The visible consequence was the wrong diagnosis: a record
+  written under a retired *CSV* policy failed as `comparison scope does not match assessment
+  context`, which sends a reader to a comparison scope that is intact and self-consistent.
+  Nothing was wrong with the record — this build simply could not name the policy that
+  produced it. The failure now says so, quoting the unresolved fingerprint, the profile that
+  was substituted for it, and the profile the record itself declares; and the generic
+  mismatch now lists the keys that actually disagree instead of naming none of them. Which
+  records verify is deliberately unchanged, so the historical-readability commitment in
+  `test_historical_policy_fingerprint_remains_readable_and_scope_disjoint` still holds. The
+  substitution itself is the remaining half of #52 and needs an owner decision, recorded
+  there.
+
+- **The Bedrock default model was one this project cannot invoke.** `DEFAULT_BEDROCK_MODEL`
+  was `global.anthropic.claude-sonnet-5`, and the AWS account these evaluations run under
+  answers `AccessDeniedException` for it — while the entitlement API reports that model
+  authorized, so the condition is only observable by making a call. Bedrock is the path this
+  repository actually uses: both files in `evals/ai/results/` record
+  `global.anthropic.claude-sonnet-4-6`, which means the Bedrock default had never been
+  exercised by anything, and `mrf-honest narrate --provider bedrock` with no `MRF_AI_MODEL`
+  set would have failed on the first call. The Bedrock default is now the model the recorded
+  runs used. `DEFAULT_ANTHROPIC_MODEL` is deliberately left at `claude-sonnet-5`: the two
+  providers are not the same deployment, and a third-party deployer with ordinary API access
+  should get the current model rather than this account's ceiling. A new test pins the Bedrock
+  constant to a model some committed evaluation run actually invoked, rather than to a second
+  hand-typed copy of the same string, so raising it requires the evidence that it works.
+
 - **The two recorded grounding evaluations were the one committed artifact family with no gate at all.** `evals/ai/results/*.json` records a live model run, so its generator cannot be re-run offline, and nothing followed from that to the parts of the file that are pure functions of its own committed contents. The only existing check, `test_committed_results_carry_provenance`, read the `run` block and `summary.records` and never looked at a number the CHANGELOG quotes. `tests/test_published_claims.py` now re-derives the `summary` block with `summarize` over the file's own rows, recounts every row against its own `claims` and `withheld_reasons`, re-verifies all 131 cited quotes against the committed `corpus/` with the same `verify_quote` the narration layer uses, and reads the CHANGELOG's two grounding sentences back off the results. The load-bearing one is the third: "91 of 95 claims shown" is a statement about the verifier, and the verifier and the retained documents are both committed, so a change to `normalize_for_match`, to `MIN_QUOTE_CHARS`, or to a corpus document would have left every published grounding percentage describing a verifier this repository no longer has. Nothing had drifted: both summaries re-derive exactly and all 131 citations still verify. `summarize`'s `records_refused_before_model_call` is excluded and the exclusion is asserted to be the only one, because both runs predate that field and their rows carry no `model_called` for it to be counted from; writing a value those runs never measured is the hand-typed number `CONTRIBUTING.md` forbids.
 
 - **The README's Performance row described a site four times smaller than the one that
