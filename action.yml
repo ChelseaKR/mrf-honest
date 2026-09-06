@@ -1,0 +1,118 @@
+name: mrf-honest inspect
+description: >-
+  Grade a CMS hospital price-transparency file before it is posted, with every finding cited to
+  the CMS data dictionary or 45 CFR 180. Deterministic, offline, and not a certificate.
+author: Chelsea Kelly-Reif
+
+branding:
+  icon: file-text
+  color: blue
+
+# Why a composite action running the checked-out source rather than a published package: the
+# grade has to be the grade the site would give, which means the *same* policy fingerprint, and a
+# fingerprint is a property of a commit. Pinning this action to a tag pins the policy with it.
+#
+# Nothing here opens a socket. `gate` reads a local file and the vendored CMS corpus; the
+# retrieval, discovery and warehouse verbs are not reachable from this action at all.
+
+inputs:
+  path:
+    description: Path to the hospital MRF (JSON or CSV) to check.
+    required: true
+  profile:
+    description: >-
+      Which CMS v3 profile to grade against: json, csv, or auto to read it from the leading
+      bytes. `auto` refuses rather than guessing when the bytes are neither.
+    required: false
+    default: auto
+  as-of:
+    description: >-
+      ISO date the freshness dimension is measured against. Defaults to the run date, which makes
+      the freshness finding depend on when the job ran; pin it to make a run reproducible.
+    required: false
+    default: ""
+  min-grade:
+    description: >-
+      Fail the job when the local-evidence grade is worse than this letter (A, B, C, D, F, or
+      none). This is the four local dimensions only -- retrievability is a fact about a URL and
+      this action has never seen one.
+    required: false
+    default: none
+  fail-on:
+    description: >-
+      Fail the job on any finding at or above this severity (error, warning, info, or never).
+      A dimension that could not be assessed produces no finding, so no setting here can see it;
+      use min-grade for that. The job summary names those dimensions either way.
+    required: false
+    default: error
+  publisher-id:
+    description: Optional stable publisher identifier recorded in the JSON report.
+    required: false
+    default: ""
+  report-path:
+    description: Where to write the full JSON report. Defaults to the runner temp directory.
+    required: false
+    default: ""
+  python-version:
+    description: Python used to run the checked-out inspector.
+    required: false
+    default: "3.12"
+
+outputs:
+  grade:
+    description: The local-evidence grade of the first checked file, or the empty string if none.
+    value: ${{ steps.gate.outputs.grade }}
+  exit-code:
+    description: 0 cleared, 1 a threshold was not met, 2 nothing could be graded.
+    value: ${{ steps.gate.outputs.exit-code }}
+  report-path:
+    description: Path to the JSON report this run wrote.
+    value: ${{ steps.gate.outputs.report-path }}
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Run the inspector
+      id: gate
+      shell: bash
+      # The package has no runtime dependencies (stdlib-only streaming core, ADR 0002), so the
+      # source directory goes straight on PYTHONPATH. No install, no lockfile, no network.
+      env:
+        MRF_HONEST_ROOT: ${{ github.action_path }}
+        INPUT_PATH: ${{ inputs.path }}
+        INPUT_PROFILE: ${{ inputs.profile }}
+        INPUT_AS_OF: ${{ inputs.as-of }}
+        INPUT_MIN_GRADE: ${{ inputs.min-grade }}
+        INPUT_FAIL_ON: ${{ inputs.fail-on }}
+        INPUT_PUBLISHER_ID: ${{ inputs.publisher-id }}
+        INPUT_REPORT_PATH: ${{ inputs.report-path }}
+      run: |
+        set -uo pipefail
+        report="${INPUT_REPORT_PATH:-$RUNNER_TEMP/mrf-honest-report.json}"
+        args=(
+          --profile "$INPUT_PROFILE"
+          --min-grade "$INPUT_MIN_GRADE"
+          --fail-on "$INPUT_FAIL_ON"
+          --github
+          --summary "$GITHUB_STEP_SUMMARY"
+          --report "$report"
+        )
+        if [ -n "$INPUT_AS_OF" ]; then args+=(--as-of "$INPUT_AS_OF"); fi
+        if [ -n "$INPUT_PUBLISHER_ID" ]; then args+=(--publisher-id "$INPUT_PUBLISHER_ID"); fi
+        PYTHONPATH="$MRF_HONEST_ROOT/src" python -m mrf_honest gate "$INPUT_PATH" "${args[@]}"
+        code=$?
+        {
+          echo "exit-code=$code"
+          echo "report-path=$report"
+        } >> "$GITHUB_OUTPUT"
+        # The grade is read back from the report rather than reconstructed from the exit code:
+        # an exit code says whether a threshold was met, never which letter was minted, and a
+        # cleared gate on an ungradeable file is a state that must not be able to exist here.
+        grade="$(python -c 'import json,sys; f=json.load(open(sys.argv[1]))["files"]; print((f[0]["grade"] or "") if f else "")' "$report")"
+        echo "grade=$grade" >> "$GITHUB_OUTPUT"
+        exit "$code"

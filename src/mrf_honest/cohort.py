@@ -343,6 +343,31 @@ def grade_assessment(record: Mapping[str, object]) -> FileGrade:
     return _grade_local_dimensions(scorecard, policy)
 
 
+def grade_local_evidence(scorecard: Mapping[str, object], *, profile: str) -> FileGrade:
+    """Grade a locally inspected file's four local dimensions under the committed policy.
+
+    This is the same rule table, the same fingerprint and the same sentences ``grade_assessment``
+    uses; the only difference is that there is no retrieval to assess, because the caller handed
+    over a file on disk rather than a URL. That is the whole reason it is a separate entry point
+    rather than a flag: ``grade_assessment`` reads ``retrievability`` first and would answer
+    ``NOT_GRADED`` for every local file, which is true of a *published* grade and useless as a
+    pre-publication check.
+
+    What it therefore does **not** claim: that the file is retrievable, that it is served under a
+    correct content type, or that the URL a hospital will post it at resolves. Those are remote
+    facts and this function has never seen the remote. A caller publishing this letter beside a
+    published one would be comparing a four-dimension reading with a five-dimension one.
+
+    ``profile`` is the assessment profile *name* and an unknown one is an error, not a default.
+    Substituting the JSON policy for an unrecognised profile is exactly how a CSV file would come
+    to be graded under the JSON dictionary and the result published as the file's own defects.
+    """
+    policy = _GRADE_POLICIES.get(profile)
+    if policy is None:
+        raise CohortError(f"no presentation-grade policy is committed for profile {profile!r}")
+    return _grade_local_dimensions(scorecard, policy)
+
+
 def _validated_manifest(manifest: Mapping[str, object]) -> Mapping[str, object]:
     collection = _required_mapping(manifest, "collection")
     if collection.get("operator_controlled_single_run") is not True:

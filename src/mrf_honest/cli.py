@@ -14,6 +14,16 @@ from typing import cast
 from mrf_honest.cohort import build_comparison
 from mrf_honest.container import ArchiveRefused, looks_like_archive, open_member, select_member
 from mrf_honest.fetch import PROBE_SAMPLE_BYTES, FetchPolicy, default_open, fetch_url, probe_url
+from mrf_honest.gate import (
+    FAIL_ON_CHOICES,
+    MIN_GRADE_CHOICES,
+    PROFILE_CHOICES,
+    github_annotations,
+    human_report,
+    job_summary,
+    report_json,
+    run_gate,
+)
 from mrf_honest.inspect import FileInspection, explain_finding, inspect_hospital_file
 from mrf_honest.inspect_csv import (
     CsvFileInspection,
@@ -197,6 +207,41 @@ def _run_inspect(args: argparse.Namespace) -> int:
         _emit_inspection_human(inspection)
     # Findings are observations about the source, not failures of the inspection tool.
     return _SUCCESS
+
+
+def _run_gate(args: argparse.Namespace) -> int:
+    """Check local files against the caller's thresholds and return the gate's own exit code.
+
+    The exit code is the product, so it is returned unmapped: 0 clear, 1 a threshold the caller
+    set was not met, 2 nothing could be graded. ``main`` turns an unexpected exception into 1,
+    which is why a not-gradeable file is a *verdict* here and never a raised error -- an
+    unreadable file must not arrive at the caller wearing the same code as a bad grade.
+    """
+    publisher_id = cast(str | None, args.publisher_id)
+    publisher = PublisherRef(publisher_id) if publisher_id is not None else None
+    report = run_gate(
+        cast(list[Path], args.files),
+        profile=cast(str, args.profile),
+        as_of=cast(date | None, args.as_of) or date.today(),
+        min_grade=cast(str, args.min_grade),
+        fail_on=cast(str, args.fail_on),
+        publisher=publisher,
+    )
+    if cast(bool, args.github):
+        for line in github_annotations(report):
+            print(line)
+    elif cast(str, args.output_format) == "json":
+        print(report_json(report))
+    else:
+        print(human_report(report))
+    summary_path = cast(Path | None, args.summary)
+    if summary_path is not None:
+        with summary_path.open("a", encoding="utf-8") as handle:
+            handle.write(job_summary(report))
+    report_path = cast(Path | None, args.report)
+    if report_path is not None:
+        report_path.write_text(report_json(report) + "\n", encoding="utf-8")
+    return report.exit_code
 
 
 def _run_ingest(args: argparse.Namespace) -> int:
@@ -632,6 +677,49 @@ def _build_parser() -> argparse.ArgumentParser:
         help="a directory written by `mrf-honest site`; its api/ documents are the whole source",
     )
     mcp_parser.set_defaults(handler=_run_mcp)
+
+    gate_parser = commands.add_parser(
+        "gate",
+        help="check local files before they are published, and exit non-zero on what you name",
+    )
+    gate_parser.add_argument("files", type=Path, metavar="FILE", nargs="+")
+    gate_parser.add_argument("--publisher-id")
+    gate_parser.add_argument("--as-of", type=_iso_date)
+    gate_parser.add_argument(
+        "--profile",
+        choices=PROFILE_CHOICES,
+        default="auto",
+        help="assessment profile, or auto to read it from the leading bytes (default: auto)",
+    )
+    gate_parser.add_argument(
+        "--min-grade",
+        choices=MIN_GRADE_CHOICES,
+        default="none",
+        help="fail when the local-evidence grade is worse than this letter (default: none)",
+    )
+    gate_parser.add_argument(
+        "--fail-on",
+        choices=FAIL_ON_CHOICES,
+        default="never",
+        help="fail on any finding at or above this severity (default: never)",
+    )
+    gate_parser.add_argument(
+        "--format", dest="output_format", choices=("human", "json"), default="human"
+    )
+    gate_parser.add_argument(
+        "--github",
+        action="store_true",
+        help="emit GitHub workflow annotations on stdout instead of the human report",
+    )
+    gate_parser.add_argument(
+        "--summary",
+        type=Path,
+        help="append a Markdown job summary to this file (use $GITHUB_STEP_SUMMARY in Actions)",
+    )
+    gate_parser.add_argument(
+        "--report", type=Path, help="also write the full JSON report to this path"
+    )
+    gate_parser.set_defaults(handler=_run_gate)
 
     explain_parser = commands.add_parser("explain", help="explain a quality finding code")
     explain_parser.add_argument("finding_code", metavar="FINDING_CODE")
