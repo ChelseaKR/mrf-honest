@@ -156,6 +156,13 @@ uv run mrf-honest compare \
   > comparison.json
 uv run mrf-honest site --comparison comparison.json --out site
 
+# Relate two dated cohorts. Each layer of the comparison is gated on the fingerprint that
+# governs it, so a policy this project changed is reported as a policy change and never as a
+# change in a hospital's file. `--fail-on-regression` exits 2 when nothing could be judged.
+uv run mrf-honest diff \
+  data/cohorts/2026-08-14.comparison.json \
+  data/cohorts/2026-08-19.comparison.json
+
 # Serve the published dataset to an MCP client. Read-only, offline, no network at answer time:
 # the site directory's api/ documents are the entire source.
 uv run mrf-honest mcp --site site

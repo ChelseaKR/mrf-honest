@@ -9,6 +9,33 @@ no version tags yet; until the first dated release (phase 5 of
 
 ### Added
 
+- **A `diff` verb, so "is this file getting better?" has an answer that cannot blame a hospital
+  for a change this project made to itself.** Each cohort was a dated snapshot with no relation
+  to the one before it. `mrf-honest diff <before.comparison.json> <after.comparison.json>`
+  compares two published cohorts subject by subject, in text or JSON, with `--slug` to restrict
+  it to one file and `--fail-on-regression` to make it a gate.
+
+  **The comparison is gated in three independent layers, one per fingerprint the cohort already
+  carries.** `retrieval_policy_fingerprint` governs the bytes (`content_sha256`, `size_bytes`,
+  retrieval coverage); `inspection_fingerprint` governs the document (`template_version`,
+  `last_updated_on`); `assessment_policy_fingerprint` **and** the presentation grade's
+  `policy_fingerprint` together govern the judgement (the grade and the finding list). A layer
+  whose fingerprint moved is reported as `policy_changed` with both fingerprints and is not
+  compared at all — not compared and found equal, which is the reading a single yes/no would
+  have produced. Diffing the two committed JSON cohorts exercises exactly this: the six subjects
+  graded in both are byte-identical, and the assessment policy moved between them, so the bytes
+  compare and the findings do not.
+
+  **Three absences are stated instead of scored.** A subject in only one of the two cohorts is
+  reported as that and nothing else — these are drawn samples, and a facility drawn once has said
+  nothing about its file. A move between a letter and `NOT_GRADED` leaves the regression
+  undetermined, because `NOT_GRADED` is a limit of this tool and scoring it as a worse letter
+  would publish this project's failure as the hospital's. A location graded at a *different* URL
+  closes every layer for that subject, because two files are not one file that changed.
+
+  **`--fail-on-regression` exits 2 when no subject's judgement layer was comparable.** Returning
+  0 there would be a gate that reports a clean run over zero comparisons.
+
 - **A receipt, a `verify` verb and a badge, so "every published grade can be re-derived from its
   source" is a procedure rather than a sentence.** The README has made that claim since the first
   cohort. It was true and it had no command: a reader who wanted to check it had to reimplement

@@ -13,6 +13,10 @@ from typing import cast
 
 from mrf_honest.cohort import build_comparison
 from mrf_honest.container import ArchiveRefused, looks_like_archive, open_member, select_member
+from mrf_honest.diff import EXIT_CANNOT_COMPARE as DIFF_EXIT_CANNOT_COMPARE
+from mrf_honest.diff import DiffError, compare_cohorts
+from mrf_honest.diff import exit_code as diff_exit_code
+from mrf_honest.diff import human_report as diff_human_report
 from mrf_honest.fetch import PROBE_SAMPLE_BYTES, FetchPolicy, default_open, fetch_url, probe_url
 from mrf_honest.gate import (
     FAIL_ON_CHOICES,
@@ -455,6 +459,29 @@ def _run_compare(args: argparse.Namespace) -> int:
     return _SUCCESS
 
 
+def _run_diff(args: argparse.Namespace) -> int:
+    """Diff two published cohorts. Reads committed documents and opens no socket.
+
+    The exit code is the product and is returned unmapped, so it keeps the meaning
+    ``mrf_honest.diff`` gave it: without ``--fail-on-regression`` a diff is a report and always
+    returns 0; with it, 2 means the question could not be answered and is never a pass.
+    """
+    before = _load_json_object(cast(Path, args.before), "comparison document")
+    after = _load_json_object(cast(Path, args.after), "comparison document")
+    try:
+        document = compare_cohorts(before, after, slug=cast(str | None, args.slug))
+    except DiffError as refusal:
+        # A refusal is the third state, not a crash: these two documents could not be compared,
+        # which is exactly what code 2 means everywhere else in this tool.
+        print(f"error: {refusal}", file=sys.stderr)
+        return DIFF_EXIT_CANNOT_COMPARE
+    if cast(str, args.output_format) == "json":
+        _emit_json(document)
+    else:
+        print(diff_human_report(document))
+    return diff_exit_code(document, fail_on_regression=cast(bool, args.fail_on_regression))
+
+
 def _run_mcp(args: argparse.Namespace) -> int:
     """Serve the published dataset over stdio. Reads committed files; never reaches a network."""
 
@@ -672,6 +699,25 @@ def _build_parser() -> argparse.ArgumentParser:
         "--format", dest="output_format", choices=("human", "json"), default="json"
     )
     compare_parser.set_defaults(handler=_run_compare)
+
+    diff_parser = commands.add_parser(
+        "diff",
+        help="compare two published cohort comparison documents subject by subject",
+    )
+    diff_parser.add_argument("before", type=Path, metavar="BEFORE")
+    diff_parser.add_argument("after", type=Path, metavar="AFTER")
+    diff_parser.add_argument(
+        "--slug", help="restrict the diff to one file slug (publisher-id/location-id)"
+    )
+    diff_parser.add_argument(
+        "--fail-on-regression",
+        action="store_true",
+        help="exit 1 on a worse grade or a new error finding, 2 when no subject could be judged",
+    )
+    diff_parser.add_argument(
+        "--format", dest="output_format", choices=("human", "json"), default="human"
+    )
+    diff_parser.set_defaults(handler=_run_diff)
 
     site_parser = commands.add_parser(
         "site", help="render the static site from one or more published comparison documents"
