@@ -853,3 +853,58 @@ def test_both_documents_state_the_number_of_refusals_the_code_has() -> None:
         f"docs/how-we-compare.md says 'the {phrase.group(1)} refusals'; the code has "
         f"{len(RefusalCode)}."
     )
+
+
+# --- the roadmap's own current-position paragraph -------------------------------------------
+#
+# `docs/ROADMAP.md` said "No real multi-publisher grade distribution or hosted scorecard surface
+# is claimed yet" for as long as it took the cohorts to land and nobody to re-read it. By then
+# three committed comparison documents graded 48 files across 39 distinct publishers and the site
+# was live. It is the mirror image of every other defect this file guards: not a number inflated
+# past the evidence, but a published denial of evidence the repository already holds. Both
+# directions are the same failure -- prose that no longer describes the data it sits next to.
+
+ROADMAP = ROOT / "docs" / "ROADMAP.md"
+
+
+def _published_distribution() -> tuple[int, int, dict[str, int]]:
+    """Graded files, distinct publishers, and the grade histogram, from the documents."""
+    publishers: set[str] = set()
+    grades: dict[str, int] = {}
+    graded = 0
+    for path in PUBLISHED:
+        document = json.loads(path.read_text(encoding="utf-8"))
+        for entry in document["files"]:
+            graded += 1
+            publishers.add(str(entry["publisher_id"]))
+            letter = str(entry["grade"]["grade"])
+            grades[letter] = grades.get(letter, 0) + 1
+    return graded, len(publishers), grades
+
+
+def test_the_roadmap_does_not_deny_the_distribution_it_publishes() -> None:
+    """The stated position has to match the committed cohorts, in both directions."""
+    graded, publishers, grades = _published_distribution()
+    assert publishers > 1, "no multi-publisher distribution is committed; this gate is vacuous"
+
+    text = " ".join(ROADMAP.read_text(encoding="utf-8").split())
+    assert "No real multi-publisher grade distribution" not in text, (
+        f"docs/ROADMAP.md denies a multi-publisher grade distribution, but the committed "
+        f"comparison documents grade {graded} files across {publishers} distinct publishers."
+    )
+
+    for claim, value in (
+        (f"{graded} graded files across {publishers} distinct real publishers", None),
+        ("A", grades.get("A", 0)),
+        ("B", grades.get("B", 0)),
+        ("C", grades.get("C", 0)),
+        ("D", grades.get("D", 0)),
+        ("F", grades.get("F", 0)),
+    ):
+        if value is None:
+            assert claim in text, f"docs/ROADMAP.md no longer states the distribution: {claim!r}"
+        else:
+            assert f"{claim} {value}" in text, (
+                f"docs/ROADMAP.md does not state grade {claim} as {value}; the committed "
+                f"documents record {grades}."
+            )

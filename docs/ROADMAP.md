@@ -9,8 +9,17 @@ Phases 0 through 3 are implemented (`PHASE-0-FINDINGS.md`, `PHASE-2-FINDINGS.md`
 `PHASE-3-FINDINGS.md`, and `how-we-grade.md`). Phase 3 keeps local inspection separate from mutable remote evidence, then
 combines them in an integrity-hashed `FileAssessment`: every terminal fetch outcome becomes a row,
 publisher type and URL provenance are explicit, missing bodies leave four dimensions explicitly
-`NOT_ASSESSED`, and comparison is refused across type/profile/provenance/policy/date scopes. No
-real multi-publisher grade distribution or hosted scorecard surface is claimed yet.
+`NOT_ASSESSED`, and comparison is refused across type/profile/provenance/policy/date scopes.
+
+Both halves of the sentence that stood here -- "no real multi-publisher grade distribution or
+hosted scorecard surface is claimed yet" -- have been false since the committed cohorts landed.
+Three comparison documents now publish **48 graded files across 39 distinct real publishers**
+(A 28, B 3, C 7, D 3, F 3, and 4 recorded not graded with the reason stated), the two dated
+cohorts carry a stated sampling frame and Wilson intervals over their probability stratum, and the
+site is published at <https://chelseakr.github.io/mrf-honest/>. The figures in this paragraph are
+not hand-maintained: `test_the_roadmap_does_not_deny_the_distribution_it_publishes` derives every
+one of them from the committed comparison documents and fails when the prose and the data
+disagree, which is the failure this sentence was an instance of.
 
 ## Observability
 
@@ -81,7 +90,7 @@ README quotes a ledger figure, this table is the source and the README follows i
 
 | Metric | Target | Measured by | Gate | Last measured |
 |---|---|---|---|---|
-| Branch coverage | >= 85% | `pytest --cov` (branch mode, `fail_under = 85`) | AUTO (`make verify`) | 92.80%, 671 tests passing and 4 skipped, 2026-09-06 |
+| Branch coverage | >= 85% | `pytest --cov` (branch mode, `fail_under = 85`) | AUTO (`make verify`) | 92.80%, 672 tests passing and 4 skipped, 2026-09-06 |
 | Lint findings (ruff `E,F,I,B,S,C90,UP,RUF`, `max-complexity=10`) | 0 | `ruff check src tests perf` | AUTO (`make verify`) | 0, 2026-08-16 |
 | Formatting findings | 0 | `ruff format --check src tests perf` | AUTO (`make verify`) | 0, 2026-08-16 |
 | `mypy --strict` errors | 0 | `mypy` over `src` and `perf` | AUTO (`make verify`) | 0, 2026-08-16 |
