@@ -19,12 +19,23 @@ from __future__ import annotations
 import json
 import sys
 from collections.abc import Callable
+from importlib import metadata as _metadata
 from pathlib import Path
 from typing import Any, TextIO
 
 PROTOCOL_VERSION = "2024-11-05"
 SERVER_NAME = "io.github.chelseakr/mrf-honest"
-SERVER_INFO = {"name": SERVER_NAME, "version": "0.1.0"}
+# The version the server reports to a client. Read from the installed distribution
+# metadata, not typed here: this line said `0.1.0` while the package declared
+# `0.1.0.dev0` and no tag had ever been cut, so every MCP client was told a version
+# that has never been released. Derived independently of `mrf_honest.__init__` rather
+# than imported from it, because ADR 0002 keeps this module's import graph to the
+# standard library and the package root pulls in the lakehouse.
+try:
+    SERVER_VERSION = _metadata.version("mrf-honest")
+except _metadata.PackageNotFoundError:  # pragma: no cover - uninstalled source tree
+    SERVER_VERSION = "0.0.0+unknown"
+SERVER_INFO = {"name": SERVER_NAME, "version": SERVER_VERSION}
 
 #: The scope keys along which two rows are not comparable. Repeated in every answer, because a
 #: consumer that never reads the site should still meet the boundary.
