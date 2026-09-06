@@ -163,6 +163,13 @@ uv run mrf-honest diff \
   data/cohorts/2026-08-14.comparison.json \
   data/cohorts/2026-08-19.comparison.json
 
+# Reconcile a cohort against the locations each system's cms-hpt.txt lists. Reads committed
+# evidence, opens no socket, derives no grade: what a system listed with no file behind it, what
+# this cohort graded that no discovery file declares, and where a system's files disagree.
+uv run mrf-honest systems \
+  --assessments data/cohorts/2026-08-19.assessments.jsonl \
+  --discovery data/registry.jsonl
+
 # Serve the published dataset to an MCP client. Read-only, offline, no network at answer time:
 # the site directory's api/ documents are the entire source.
 uv run mrf-honest mcp --site site
@@ -340,7 +347,7 @@ ADR in [docs/adr/](docs/adr/). No blank rows, no silent skips.
 
 | Standard | State |
 |---|---|
-| Code Quality | Applies: `make verify` runs six gates — `ruff check` (security `S` rules, `max-complexity=10`), `ruff format --check`, `mypy --strict`, pytest with a branch-coverage floor of 85, `uv lock --check`, and `pip-audit --strict` over the exported lockfile. Current: 802 tests passing and 4 skipped, 92.81% branch coverage, zero lint/format/type findings, lockfile in sync, zero known vulnerabilities (2026-09-06). Floors: Python >= 3.12 (`.python-version` pins 3.14), ruff >= 0.15, mypy >= 1.18, locked in `uv.lock`. Dev tooling is a PEP 735 `[dependency-groups]` group, so `uv sync` installs it and a published wheel never carries it. |
+| Code Quality | Applies: `make verify` runs six gates — `ruff check` (security `S` rules, `max-complexity=10`), `ruff format --check`, `mypy --strict`, pytest with a branch-coverage floor of 85, `uv lock --check`, and `pip-audit --strict` over the exported lockfile. Current: 828 tests passing and 4 skipped, 92.89% branch coverage, zero lint/format/type findings, lockfile in sync, zero known vulnerabilities (2026-09-06). Floors: Python >= 3.12 (`.python-version` pins 3.14), ruff >= 0.15, mypy >= 1.18, locked in `uv.lock`. Dev tooling is a PEP 735 `[dependency-groups]` group, so `uv sync` installs it and a published wheel never carries it. |
 | Security & Supply-Chain | Applies: the streaming, inspection, discovery, fetch, registry, comparison, and site path is standard-library-only; DuckDB is an optional lakehouse dependency ([ADRs 0002-0003](docs/adr/)) and the `anthropic` SDK an optional `ai` extra that only the narration layer imports ([ADR 0006](docs/adr/0006-ai-narration-outside-the-graded-path.md)). The lockfile, ruff `S` gate, HTTPS/redirect validation, bounded downloads, and SHA-pinned CI actions reduce the current surface. Hosted CodeQL (Python and Actions) and a checksum-pinned full-history gitleaks scan run on push, PR, and weekly schedule (`.github/workflows/security.yml`). `make verify` runs `pip-audit --strict` against the whole exported lockfile — every extra and the dev group — with no ignore list, so the audit runs on a laptop and in CI rather than only in CI. The lockfile-drift gate is `uv lock --check`, not `uv sync --frozen`: measured on a deliberately drifted project under uv 0.12.1, `uv lock --check` and `uv sync --locked` exit 1 and `uv sync --frozen` exits 0, because `--frozen` installs from the lockfile without reading `pyproject.toml` and so cannot see the two disagree. |
 | CI/CD | Applies: SHA-pinned workflows mirror `make verify` on Python 3.12 and 3.14, build distributions, and publish the site from committed data only. The publish job first re-derives the newest comparison from its committed assessments, manifest, and ingest evidence and requires a byte-for-byte match, then requires one rendered page per row in it; a generator that no longer reproduces its own published artifact cannot deploy. `make verify` runs the same derivation, but that is a separate workflow whose failure would not by itself stop a deploy, which is why the check is on both paths. |
 | Observability | Applies to the local batch shape plus a static published artifact: finalized run manifests and DuckDB `model_metric` rows retain counts, bytes, and wall time; the site is rebuilt from committed data with no availability objective declared. See [docs/ROADMAP.md](docs/ROADMAP.md). |
