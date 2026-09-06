@@ -114,6 +114,49 @@ Evidence for a refusal is bound to the cohort exactly like evidence for a load: 
 cohort file by content SHA-256, only one document per file is accepted, and a refusal record
 missing its reason or its scopes is refused rather than published half-stated.
 
+## Comparing two cohorts over time (`mrf-honest diff`)
+
+A cohort is a dated snapshot. `mrf-honest diff <before> <after>` relates two of them, subject by
+subject, over the file slugs they share. The rule it exists to enforce is the one this document
+states everywhere else: **a change this repository made to itself is never published as a change
+a hospital made to its file.**
+
+That is not one yes/no, because a cohort's identity carries three fingerprints that can move
+independently. Each governs a different layer, and each layer is compared only when its own
+fingerprint held:
+
+| Layer | Compared when | Fields |
+|---|---|---|
+| `retrieval` | `retrieval_policy_fingerprint` matches | `content_sha256`, `size_bytes`, retrieval coverage |
+| `document` | `inspection_fingerprint` matches | `template_version`, `last_updated_on` |
+| `judgement` | `assessment_policy_fingerprint` **and** the grade's `policy_fingerprint` both match | the grade letter and the finding list |
+
+A layer whose fingerprint moved is reported as `policy_changed`, carrying both fingerprints, and
+its fields are not compared. It is never reported as an unchanged layer: "compared and equal" and
+"not compared" are different statements, and only one of them is true.
+
+Two cohorts of different profiles, publisher types or URL provenance are refused outright rather
+than diffed under a policy heading. A JSON grade and a CSV grade are measurements of different
+file formats whose finding catalogues do not share codes.
+
+Three absences are stated rather than scored:
+
+- **A subject in one cohort only** is reported as that, with no comparison. These cohorts are
+  drawn samples ([SAMPLING-FRAME.md](SAMPLING-FRAME.md)); a facility drawn once has said nothing
+  about whether its file changed, and "added" or "removed" would turn this project's sampling
+  into a claim about a hospital.
+- **A move between a letter and `NOT_GRADED`** is stated, and the regression is left undetermined.
+  `NOT_GRADED` is not a position on the A-to-F scale — it records a limit of this tool — so
+  scoring it as a worse grade would publish this project's failure as the publisher's.
+- **A location graded at a different URL** closes every layer for that subject. Comparing the
+  bytes of two different files as though one had become the other is the same conflation in
+  smaller print.
+
+`--fail-on-regression` turns the diff into a gate: `1` when a subject's letter got worse or a new
+error-severity finding appeared, `0` when at least one subject's judgement layer was comparable
+and none of those regressed, and `2` when **no** subject's judgement layer was comparable. The
+third is the one that matters: returning `0` there would report a clean run over zero comparisons.
+
 ## What this comparison refuses to do
 
 - It never averages, ranks, or scores across hospitals; the only ordering anywhere is
