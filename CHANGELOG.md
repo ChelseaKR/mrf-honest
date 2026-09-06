@@ -9,6 +9,24 @@ no version tags yet; until the first dated release (phase 5 of
 
 ### Fixed
 
+- **An assessment policy this build cannot identify was reported as a broken comparison
+  scope.** `_verify_comparison_scope` resolves the profile a persisted record was written
+  under from `_PROFILES_BY_FINGERPRINT`, and when that lookup missed it substituted
+  `_PROFILE` — `cms-hospital-json-v3` — and then verified the record against the
+  substitution. The shim was written for records committed before `AssessmentProfile`
+  existed, which are all JSON records, and it is correct for them; it became a coin flip
+  when a second profile arrived. The visible consequence was the wrong diagnosis: a record
+  written under a retired *CSV* policy failed as `comparison scope does not match assessment
+  context`, which sends a reader to a comparison scope that is intact and self-consistent.
+  Nothing was wrong with the record — this build simply could not name the policy that
+  produced it. The failure now says so, quoting the unresolved fingerprint, the profile that
+  was substituted for it, and the profile the record itself declares; and the generic
+  mismatch now lists the keys that actually disagree instead of naming none of them. Which
+  records verify is deliberately unchanged, so the historical-readability commitment in
+  `test_historical_policy_fingerprint_remains_readable_and_scope_disjoint` still holds. The
+  substitution itself is the remaining half of #52 and needs an owner decision, recorded
+  there.
+
 - **The Bedrock default model was one this project cannot invoke.** `DEFAULT_BEDROCK_MODEL`
   was `global.anthropic.claude-sonnet-5`, and the AWS account these evaluations run under
   answers `AccessDeniedException` for it — while the entitlement API reports that model

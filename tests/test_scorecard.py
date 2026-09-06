@@ -1045,6 +1045,52 @@ def test_historical_policy_fingerprint_remains_readable_and_scope_disjoint(
     assert scope != assessment.comparison_scope
 
 
+def test_an_unresolvable_policy_fingerprint_is_named_rather_than_read_as_a_scope_mismatch(
+    tmp_path: Path,
+) -> None:
+    """A policy this build cannot identify is not evidence about the comparison scope.
+
+    `_verify_comparison_scope` substitutes the pre-profile default for a fingerprint it
+    cannot resolve, then verifies the record against that substitution. A record written
+    under a retired *second* profile -- which is what any change to the CSV inspection
+    policy produces, since `CSV_FINDING_CATALOG` is hashed into the profile fingerprint --
+    therefore failed as "comparison scope does not match assessment context", sending a
+    reader to a scope that is intact. The record is fine; the policy is unknown. See #52.
+    """
+
+    assessment = compose_file_assessment(
+        _subject(),
+        _failure_evidence(FetchStatus.NETWORK_ERROR),
+        retrieval_policy=RetrievalPolicyEvidence.from_policy(_policy()),
+    )
+    record = assessment.to_dict()
+    retired_fingerprint = "b" * 64
+    record["assessment_policy_fingerprint"] = retired_fingerprint
+    scope = record["comparison_scope"]
+    assert isinstance(scope, dict)
+    scope["assessment_policy_fingerprint"] = retired_fingerprint
+    scope["profile"] = "cms-hospital-csv-v3"
+    body = {
+        key: value
+        for key, value in record.items()
+        if key not in {"assessment_id", "assessment_body_sha256"}
+    }
+    record["assessment_body_sha256"] = _canonical_digest(body)
+    registry = AssessmentRegistry(tmp_path / "assessments.jsonl")
+    registry.path.write_text(json.dumps(record) + "\n", encoding="utf-8")
+
+    with pytest.raises(AssessmentRegistryError) as raised:
+        registry.records()
+
+    message = str(raised.value)
+    # The load-bearing assertion: the failure names the policy it could not resolve, and
+    # does not blame the scope. Reverting the fix restores the old message and fails here.
+    assert "comparison scope does not match" not in message, message
+    assert retired_fingerprint in message, message
+    assert "is not a policy this build knows" in message, message
+    assert "cms-hospital-csv-v3" in message, message
+
+
 def test_malformed_noncredential_url_is_a_durable_zero_attempt_row(tmp_path: Path) -> None:
     url = "https://[broken"
     registry = AssessmentRegistry(tmp_path / "assessments.jsonl")
