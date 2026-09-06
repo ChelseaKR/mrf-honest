@@ -9,6 +9,25 @@ no version tags yet; until the first dated release (phase 5 of
 
 ### Added
 
+- **The two sub-cases of the `"database opened"` kill are now measured every run instead of
+  sampled by luck** (the third option in #80, which needs none of that issue's durability
+  judgement). The crash matrix could previously say only "the warehouse database opened or it
+  did not"; it now names the state -- `absent`, `valid`, `invalid` -- for every stage of the
+  sweep, and two new tests construct the recoverable and unrecoverable states by hand rather
+  than racing for them, so the difference between them is exercised on every run.
+
+  **Measured, and it corrects the analysis in #80.** That issue reasons that a kill leaving zero
+  bytes on disk is benign because "`duckdb.connect()` initialises it happily". On DuckDB 1.5.5 it
+  does not: a `warehouse.duckdb` that exists and is not a valid database is refused whether it
+  holds zero bytes, four bytes, or 4 KiB of nulls. The recoverable sub-case is therefore not
+  "the file is empty" but "the header write finished before the kill", and the unrecoverable
+  window is the whole of the time the file exists without a complete header rather than a sliver
+  of it. `docs/ROADMAP.md`'s durability sentence is wrong by more than the issue thought, and how
+  to repair it is still the open decision recorded at #80.
+
+  Nothing was widened or retried: `test_a_killed_run_can_be_re_run_to_completion` is untouched
+  and still fails when a kill lands in the invalid window, which is correct.
+
 - **A `diff` verb, so "is this file getting better?" has an answer that cannot blame a hospital
   for a change this project made to itself.** Each cohort was a dated snapshot with no relation
   to the one before it. `mrf-honest diff <before.comparison.json> <after.comparison.json>`
