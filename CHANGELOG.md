@@ -36,6 +36,38 @@ no version tags yet; until the first dated release (phase 5 of
   **`--fail-on-regression` exits 2 when no subject's judgement layer was comparable.** Returning
   0 there would be a gate that reports a clean run over zero comparisons.
 
+- **A `systems` verb: what a hospital system's `cms-hpt.txt` lists, against what this project
+  graded.** CMS's convention is one machine-readable file per hospital location, and a system's
+  discovery file names every location with the file that serves it. The cohort grades files, and
+  the README's rule is that a grade never becomes a statement about a hospital — so "fifteen
+  locations listed, one of them with no file at all" had nowhere to live. `mrf-honest systems
+  --assessments <cohort>.assessments.jsonl --discovery <registry>.jsonl` is that separate place.
+  It reads committed evidence, opens no socket, derives no grade, and does not touch the
+  published comparison document.
+
+  **The join is `sha256(mrf-url)` against the row's `requested_url_sha256`, and it has to be.**
+  A published row's `requested_url` has its query string redacted; the digest is of the raw URL.
+  Measured on the committed CSV cohort, Bay Area Hospital and Taylor Regional Hospital publish
+  through one vendor endpoint that differs only in a query parameter, so a join on the redacted
+  string reports each system as listing the other's file. The exact-digest join matches all 48
+  committed rows across the three cohorts and produces no cross-publisher match.
+
+  **Three absences kept apart.** A listed location this cohort did not grade is reported as this
+  project's sampling scope with the reason, never as a missing file. A listed location that names
+  itself and carries no `mrf-url` is a publication defect and is counted — WVU Medicine lists
+  Harrison Community Hospital that way. A parsed block carrying *neither* a name nor a URL is not
+  a location at all: UPMC's file opens with an ASCII-art banner and instructions for a human
+  reader, and counting those made UPMC publish 42 locations instead of 38, four of them
+  "listed with no mrf-url" — a defect in a named system invented out of this project's parser.
+
+  **One file for several listed locations is stated, not flagged**, because the dictionary defines
+  `location_name` as an array; what that makes checkable is whether the file's own array covers
+  the locations pointed at it. Element differences across a system's files are all published with
+  both files named, and only `version` and `last_updated_on` are *counted*: the rest are defined
+  per location by the dictionary, and counting `license_information` would have made Stanford
+  Health Care's licence beside Stanford Health Care Tri-Valley's into a finding against a system
+  publishing correctly.
+
 - **A receipt, a `verify` verb and a badge, so "every published grade can be re-derived from its
   source" is a procedure rather than a sentence.** The README has made that claim since the first
   cohort. It was true and it had no command: a reader who wanted to check it had to reimplement

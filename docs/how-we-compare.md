@@ -157,6 +157,48 @@ error-severity finding appeared, `0` when at least one subject's judgement layer
 and none of those regressed, and `2` when **no** subject's judgement layer was comparable. The
 third is the one that matters: returning `0` there would report a clean run over zero comparisons.
 
+## The publication set, beside the files (`mrf-honest systems`)
+
+A cohort grades files. CMS requires one machine-readable file per hospital location, and a system
+publishes one `cms-hpt.txt` naming every location with the file that serves it — so some facts are
+about a system's *publication set* and cannot be expressed by any file's letter, and must not be
+absorbed into one. `mrf-honest systems` reports them separately, from committed evidence, opening
+no socket and deriving no grade.
+
+**The join.** A graded row is matched to a listed location by `sha256(mrf-url)` against the row's
+`requested_url_sha256`. A row's published `requested_url` has its query string redacted while the
+digest is of the raw URL, so a join on the string is not file identity: in the committed CSV
+cohort two unrelated publishers use one vendor endpoint differing only in a query parameter, and
+a string join reports each as listing the other's file.
+
+**What is a fact about the publication set:**
+
+| Row | Means |
+|---|---|
+| `locations_listed_without_an_mrf_url` | a location this system's `cms-hpt.txt` names, with no file behind it |
+| `graded_without_a_listed_location` | a file this cohort graded that no retrieved `cms-hpt.txt` declares — a defect in the cohort's own discovery claim, not in the publisher |
+| `location_name_agreement` | whether a graded file's own `location_name` array covers the locations the discovery file pointed at it |
+| `disagreements` where `basis` is `must_agree_within_a_system` | the system's files disagree about `version` or `last_updated_on` |
+
+**What is not.** `locations_not_assessed_in_this_cohort` counts the locations a system lists that
+this cohort did not grade. A cohort draws a sample ([SAMPLING-FRAME.md](SAMPLING-FRAME.md)), so
+that number is this project's scope and never a publisher's defect; it is published in its own
+field, with a sentence saying so, and it is never added to any defect count. A parsed block
+carrying neither a location name nor an `mrf-url` is not counted as a location at all — one
+system's file opens with an ASCII-art banner, and counting the parser's record of it would invent
+four locations that system never claimed to list.
+
+**Elements.** Where a system's files differ on any CMS general data element, the difference is
+published with every file named. Only `version` and `last_updated_on` are counted as a
+disagreement: they describe the template a file was written to and the date it was last updated.
+`hospital_name`, `location_name`, `hospital_address` and `license_information` are defined per
+location by the dictionary, so a system's files differing on them is those files doing their job.
+
+**When there is no evidence.** If no discovery record on or before the cohort's date declares any
+URL it graded, the reconciliation is refused with the reason and every count that would read as a
+finding is absent rather than zero. "No listed location declares this file" is a claim nobody
+holding no discovery file is in a position to make.
+
 ## What this comparison refuses to do
 
 - It never averages, ranks, or scores across hospitals; the only ordering anywhere is

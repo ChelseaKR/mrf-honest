@@ -52,6 +52,9 @@ from mrf_honest.scorecard import (
     assess_hospital_url,
 )
 from mrf_honest.site import DEFAULT_ORIGIN, render_site
+from mrf_honest.systems import SystemsError
+from mrf_honest.systems import human_report as systems_human_report
+from mrf_honest.systems import reconcile as reconcile_systems
 from mrf_honest.types import PublisherRef
 
 #: CLI names for the implemented assessment profiles; the JSON profile stays the default so
@@ -482,6 +485,29 @@ def _run_diff(args: argparse.Namespace) -> int:
     return diff_exit_code(document, fail_on_regression=cast(bool, args.fail_on_regression))
 
 
+def _run_systems(args: argparse.Namespace) -> int:
+    """Reconcile one cohort against the discovery evidence its URLs came from.
+
+    Reads committed evidence and opens no socket. A reconciliation that cannot be performed is a
+    clean operational failure rather than an empty document: an empty reconciliation would read
+    as "checked, nothing to report", which is the one thing it must never say.
+    """
+    registry = AssessmentRegistry(cast(Path, args.assessments))
+    discovery = Registry(cast(Path, args.discovery))
+    try:
+        document = reconcile_systems(
+            registry.records(), [record.to_dict() for record in discovery.records()]
+        )
+    except SystemsError as refusal:
+        print(f"error: {refusal}", file=sys.stderr)
+        return _FAILURE
+    if cast(str, args.output_format) == "json":
+        _emit_json(document)
+    else:
+        print(systems_human_report(document))
+    return _SUCCESS
+
+
 def _run_mcp(args: argparse.Namespace) -> int:
     """Serve the published dataset over stdio. Reads committed files; never reaches a network."""
 
@@ -718,6 +744,24 @@ def _build_parser() -> argparse.ArgumentParser:
         "--format", dest="output_format", choices=("human", "json"), default="human"
     )
     diff_parser.set_defaults(handler=_run_diff)
+
+    systems_parser = commands.add_parser(
+        "systems",
+        help="reconcile one cohort's graded files against the locations cms-hpt.txt lists",
+    )
+    systems_parser.add_argument(
+        "--assessments", type=Path, required=True, help="JSON Lines assessment records"
+    )
+    systems_parser.add_argument(
+        "--discovery",
+        type=Path,
+        required=True,
+        help="a discovery registry written by `mrf-honest discover`",
+    )
+    systems_parser.add_argument(
+        "--format", dest="output_format", choices=("human", "json"), default="human"
+    )
+    systems_parser.set_defaults(handler=_run_systems)
 
     site_parser = commands.add_parser(
         "site", help="render the static site from one or more published comparison documents"
