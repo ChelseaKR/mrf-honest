@@ -268,6 +268,65 @@ def test_the_published_suite_size_is_the_suite_that_actually_collects() -> None:
         )
 
 
+def test_the_two_documents_state_one_measurement() -> None:
+    """The README's Code Quality row and the ledger row are one measurement, twice.
+
+    The check above holds each document's ``passing + skipped`` to what pytest
+    collects, which makes the suite's *size* underivable-by-hand and therefore
+    safe. It does not hold the two documents to each other on anything else:
+    "736 passing and 4 skipped" and "740 passing and 0 skipped" both satisfy it,
+    in either document independently, and so do two different coverage
+    percentages and two different dates.
+
+    That is not a hypothetical failure mode here. ``docs/CORRECTIONS.md`` records
+    it happening: "A ledger row said 262 tests when the merged stack had 324; the
+    number came from one branch and the other branches were never counted." The
+    ledger is the source and the README follows it -- ``docs/ROADMAP.md`` says so
+    in the paragraph above the table -- so the two agreeing is the whole premise,
+    and nothing was checking it.
+
+    The figures themselves are not re-derived here: the split depends on which
+    runtime skips fired and the percentage is a measurement of a run, which is
+    the reason the check above deliberately does not touch either.
+    ``tools/publish_metrics.py`` produces them from one complete run and writes
+    both documents together, so the pair cannot drift by hand. This holds that
+    they did not.
+    """
+
+    readme = " ".join((ROOT / "README.md").read_text(encoding="utf-8").split())
+    ledger = " ".join((ROOT / "docs" / "ROADMAP.md").read_text(encoding="utf-8").split())
+
+    published = re.search(
+        r"Current: ([\d,]+) tests passing and ([\d,]+) skipped, ([\d.]+)% branch coverage"
+        r".*?zero known vulnerabilities \((\d{4}-\d{2}-\d{2})\)",
+        readme,
+    )
+    assert published is not None, "README.md no longer states the Code Quality measurement"
+    measured = re.search(
+        r"\| ([\d.]+)%, ([\d,]+) tests passing and ([\d,]+) skipped, (\d{4}-\d{2}-\d{2}) \|",
+        ledger,
+    )
+    assert measured is not None, "docs/ROADMAP.md no longer states the metrics-ledger row"
+
+    from_readme = (
+        published.group(1).replace(",", ""),
+        published.group(2).replace(",", ""),
+        published.group(3),
+        published.group(4),
+    )
+    from_ledger = (
+        measured.group(2).replace(",", ""),
+        measured.group(3).replace(",", ""),
+        measured.group(1),
+        measured.group(4),
+    )
+    assert from_readme == from_ledger, (
+        f"README.md publishes {from_readme} (passing, skipped, coverage, date) and "
+        f"docs/ROADMAP.md publishes {from_ledger}. They are one measurement; run "
+        "`make metrics`, which writes both from a single run."
+    )
+
+
 # --- the sampling frame -------------------------------------------------------------------
 #
 # A cohort with a stated frame makes two new claims that a reader cannot check by hand: that the
