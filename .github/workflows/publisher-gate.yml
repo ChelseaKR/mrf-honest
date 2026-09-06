@@ -1,0 +1,258 @@
+# Exercises the two surfaces this repository offers to a *hospital's* repository: the composite
+# action and the pre-commit hook. Neither is covered by `make verify`, which tests the Python
+# behind them but cannot tell you that `action.yml` runs, that its bash quoting survives a path
+# with a space, or that pre-commit can build an environment from this project.
+#
+# The fixtures are written at run time on purpose: this repository ships no sample MRF and will
+# not. They are small synthetic documents, not any hospital's file.
+#
+# Every case asserts the *expected* outcome, including the two failures. A workflow that only
+# ran the passing case would be a gate that cannot fail -- it would stay green through a change
+# that made the action exit 0 on everything.
+name: publisher gate
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  action:
+    name: action.yml
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Write the fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/fixtures"
+          python - "$RUNNER_TEMP/fixtures" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          out = Path(sys.argv[1])
+
+
+          def document(version: str) -> dict[str, object]:
+              return {
+                  "hospital_name": "Example Hospital",
+                  "last_updated_on": "2026-08-01",
+                  "version": version,
+                  "location_name": ["Example Main"],
+                  "hospital_address": ["1 Main St, Testville, CA 90000"],
+                  "type_2_npi": ["1234567890"],
+                  "license_information": {"state": "CA", "license_number": "A1"},
+                  "attestation": {
+                      "attestation": "CMS-required statement represented in the fixture",
+                      "confirm_attestation": True,
+                      "attester_name": "A. Executive",
+                  },
+                  "standard_charge_information": [
+                      {
+                          "description": "Example service",
+                          "code_information": [{"code": "12345", "type": "CPT"}],
+                          "standard_charges": [
+                              {
+                                  "gross_charge": 120,
+                                  "discounted_cash": 90,
+                                  "minimum": 70,
+                                  "maximum": 100,
+                                  "setting": "outpatient",
+                                  "payers_information": [
+                                      {
+                                          "payer_name": "Acme",
+                                          "plan_name": "PPO",
+                                          "methodology": "fee schedule",
+                                          "standard_charge_dollar": 800,
+                                      }
+                                  ],
+                              }
+                          ],
+                      }
+                  ],
+              }
+
+
+          (out / "conforming.json").write_text(json.dumps(document("3.0.0")))
+          (out / "superseded-version.json").write_text(json.dumps(document("3.0")))
+          (out / "truncated.json").write_text('{"standard_charge_information": [{')
+          PY
+
+      - name: A conforming file clears the gate
+        id: conforming
+        uses: ./
+        with:
+          path: ${{ runner.temp }}/fixtures/conforming.json
+          as-of: "2026-08-19"
+          fail-on: error
+
+      - name: ... and reports the letter it minted
+        shell: bash
+        env:
+          GRADE: ${{ steps.conforming.outputs.grade }}
+          CODE: ${{ steps.conforming.outputs.exit-code }}
+        run: |
+          set -euo pipefail
+          test "$CODE" = "0" || { echo "expected exit 0, got '$CODE'"; exit 1; }
+          case "$GRADE" in
+            A|B) ;;
+            *) echo "expected a cleared grade, got '$GRADE'"; exit 1 ;;
+          esac
+
+      # The negative control. CMS specifies `3.0.0`; this file says `3.0`, which is the first
+      # finding this project ever published. If the action stops seeing it, this job goes red.
+      - name: A superseded template version fails the gate
+        id: superseded
+        continue-on-error: true
+        uses: ./
+        with:
+          path: ${{ runner.temp }}/fixtures/superseded-version.json
+          as-of: "2026-08-19"
+          fail-on: error
+
+      - name: ... and the failure is asserted, not merely tolerated
+        shell: bash
+        env:
+          OUTCOME: ${{ steps.superseded.outcome }}
+          REPORT: ${{ runner.temp }}/mrf-honest-report.json
+        run: |
+          set -euo pipefail
+          test "$OUTCOME" = "failure" || { echo "expected the action to fail"; exit 1; }
+          python - "$REPORT" <<'PY'
+          import json
+          import sys
+
+          report = json.load(open(sys.argv[1]))
+          assert report["exit_code"] == 1, report["exit_code"]
+          codes = {f["code"] for f in report["files"][0]["findings"]}
+          assert any("VERSION" in code for code in codes), codes
+          print("asserted the version finding:", sorted(c for c in codes if "VERSION" in c))
+          PY
+
+      - name: A file that cannot be read is exit 2, never a grade
+        id: truncated
+        continue-on-error: true
+        uses: ./
+        with:
+          path: ${{ runner.temp }}/fixtures/truncated.json
+          as-of: "2026-08-19"
+          fail-on: error
+
+      - name: ... and carries no letter
+        shell: bash
+        env:
+          OUTCOME: ${{ steps.truncated.outcome }}
+          REPORT: ${{ runner.temp }}/mrf-honest-report.json
+        run: |
+          set -euo pipefail
+          test "$OUTCOME" = "failure" || { echo "expected the action to fail"; exit 1; }
+          python - "$REPORT" <<'PY'
+          import json
+          import sys
+
+          report = json.load(open(sys.argv[1]))
+          assert report["exit_code"] == 2, report["exit_code"]
+          verdict = report["files"][0]
+          assert verdict["grade"] is None, verdict["grade"]
+          assert verdict["gradeable"] is False
+          assert verdict["refusal"]
+          print("refused with:", verdict["refusal"])
+          PY
+
+  pre-commit-hook:
+    name: .pre-commit-hooks.yaml
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: mrf-honest
+          persist-credentials: false
+
+      - name: Install Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+
+      - name: Install pre-commit
+        run: python -m pip install --disable-pip-version-check "pre-commit>=4,<5"
+
+      # `pre-commit try-repo` builds the hook's environment from the checked-out project and runs
+      # it over the given files, which is exactly what a hospital's repository would do.
+      - name: The hook accepts a conforming file
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p sample && cd sample
+          git init -q . && git config user.email a@example.invalid && git config user.name t
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          Path("prices.json").write_text(json.dumps({
+              "hospital_name": "Example Hospital",
+              "last_updated_on": "2026-08-01",
+              "version": "3.0.0",
+              "location_name": ["Example Main"],
+              "hospital_address": ["1 Main St, Testville, CA 90000"],
+              "type_2_npi": ["1234567890"],
+              "license_information": {"state": "CA", "license_number": "A1"},
+              "attestation": {
+                  "attestation": "CMS-required statement represented in the fixture",
+                  "confirm_attestation": True,
+                  "attester_name": "A. Executive",
+              },
+              "standard_charge_information": [{
+                  "description": "Example service",
+                  "code_information": [{"code": "12345", "type": "CPT"}],
+                  "standard_charges": [{
+                      "gross_charge": 120, "discounted_cash": 90,
+                      "minimum": 70, "maximum": 100, "setting": "outpatient",
+                      "payers_information": [{
+                          "payer_name": "Acme", "plan_name": "PPO",
+                          "methodology": "fee schedule", "standard_charge_dollar": 800,
+                      }],
+                  }],
+              }],
+          }))
+          PY
+          git add prices.json
+          pre-commit try-repo ../mrf-honest mrf-honest --files prices.json --verbose
+
+      # The negative control for the hook: the same file with the superseded template version.
+      - name: The hook rejects a superseded template version
+        shell: bash
+        run: |
+          set -uo pipefail
+          cd sample
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          document = json.loads(Path("prices.json").read_text())
+          document["version"] = "3.0"
+          Path("prices.json").write_text(json.dumps(document))
+          PY
+          # Assert the sabotage actually landed before trusting the verdict: a mutation that
+          # silently failed to apply would let this step read as a clean rejection of nothing.
+          grep -q '"version": *"3\.0"' prices.json || grep -q '"version":"3\.0"' prices.json
+          git add prices.json
+          if pre-commit try-repo ../mrf-honest mrf-honest --files prices.json --verbose; then
+            echo "the hook accepted a file declaring template version 3.0"
+            exit 1
+          fi
+          echo "the hook rejected it, as it must"

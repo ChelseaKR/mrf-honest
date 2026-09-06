@@ -1,0 +1,29 @@
+# Hooks this repository offers to *other* repositories -- a hospital's or a vendor's, holding the
+# MRF itself. (The hooks this repository runs on its own commits are in .pre-commit-config.yaml;
+# the two files are unrelated despite the similar names.)
+#
+# Usage in the file's own repository:
+#
+#   repos:
+#     - repo: https://github.com/ChelseaKR/mrf-honest
+#       rev: <a tag or commit>
+#       hooks:
+#         - id: mrf-honest
+#           args: [--fail-on, error, --min-grade, B]
+#
+# `types_or`, not `types`. pre-commit ANDs the entries in `types`, so `types: [json, csv]` matches
+# a file that is simultaneously JSON and CSV -- that is, nothing at all, and the hook would report
+# success on every commit forever. That shape (a gate whose selector can never match) is exactly
+# what this project keeps finding in other people's checks, so it is spelled out here rather than
+# left to be rediscovered.
+- id: mrf-honest
+  name: mrf-honest (grade a CMS hospital price-transparency file)
+  description: >-
+    Grade a CMS hospital price-transparency JSON or CSV file against the vendored CMS data
+    dictionary before it is committed. Offline; opens no socket. Clearing it is not a
+    certificate of compliance.
+  entry: mrf-honest gate --profile auto --fail-on error
+  language: python
+  types_or: [json, csv]
+  pass_filenames: true
+  require_serial: false

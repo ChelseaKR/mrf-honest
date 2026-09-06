@@ -7,6 +7,41 @@ no version tags yet; until the first dated release (phase 5 of
 
 ## [Unreleased]
 
+### Added
+
+- **`mrf-honest gate`, a GitHub Action and a pre-commit hook: the same inspector, run by the
+  publisher, before the file is posted.** Every finding this project has published was visible
+  in the file on the day it went up -- the `3.0` where CMS specifies `3.0.0`, the 118,411 payer
+  names with no charge beside them, the seven-month-old publication date. None of it needed a
+  network fetch to see. `gate` reads local files under the *committed* presentation-grade policy
+  (`cohort.grade_local_evidence`, the same rule table and the same fingerprint the site prints,
+  applied to the four local dimensions -- retrievability is a fact about a URL and a local file
+  has never seen one) and returns an exit code: `0` clear, `1` a threshold the caller set was not
+  met, `2` nothing could be graded. `--profile auto` reads the leading bytes and *refuses* rather
+  than guessing when they are neither JSON nor CSV. Shipped as `action.yml` (annotations on the
+  file with each finding's citation, plus a job summary) and `.pre-commit-hooks.yaml`, with
+  `docs/before-you-post-it.md` written for compliance staff rather than engineers.
+
+  Three boundaries are load-bearing and are tested rather than merely documented. **A refusal is
+  not an F**: a truncated file, a ZIP holding a document rather than the document, and bytes that
+  match no profile all exit `2` and carry no letter, because "I could not read this" is a claim
+  about the read and an `F` is a claim about the file. **An absence is named, never scored**: a
+  `NOT_ASSESSED` dimension produces no finding, so no `--fail-on` severity can see it at any
+  setting; it lowers the grade, so `--min-grade` can, and the report and summary list those
+  dimensions by name so a clean severity run can never be read as "nothing was missed".
+  **Clearing the gate certifies nothing**, said in the summary every time and asserted with the
+  disclaimer stripped out first, so its own presence cannot be what makes the test pass.
+  `grade_local_evidence` raises on an unrecognised profile instead of falling back to the JSON
+  policy -- the substitution that would grade a CSV file against the JSON dictionary and publish
+  the result as the file's own defects.
+
+  A new `publisher-gate` workflow runs both packagings against fixtures written at run time (this
+  repository ships no sample MRF and will not), and asserts the two *failing* cases as well as
+  the passing one, so the workflow cannot go green through a change that made the gate exit 0 on
+  everything. `.pre-commit-hooks.yaml` uses `types_or`, not `types`: pre-commit ANDs `types`, so
+  the `types: [json, csv]` the proposal suggested would match no file at all and report success
+  forever. Closes #66.
+
 ### Fixed
 
 - **The roadmap denied a distribution this repository already publishes.** `docs/ROADMAP.md`
