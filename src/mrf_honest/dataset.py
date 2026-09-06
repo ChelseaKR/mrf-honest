@@ -344,4 +344,45 @@ def missing_exports(comparisons: Sequence[Mapping[str, object]], out_dir: Path) 
     """
 
     root = Path(out_dir)
-    return _dataset_problems(root, comparisons) + _api_problems(root, comparisons)
+    return (
+        _dataset_problems(root, comparisons)
+        + _api_problems(root, comparisons)
+        + _receipt_problems(root, comparisons)
+    )
+
+
+def _receipt_problems(root: Path, comparisons: Sequence[Mapping[str, object]]) -> list[str]:
+    """Check that every published row got a receipt and a badge, and that they agree with it.
+
+    The grade equality is the whole point. A receipt is an invitation to re-derive a number,
+    so a receipt carrying a *different* number from the row it was minted for would send a
+    reader to reproduce something the site never published. Checking only that the file exists
+    would not see that, and the file existing is the easy half.
+    """
+    problems: list[str] = []
+    for comparison in comparisons:
+        rows = comparison.get("files")
+        if not isinstance(rows, Sequence):
+            continue
+        for row in rows:
+            if not isinstance(row, Mapping):
+                continue
+            slug = str(row.get("slug"))
+            receipt_path = root / "api" / "receipt" / f"{slug}.json"
+            badge_path = root / "badge" / f"{slug}.svg"
+            if not badge_path.is_file():
+                problems.append(f"badge/{slug}.svg was not written")
+            if not receipt_path.is_file():
+                problems.append(f"api/receipt/{slug}.json was not written")
+                continue
+            receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+            grade = row.get("grade")
+            published = str(cast(Mapping[str, object], grade).get("grade")) if grade else None
+            if receipt.get("grade") != published:
+                problems.append(
+                    f"api/receipt/{slug}.json states grade {receipt.get('grade')!r}; the "
+                    f"published row states {published!r}"
+                )
+            if receipt.get("content_sha256") != row.get("content_sha256"):
+                problems.append(f"api/receipt/{slug}.json does not carry the row's content_sha256")
+    return problems

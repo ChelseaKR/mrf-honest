@@ -9,6 +9,43 @@ no version tags yet; until the first dated release (phase 5 of
 
 ### Added
 
+- **A receipt, a `verify` verb and a badge, so "every published grade can be re-derived from its
+  source" is a procedure rather than a sentence.** The README has made that claim since the first
+  cohort. It was true and it had no command: a reader who wanted to check it had to reimplement
+  the grader. `site` now writes `api/receipt/<slug>.json` and `badge/<slug>.svg` for every
+  published row, and `mrf-honest verify <receipt> <file>` re-hashes the bytes and re-runs the
+  policy version the receipt names, offline, opening no socket.
+
+  **Seven of the 48 published rows say plainly that they cannot be re-derived.** Four were never
+  retrieved and three stopped mid-stream, so no graded bytes exist for anybody — this project
+  included — to reproduce. Those rows still get receipts, because a missing receipt reads as an
+  oversight, and the receipts carry `re_derivable: false` with the reason; `verify` refuses them
+  by name. The alternative is the defect this design exists to avoid: a receipt that looks like
+  every other receipt, a `verify` run against whatever file the reader has, and the inevitable
+  hash mismatch published as though a named hospital's file had changed — out of the fact that a
+  download failed.
+
+  **Exit 2 is never evidence about the file.** A hash mismatch, an unreadable `receipt_version`,
+  a policy version this build no longer has, and a not-re-derivable receipt are all "the check
+  could not be performed", kept apart from exit 1, "the bytes match and something differs". The
+  policy case is the sharpest: reporting a moved *policy* as a difference would blame a
+  hospital's file for a change in this repository.
+
+  `missing_exports` — which the deploy path calls, not just `make verify` — now fails when a row
+  has no receipt or badge, and when a receipt states a grade or a content hash the published row
+  does not. Checking only that the file exists is the easy half. `receipts_for` refuses a
+  duplicate slug for the same reason `render_site` does: silently overwriting would publish one
+  cohort's receipt at another cohort's URL, and a reader following the link would be told the
+  hospital's file had changed.
+
+  The badges are SVG documents no page embeds, so the site's zero non-document byte budget is
+  unchanged and the Lighthouse job — which enumerates `*.html` — audits exactly the pages it did
+  before; a test asserts `perf/baseline.json` still counts them correctly. Each badge carries
+  `role="img"` and a `<title>` holding the whole claim (grade, hospital, date, policy version,
+  and that it certifies nothing), and every grade's fill is asserted against its own text at
+  4.5:1 so a palette change made for the page cannot take the badge below the threshold
+  unnoticed. `docs/verify-a-grade.md` is written for the person doing the checking. Closes #70.
+
 - **`mrf-honest gate`, a GitHub Action and a pre-commit hook: the same inspector, run by the
   publisher, before the file is posted.** Every finding this project has published was visible
   in the file on the day it went up -- the `3.0` where CMS specifies `3.0.0`, the 118,411 payer

@@ -24,6 +24,8 @@ from mrf_honest.cohort import INGEST_REFUSED, LOCAL_DIMENSIONS, NOT_GRADED
 from mrf_honest.dataset import api_documents, dataset_csv, encode, table_schema
 from mrf_honest.inspect import FINDING_CATALOG
 from mrf_honest.inspect_csv import CSV_FINDING_CATALOG
+from mrf_honest.receipt import encode as encode_receipt
+from mrf_honest.receipt import receipts_for
 from mrf_honest.scorecard import RETRIEVAL_FINDING_CATALOG
 
 DEFAULT_ORIGIN = "https://chelseakr.github.io/mrf-honest"
@@ -374,7 +376,32 @@ def _provenance_section(row: Mapping[str, object]) -> str:
         f"<dd><code>{_e(row.get('assessment_body_sha256'))}</code></dd></div>"
         "</dl><p>The retrieval was one identified, bounded request; the SHA-256 covers the exact "
         "decoded bytes that were inspected, and the record digest covers the complete persisted "
-        "assessment.</p></section>"
+        "assessment.</p>"
+        f"{_receipt_paragraph(row)}</section>"
+    )
+
+
+def _receipt_paragraph(row: Mapping[str, object]) -> str:
+    """The link that turns "every grade can be re-derived" into something a reader can run.
+
+    A row with no verified body says so instead of offering a procedure that cannot be
+    carried out. That is the whole distinction the receipt exists to keep: a grade nobody can
+    reproduce must not be published beside an invitation to reproduce it.
+    """
+    slug = str(row["slug"])
+    depth = "../" * (slug.count("/") + 2)
+    receipt = f'<a href="{depth}api/receipt/{_e(slug)}.json">machine-readable receipt</a>'
+    badge = f'<a href="{depth}badge/{_e(slug)}.svg">badge</a>'
+    if not row.get("content_sha256"):
+        return (
+            f"<p>This row has no verified body, so its grade cannot be re-derived from bytes. "
+            f"The {receipt} records that, with the reason. A {badge} is published too.</p>"
+        )
+    return (
+        f"<p>Check this yourself: download the file at the URL above, then run "
+        f"<code>mrf-honest verify receipt.json thatfile</code> against the {receipt}. It "
+        f"re-hashes the bytes and re-runs the same policy offline. A {badge} is published "
+        f"too; it states the grade, the date and the policy, and certifies nothing.</p>"
     )
 
 
@@ -1021,6 +1048,73 @@ def write_page(out_dir: Path, page: Page, origin: str, generated_at: str) -> Pat
     return target
 
 
+# --------------------------------------------------------------------------------------------
+# The badge. A published grade in a form a publisher can embed, saying what it is in its own
+# text -- not a shield that means whatever the reader assumes.
+# --------------------------------------------------------------------------------------------
+
+#: Badge fill per grade, taken from the site's own palette so the badge and the page cannot
+#: disagree about what a C looks like. Every one of these is already asserted against
+#: ``paper`` at 4.5:1 by ``tests/test_site.py``; the badge test asserts it again for the exact
+#: pairs the SVG uses, because a palette entry changing for the page must not silently take the
+#: badge's text below the threshold.
+BADGE_FILL: Mapping[str, str] = {
+    "A": PALETTE["a"],
+    "B": PALETTE["b"],
+    "C": PALETTE["c"],
+    "D": PALETTE["d"],
+    "F": PALETTE["f"],
+    "NOT_GRADED": PALETTE["ng"],
+}
+
+BADGE_LABEL_FILL = PALETTE["ink"]
+BADGE_TEXT_FILL = PALETTE["paper"]
+
+_BADGE_HEIGHT = 20
+_LABEL_WIDTH = 76
+_CHAR_WIDTH = 7
+
+
+def badge_svg(receipt: Mapping[str, object]) -> str:
+    """An accessible SVG badge for one receipt.
+
+    ``role="img"`` plus a ``<title>`` is what makes this readable to a screen reader; an SVG
+    with neither is an unlabelled graphic. The title carries the whole claim -- the grade, the
+    policy version, the date, and that it certifies nothing -- because a badge is the artefact
+    most likely to be seen with no page around it.
+    """
+    grade = str(receipt.get("grade"))
+    label = "not graded" if grade == "NOT_GRADED" else grade
+    fill = BADGE_FILL.get(grade, PALETTE["ng"])
+    value_width = max(24, len(label) * _CHAR_WIDTH + 14)
+    total = _LABEL_WIDTH + value_width
+    title = (
+        f"mrf-honest grade {label} for {receipt.get('publisher_name')} "
+        f"({receipt.get('location_id')}), one file as of {receipt.get('as_of')} under policy "
+        f"{receipt.get('grade_policy_version')}. Not a certificate of compliance."
+    )
+    return (
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{total}" height="{_BADGE_HEIGHT}" '
+        f'viewBox="0 0 {total} {_BADGE_HEIGHT}" role="img" '
+        f'aria-label="{_e(title)}">'
+        f"<title>{_e(title)}</title>"
+        f'<rect width="{_LABEL_WIDTH}" height="{_BADGE_HEIGHT}" fill="{BADGE_LABEL_FILL}"/>'
+        f'<rect x="{_LABEL_WIDTH}" width="{value_width}" height="{_BADGE_HEIGHT}" '
+        f'fill="{fill}"/>'
+        f'<g fill="{BADGE_TEXT_FILL}" font-family="-apple-system, Segoe UI, Roboto, '
+        f'Helvetica, Arial, sans-serif" font-size="11">'
+        f'<text x="8" y="14">mrf-honest</text>'
+        f'<text x="{_LABEL_WIDTH + 7}" y="14" font-weight="bold">{_e(label)}</text>'
+        f"</g></svg>"
+    )
+
+
+def badge_contrast(receipt: Mapping[str, object]) -> float:
+    """The contrast ratio of the badge's grade text against its own fill."""
+    fill = BADGE_FILL.get(str(receipt.get("grade")), PALETTE["ng"])
+    return contrast_ratio(BADGE_TEXT_FILL, fill)
+
+
 def write_dataset(
     out_dir: Path, comparisons: Sequence[Mapping[str, object]], origin: str
 ) -> list[Path]:
@@ -1043,6 +1137,33 @@ def write_dataset(
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(encode(document), encoding="utf-8")
         written.append(path)
+    written.extend(write_receipts(out_dir, comparisons))
+    return written
+
+
+def write_receipts(out_dir: Path, comparisons: Sequence[Mapping[str, object]]) -> list[Path]:
+    """Write one receipt and one badge per published row.
+
+    Every row gets both, including the seven that were never retrieved or never streamed to
+    completion. A row with no receipt would read as an oversight; a receipt that looked like
+    the others while describing bytes nobody holds would be worse. Those carry
+    ``re_derivable: false`` with the reason, and ``mrf-honest verify`` refuses them by name.
+
+    The badges are ``.svg`` documents no page embeds, so the site's zero-image request budget
+    is unchanged and the Lighthouse job -- which enumerates ``*.html`` -- audits the same set
+    of pages it did before.
+    """
+    written: list[Path] = []
+    for slug, receipt in sorted(receipts_for(comparisons).items()):
+        document = receipt.to_dict()
+        receipt_path = out_dir / "api" / "receipt" / f"{slug}.json"
+        receipt_path.parent.mkdir(parents=True, exist_ok=True)
+        receipt_path.write_text(encode_receipt(document), encoding="utf-8")
+        written.append(receipt_path)
+        badge_path = out_dir / "badge" / f"{slug}.svg"
+        badge_path.parent.mkdir(parents=True, exist_ok=True)
+        badge_path.write_text(badge_svg(document), encoding="utf-8")
+        written.append(badge_path)
     return written
 
 

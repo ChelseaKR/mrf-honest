@@ -33,6 +33,7 @@ from mrf_honest.inspect_csv import (
 from mrf_honest.lakehouse import LakehouseScopeRefusal, ingest_hospital_file, query_file_profile
 from mrf_honest.mcp import serve as serve_mcp
 from mrf_honest.politeness import Politeness
+from mrf_honest.receipt import verify_receipt
 from mrf_honest.registry import Registry, discover_domain
 from mrf_honest.scorecard import (
     CSV_PROFILE,
@@ -242,6 +243,27 @@ def _run_gate(args: argparse.Namespace) -> int:
     if report_path is not None:
         report_path.write_text(report_json(report) + "\n", encoding="utf-8")
     return report.exit_code
+
+
+def _run_verify(args: argparse.Namespace) -> int:
+    """Re-derive one published receipt from a local file. Opens no socket.
+
+    The exit code is the product, so it is returned unmapped: 0 reproduced, 1 the bytes match
+    and something differs, 2 the check could not be performed at all. The third is never
+    evidence about the file's quality, which is why it is not folded into the second.
+    """
+    receipt = json.loads(cast(Path, args.receipt).read_text(encoding="utf-8"))
+    if not isinstance(receipt, dict):
+        print("error: a receipt must be a JSON object", file=sys.stderr)
+        return 2
+    outcome = verify_receipt(receipt, cast(Path, args.file))
+    if cast(str, args.output_format) == "json":
+        _emit_json(outcome.to_dict())
+    else:
+        print(outcome.summary)
+        for difference in outcome.differences:
+            print(f"  {difference}")
+    return outcome.exit_code
 
 
 def _run_ingest(args: argparse.Namespace) -> int:
@@ -720,6 +742,17 @@ def _build_parser() -> argparse.ArgumentParser:
         "--report", type=Path, help="also write the full JSON report to this path"
     )
     gate_parser.set_defaults(handler=_run_gate)
+
+    verify_parser = commands.add_parser(
+        "verify",
+        help="re-derive a published grade from its receipt and the bytes it describes",
+    )
+    verify_parser.add_argument("receipt", type=Path, metavar="RECEIPT")
+    verify_parser.add_argument("file", type=Path, metavar="FILE")
+    verify_parser.add_argument(
+        "--format", dest="output_format", choices=("human", "json"), default="human"
+    )
+    verify_parser.set_defaults(handler=_run_verify)
 
     explain_parser = commands.add_parser("explain", help="explain a quality finding code")
     explain_parser.add_argument("finding_code", metavar="FINDING_CODE")
