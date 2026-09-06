@@ -1,5 +1,7 @@
 """Honest ingestion and grading of price-transparency machine-readable files."""
 
+from importlib import metadata as _metadata
+
 from mrf_honest.discover import Discovery, DiscoveryEntry, cms_hpt_url, parse_cms_hpt
 from mrf_honest.fetch import FetchOutcome, FetchPolicy, FetchStatus, fetch_url
 from mrf_honest.inspect import (
@@ -42,7 +44,14 @@ from mrf_honest.scorecard import (
 )
 from mrf_honest.types import PublisherRef
 
-__version__ = "0.1.0.dev0"
+# REL-02: one source of the version. `pyproject.toml` declares it, the build records it in
+# the installed distribution's metadata, and this reads it back rather than writing the
+# number down a second time where it can drift -- which is exactly what happened to
+# `mcp.py`, whose `serverInfo.version` said `0.1.0` while this said `0.1.0.dev0`.
+try:
+    __version__ = _metadata.version("mrf-honest")
+except _metadata.PackageNotFoundError:  # pragma: no cover - uninstalled source tree
+    __version__ = "0.0.0+unknown"
 
 __all__ = [
     "ASSESSMENT_POLICY_FINGERPRINT",
