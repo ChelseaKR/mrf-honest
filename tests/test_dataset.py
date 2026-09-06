@@ -33,6 +33,20 @@ COHORTS = ROOT / "data" / "cohorts"
 PUBLISHED = sorted(COHORTS.glob("*.comparison.json"))
 
 
+def test_at_least_one_cohort_is_published() -> None:
+    """An empty glob would make every parametrized case in this module vacuous.
+
+    `tests/test_published_claims.py` has carried this guard since it was written; this
+    module globbed the same directory without one. Measured with the corpus removed, six
+    tests here failed and five passed on an empty parameter list -- among them
+    `test_every_row_carries_the_scope_that_makes_it_uncomparable`, which enforces the rule
+    that rows assessed under different profiles are never pooled. A green run reported that
+    the rule held over nothing at all, which is the failure mode this project exists to
+    name: an absence rendered as a result.
+    """
+    assert PUBLISHED, f"no committed comparison documents under {COHORTS}"
+
+
 def _published() -> list[dict[str, object]]:
     return [json.loads(path.read_text(encoding="utf-8")) for path in PUBLISHED]
 

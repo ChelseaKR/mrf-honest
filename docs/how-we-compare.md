@@ -70,7 +70,7 @@ One JSON document per cohort, fully derived from persisted inputs:
 - a statistics block, always present: the disposition of the cohort's probability stratum, each
   share carrying its own numerator, denominator and 95 percent Wilson interval, or one stated
   refusal in place of every share. See [ADR 0007](adr/0007-suppression-uncertainty-and-refusal.md)
-  for the interval method, the suppression floor, and the five refusals.
+  for the interval method, the suppression floor, and the six refusals.
 
 The same render writes `dataset.csv`, `dataset.schema.json` (a Frictionless Table Schema) and a
 static JSON API under `api/`, all derived from these same documents in the same run, so there is
