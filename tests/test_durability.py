@@ -139,6 +139,41 @@ def _catalog(warehouse: Path) -> list[tuple[str, str]]:
     return [(str(row[0]), str(row[1])) for row in rows]
 
 
+#: The three states a `warehouse.duckdb` can be in after a kill, named rather than inferred from
+#: whether an exception came back. `_catalog` already collapses the last two into one sentinel
+#: row, which is enough to assert an invariant and not enough to say which state was visited --
+#: and "which state was visited" is the whole of #80.
+DATABASE_ABSENT = "absent"
+DATABASE_VALID = "valid"
+DATABASE_INVALID = "invalid"
+
+
+def _database_state(warehouse: Path) -> str:
+    """Which of the three states this warehouse's database file is in. Writes nothing."""
+
+    database = warehouse / "warehouse.duckdb"
+    if not database.is_file():
+        return DATABASE_ABSENT
+    try:
+        with duckdb.connect(str(database), read_only=True) as connection:
+            connection.execute("SELECT 1").fetchall()
+    except duckdb.Error:
+        return DATABASE_INVALID
+    return DATABASE_VALID
+
+
+def _re_run(source: Path, warehouse: Path) -> str | None:
+    """Re-run an ingest into `warehouse`, returning its run id or ``None`` if it could not run."""
+
+    try:
+        result = ingest_hospital_file(
+            source, warehouse, publisher=PublisherRef("example-health"), as_of=date(2026, 4, 1)
+        )
+    except duckdb.Error:
+        return None
+    return result.run_id
+
+
 def _catalog_runs(warehouse: Path) -> list[str]:
     """Run identifiers the catalog reports as complete."""
 
@@ -278,6 +313,107 @@ class TestCrashMatrix:
             )
             assert result.database_path.is_file()
             assert _catalog_runs(warehouse) == [result.run_id]
+
+    def test_the_database_opened_kill_reports_which_sub_case_it_visited(
+        self, tmp_path: Path
+    ) -> None:
+        """The `"database opened"` marker fires the moment `warehouse.duckdb` appears, and the
+        state behind it depends on where SIGKILL landed relative to DuckDB's header write. The
+        sweep could previously only say "unopenable or not"; this records the named state for
+        every stage, so a run's evidence says which of the two sub-cases it actually sampled.
+
+        It asserts what is true of *both* sub-cases -- an invalid database is only ever possible
+        at the one stage that races the header write, and never has a manifest beside it -- and
+        takes no position on which of them a re-run should survive. That is the open decision at
+        #80, and it is measured deterministically by the two tests below rather than sampled here.
+        """
+
+        outcomes = self._sweep(tmp_path)
+        killed = [entry for entry in outcomes if entry[1]]
+        assert len(killed) >= self.MINIMUM_GENUINE_KILLS, (
+            f"only {len(killed)} of {len(outcomes)} samples were genuinely killed"
+        )
+        for stage, _, warehouse in outcomes:
+            state = _database_state(warehouse)
+            assert state in {DATABASE_ABSENT, DATABASE_VALID, DATABASE_INVALID}
+            if state != DATABASE_INVALID:
+                continue
+            assert stage == "database opened", (
+                f"an invalid warehouse database after a kill at {stage!r}, which is past the "
+                "window where the file exists without a valid header"
+            )
+            assert not _manifests(warehouse), "an invalid database with a manifest beside it"
+
+    def test_a_valid_database_left_by_a_kill_re_runs_and_an_invalid_one_does_not(
+        self, tmp_path: Path
+    ) -> None:
+        """The third option of #80: the two sub-cases of the `"database opened"` kill, each
+        constructed rather than raced for, so the difference between them is measured every run.
+
+        **This test records an open defect and does not endorse it.** `docs/ROADMAP.md` says a
+        re-run recovers a warehouse killed at this point. Measured here, that is true of one
+        sub-case and false of the other, and the second assertion below is the false one. When
+        #80 is settled -- automatic recovery, or a named actionable error -- that assertion is
+        the thing that has to change, which is the point of writing it down: today the suite
+        visits one of these two states by luck and cannot say which.
+
+        The states are built by hand because racing for them is exactly what does not work. A
+        kill lands in the invalid window rarely, and it is the rare direction that hides the
+        defect.
+        """
+
+        source = _source(tmp_path)
+
+        valid = tmp_path / "warehouse-valid"
+        valid.mkdir()
+        with duckdb.connect(str(valid / "warehouse.duckdb")) as connection:
+            connection.execute("SELECT 1").fetchall()
+        assert _database_state(valid) == DATABASE_VALID
+
+        invalid = tmp_path / "warehouse-invalid"
+        invalid.mkdir()
+        (invalid / "warehouse.duckdb").write_bytes(b"")
+        assert _database_state(invalid) == DATABASE_INVALID
+
+        recovered = _re_run(source, valid)
+        assert recovered is not None, "a re-run over a valid empty database did not complete"
+        assert _catalog_runs(valid) == [recovered]
+
+        assert _re_run(source, invalid) is None, (
+            "a re-run recovered an invalid warehouse database. If that is now true, #80 has "
+            "been fixed and this assertion, docs/ROADMAP.md's durability sentence, and the "
+            "deferral comment in the sweep above all have to be rewritten together."
+        )
+        assert not _manifests(invalid), (
+            "a re-run that could not open the database still left a manifest behind"
+        )
+        assert _database_state(invalid) == DATABASE_INVALID
+
+    def test_an_empty_database_file_is_as_invalid_as_a_partial_one(self, tmp_path: Path) -> None:
+        """Measured, and it corrects the analysis in #80.
+
+        The issue reasons that the `"database opened"` kill has a benign sub-case -- "zero bytes
+        on disk, `duckdb.connect()` initialises it happily" -- and a rare non-benign one where
+        some bytes are written but not a valid header. On DuckDB 1.5.5 both are the same state:
+        a `warehouse.duckdb` that exists and is not a valid database is refused whether it holds
+        zero bytes or four. So the recoverable sub-case is not "the file is empty", it is "the
+        header write finished before the kill", and the unrecoverable window is the whole of the
+        time the file exists without a complete header rather than a sliver of it.
+
+        Pinned here because whichever way #80 is decided, the decision rests on how wide that
+        window is.
+        """
+
+        for name, payload in (("empty", b""), ("partial", b"DUCK"), ("zeros", b"\x00" * 4096)):
+            warehouse = tmp_path / f"warehouse-{name}"
+            warehouse.mkdir()
+            (warehouse / "warehouse.duckdb").write_bytes(payload)
+            assert _database_state(warehouse) == DATABASE_INVALID, (
+                f"a {name} warehouse.duckdb no longer reads as an invalid database; the two "
+                "sub-cases of the 'database opened' kill have moved apart and #80's analysis "
+                "needs re-measuring"
+            )
+            assert _catalog(warehouse) == [("<unopenable>", "<unopenable>")]
 
     def test_the_matrix_covers_more_than_one_stage(self) -> None:
         """A one-point matrix would be a single test wearing a table's clothes."""
