@@ -87,7 +87,7 @@ the CSV cohort's declared target list is 25. A floor of 30 would have suppressed
 choosing a floor that happens to clear the data already in hand is the kind of decision that has to
 be written down rather than discovered later in a diff.
 
-### Five refusals, each a published outcome
+### Six refusals, each a published outcome
 
 | Code | Fires when |
 |---|---|
@@ -96,6 +96,7 @@ be written down rather than discovered later in a diff.
 | `pooled_strata` | more than one stratum was offered for one proportion, whatever their kinds |
 | `empty_denominator` | the denominator is zero |
 | `below_suppression_threshold` | the denominator is under the floor above |
+| `incomplete_accounting` | the cohort accounts for only part of its stratum, so the denominator would be one the frame does not recognise |
 
 A refusal carries its code, its stated reason, the stratum it concerned and the denominator it
 saw. It is a thing to render, not a `None` to skip.

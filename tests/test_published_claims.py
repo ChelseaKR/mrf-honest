@@ -790,3 +790,66 @@ def test_the_changelog_states_the_evaluations_that_are_actually_recorded() -> No
             f"the CHANGELOG says {percent}% of the claims in {path.name} were shown; the file "
             f"records {recorded}%."
         )
+
+
+# --- the refusal vocabulary, and the two documents that enumerate it ------------------------
+#
+# ADR 0007 and docs/how-we-compare.md both state how many refusals exist and the ADR lists
+# them one per table row. Phase 7 added a sixth code, `incomplete_accounting` -- the one
+# `_population_statistics` calls the most common in practice, and the refusal actually
+# rendered on the published CSV cohort page -- and left both documents saying "five". Nothing
+# compared the prose to the enum, so the documents that a reader consults to learn what a
+# refusal can be were describing a vocabulary this code no longer has.
+
+_NUMBER_WORDS = {
+    1: "One",
+    2: "Two",
+    3: "Three",
+    4: "Four",
+    5: "Five",
+    6: "Six",
+    7: "Seven",
+    8: "Eight",
+    9: "Nine",
+    10: "Ten",
+}
+
+ADR_0007 = ROOT / "docs" / "adr" / "0007-suppression-uncertainty-and-refusal.md"
+HOW_WE_COMPARE = ROOT / "docs" / "how-we-compare.md"
+
+
+def test_adr_0007_lists_exactly_the_refusal_codes_this_build_can_emit() -> None:
+    """The ADR's table is the published catalogue of refusals; the enum is the real one."""
+    from mrf_honest.statistics import RefusalCode
+
+    text = ADR_0007.read_text(encoding="utf-8")
+    documented = set(re.findall(r"^\| `([a-z_]+)` \|", text, flags=re.M))
+    implemented = {code.value for code in RefusalCode}
+
+    assert documented == implemented, (
+        f"ADR 0007 documents {sorted(documented)}; the code emits {sorted(implemented)}. "
+        f"Undocumented: {sorted(implemented - documented)}; "
+        f"documented but unreachable: {sorted(documented - implemented)}."
+    )
+
+
+def test_both_documents_state_the_number_of_refusals_the_code_has() -> None:
+    """The count is written as a word in two places, and neither was derived from anything."""
+    from mrf_honest.statistics import RefusalCode
+
+    expected = _NUMBER_WORDS[len(RefusalCode)]
+
+    adr = ADR_0007.read_text(encoding="utf-8")
+    heading = re.search(r"^### (\w+) refusals, each a published outcome$", adr, flags=re.M)
+    assert heading, "ADR 0007 no longer carries the refusals heading this gate reads"
+    assert heading.group(1) == expected, (
+        f"ADR 0007 says '{heading.group(1)} refusals'; the code has {len(RefusalCode)}."
+    )
+
+    how = HOW_WE_COMPARE.read_text(encoding="utf-8")
+    phrase = re.search(r"and the (\w+) refusals\.", how)
+    assert phrase, "docs/how-we-compare.md no longer states the number of refusals"
+    assert phrase.group(1).lower() == expected.lower(), (
+        f"docs/how-we-compare.md says 'the {phrase.group(1)} refusals'; the code has "
+        f"{len(RefusalCode)}."
+    )

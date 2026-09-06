@@ -548,6 +548,65 @@ def test_missing_shares_names_each_share_the_page_dropped(tmp_path: Path) -> Non
     assert "20 of 22 is in the document but not on the page" in problems
 
 
+def test_missing_shares_catches_a_page_that_kept_the_count_and_dropped_the_interval(
+    tmp_path: Path,
+) -> None:
+    """The defect this check existed to catch and could not see.
+
+    `missing_shares` looked only for "{numerator} of {denominator}". Deleting the Share and
+    Interval cells from `_estimate_row` therefore left it silent, in the one module whose
+    stated thesis is that a point estimate must never be published without the interval that
+    qualifies it: the page would carry "11 of 48" and no proportion at all, and the deploy
+    gate would call that published.
+    """
+
+    comparison = build_comparison(
+        _two_records(tmp_path / "bodies"),
+        _framed_manifest(sample_size=22, exclusions=20),
+        generated_at=GENERATED_AT,
+    )
+    out = tmp_path / "site"
+    render_site(comparison, out, origin=DEFAULT_ORIGIN)
+    html = (out / "index.html").read_text(encoding="utf-8")
+
+    # Drop the third and fourth cells of every shares row -- the Share and the Interval --
+    # and keep the count, which is exactly the shape the old check could not distinguish.
+    without_qualifiers = re.sub(
+        r'(<th scope="row">[^<]*</th><td>[^<]*</td>)<td>[^<]*</td><td>[^<]*</td>',
+        r"\1",
+        html,
+    )
+    assert without_qualifiers != html, "the rewrite did not remove anything"
+    assert "2 of 22" in without_qualifiers, "the count must survive, or this proves nothing"
+
+    problems = missing_shares(comparison, without_qualifiers)
+    assert problems, "the gate stayed silent on a page carrying counts and no proportions"
+    assert any("did not reach the page" in problem for problem in problems)
+
+
+def test_missing_shares_reports_an_estimate_that_carries_no_interval() -> None:
+    """A bound that is absent is named as absent, never rendered as a number.
+
+    `_share` turns anything it cannot read into "?", so an estimate missing a bound would
+    otherwise render "?" onto the page and satisfy a presence check -- an absence published
+    in the shape of a measurement.
+    """
+
+    comparison = {
+        "statistics": {
+            "estimates": [
+                {"numerator": 3, "denominator": 9, "point": 0.3333333333333333},
+            ],
+            "refusal": None,
+        }
+    }
+    html = f"<h3>{SHARES_HEADING}</h3><td>3 of 9</td><td>33.3%</td>"
+    problems = missing_shares(comparison, html)
+    assert problems == [
+        "3 of 9 carries no interval, and ADR 0007 forbids publishing a point estimate without one"
+    ]
+
+
 def test_missing_shares_catches_a_dropped_refusal(tmp_path: Path) -> None:
     comparison = build_comparison(
         _two_records(tmp_path / "bodies"),

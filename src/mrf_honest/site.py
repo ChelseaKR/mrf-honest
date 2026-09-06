@@ -555,6 +555,43 @@ def missing_shares(comparison: Mapping[str, object], html: str) -> list[str]:
         needle = f"{entry.get('numerator')} of {entry.get('denominator')}"
         if needle not in html:
             problems.append(f"{needle} is in the document but not on the page")
+        problems.extend(_missing_qualifiers(entry, html, needle))
+    return problems
+
+
+def _missing_qualifiers(entry: Mapping[str, object], html: str, needle: str) -> list[str]:
+    """Require the share and its interval on the page, not just the denominator.
+
+    ADR 0007's whole thesis is that a point estimate must never be published without the
+    interval that qualifies it, and until this existed the deploy gate could not see the
+    difference: it looked only for ``"{numerator} of {denominator}"``, so deleting the Share
+    and Interval cells from ``_estimate_row`` left the check silent and shipped a bare count
+    where a qualified proportion was promised.
+
+    A missing or non-numeric bound is reported as its own problem rather than rendered. That
+    is the point: ``_share`` turns anything it cannot read into ``"?"``, and a ``"?"`` that
+    reached the page would otherwise satisfy a naive presence check while telling a reader
+    nothing -- an absence published in the shape of a measurement.
+    """
+
+    problems: list[str] = []
+    point = entry.get("point")
+    low, high = entry.get("interval_low"), entry.get("interval_high")
+
+    if not isinstance(point, int | float):
+        problems.append(f"{needle} carries no point estimate to publish")
+    elif _share(point) not in html:
+        problems.append(f"the share {_share(point)} for {needle} did not reach the page")
+
+    if not (isinstance(low, int | float) and isinstance(high, int | float)):
+        problems.append(
+            f"{needle} carries no interval, and ADR 0007 forbids publishing a point "
+            "estimate without one"
+        )
+    elif f"{_share(low)} to {_share(high)}" not in html:
+        problems.append(
+            f"the interval {_share(low)} to {_share(high)} for {needle} did not reach the page"
+        )
     return problems
 
 

@@ -9,6 +9,37 @@ no version tags yet; until the first dated release (phase 5 of
 
 ### Fixed
 
+- **Three published claims whose gates did not check them.** All three are the same shape:
+  a document or a deploy check that carries the authority of a measurement while enforcing
+  nothing.
+
+  *The shares gate could not see a missing interval.* `missing_shares` is the check on the
+  deploy path — `make verify` is a separate workflow, so a red run there does not stop a
+  deployment — and it looked only for `"{numerator} of {denominator}"`. Deleting the Share and
+  Interval cells from `_estimate_row` left it silent, in the module whose whole thesis is that
+  a point estimate must never be published without the interval that qualifies it: the page
+  would have carried `11 of 48` and no proportion at all, and the gate would have called that
+  published. It now requires the share and both bounds to have reached the page, and reports a
+  missing or non-numeric bound as its own problem rather than letting `_share` render it as
+  `?` — a `?` on the page would otherwise satisfy a presence check while telling a reader
+  nothing.
+
+  *A vacuous glob, including over the anti-pooling rule.* `tests/test_dataset.py` globbed
+  `data/cohorts/*.comparison.json` into a module-level parameter list with no non-emptiness
+  guard, unlike `tests/test_published_claims.py`, which has had one since it was written.
+  Measured with the comparison documents removed: six tests fail and five pass on an empty
+  list, among them `test_every_row_carries_the_scope_that_makes_it_uncomparable`, which
+  enforces the rule that rows assessed under different profiles are never pooled. A green run
+  reported that the rule held over nothing at all.
+
+  *Two documents described a refusal vocabulary this code no longer has.* Phase 7 added a
+  sixth refusal code, `incomplete_accounting` — the one `_population_statistics` calls the
+  most common in practice, and the refusal actually rendered on the published CSV cohort page
+  — and left ADR 0007's "Five refusals" heading, its five-row table, and
+  `docs/how-we-compare.md`'s "the five refusals" untouched. Both documents are corrected, and
+  two new tests now derive the catalogue and the count from `RefusalCode` itself, so the prose
+  cannot drift from the enum again without failing.
+
 - **An assessment policy this build cannot identify was reported as a broken comparison
   scope.** `_verify_comparison_scope` resolves the profile a persisted record was written
   under from `_PROFILES_BY_FINGERPRINT`, and when that lookup missed it substituted
