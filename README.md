@@ -86,7 +86,10 @@ disk can later be mistaken for evidence.
 
 Two ways to get a real one, both of them a single command. Every file this project has graded is
 named, with its exact URL and the SHA-256 of the bytes that were read, in the committed cohorts
-under `data/cohorts/` — so any published grade can be re-derived from its source. Or start from a
+under `data/cohorts/` — so any published grade can be re-derived from its source, with
+`mrf-honest verify` and the receipt each row publishes. Seven of the 48 rows say plainly that
+they *cannot* be: they have no verified body, so there are no bytes for anyone to re-derive from,
+and their receipts record that instead of offering a procedure nobody can carry out. Or start from a
 hospital: CMS requires each one to serve `https://<domain>/cms-hpt.txt` pointing at its MRF, which
 is what `discover` reads.
 
@@ -112,6 +115,13 @@ uv run mrf-honest inspect standardcharges.csv --profile csv --as-of 2026-08-09 -
 # statement about the read and is never an F. Ships as a GitHub Action and a pre-commit hook too;
 # see docs/before-you-post-it.md.
 uv run mrf-honest gate prices.json --profile auto --fail-on error --min-grade B
+
+# Re-derive a published grade yourself. Every published row has a receipt at
+# api/receipt/<slug>.json naming the bytes, the policy and the result; `verify` re-hashes the
+# file and re-runs that policy offline. 0 reproduced, 1 something differs, 2 the check could not
+# be performed at all -- a hash mismatch or a receipt that was never re-derivable, neither of
+# which is evidence about the file.
+uv run mrf-honest verify receipt.json standardcharges.json
 
 # Classify what a URL serves with one bounded ranged request (~4 KB), before deciding which
 # profile to grade it under. Never a grading input; robots.txt is consulted first, no override.
@@ -307,6 +317,7 @@ Still open:
 | [docs/MODEL-DAG.md](docs/MODEL-DAG.md) | Model grains, lineage, contracts, and methodology-safe query |
 | [docs/how-we-grade.md](docs/how-we-grade.md) | Assessment semantics and the source-cited finding catalog |
 | [docs/before-you-post-it.md](docs/before-you-post-it.md) | For hospital compliance staff and their vendors: the Action and the pre-commit hook, and how to read the three exit codes |
+| [docs/verify-a-grade.md](docs/verify-a-grade.md) | How to re-derive a published grade from its receipt, and which rows cannot be re-derived at all |
 | [docs/how-we-compare.md](docs/how-we-compare.md) | The comparison boundary and the published file-grade policy |
 | [docs/findings/](docs/findings/) | Written-up findings from published cohorts, with evidence |
 | [docs/CORRECTIONS.md](docs/CORRECTIONS.md) | How to dispute or remove a published row, and the record of what this project has already got wrong |
@@ -322,7 +333,7 @@ ADR in [docs/adr/](docs/adr/). No blank rows, no silent skips.
 
 | Standard | State |
 |---|---|
-| Code Quality | Applies: `make verify` runs six gates — `ruff check` (security `S` rules, `max-complexity=10`), `ruff format --check`, `mypy --strict`, pytest with a branch-coverage floor of 85, `uv lock --check`, and `pip-audit --strict` over the exported lockfile. Current: 736 tests passing and 4 skipped, 92.92% branch coverage, zero lint/format/type findings, lockfile in sync, zero known vulnerabilities (2026-09-06). Floors: Python >= 3.12 (`.python-version` pins 3.14), ruff >= 0.15, mypy >= 1.18, locked in `uv.lock`. Dev tooling is a PEP 735 `[dependency-groups]` group, so `uv sync` installs it and a published wheel never carries it. |
+| Code Quality | Applies: `make verify` runs six gates — `ruff check` (security `S` rules, `max-complexity=10`), `ruff format --check`, `mypy --strict`, pytest with a branch-coverage floor of 85, `uv lock --check`, and `pip-audit --strict` over the exported lockfile. Current: 772 tests passing and 4 skipped, 92.82% branch coverage, zero lint/format/type findings, lockfile in sync, zero known vulnerabilities (2026-09-06). Floors: Python >= 3.12 (`.python-version` pins 3.14), ruff >= 0.15, mypy >= 1.18, locked in `uv.lock`. Dev tooling is a PEP 735 `[dependency-groups]` group, so `uv sync` installs it and a published wheel never carries it. |
 | Security & Supply-Chain | Applies: the streaming, inspection, discovery, fetch, registry, comparison, and site path is standard-library-only; DuckDB is an optional lakehouse dependency ([ADRs 0002-0003](docs/adr/)) and the `anthropic` SDK an optional `ai` extra that only the narration layer imports ([ADR 0006](docs/adr/0006-ai-narration-outside-the-graded-path.md)). The lockfile, ruff `S` gate, HTTPS/redirect validation, bounded downloads, and SHA-pinned CI actions reduce the current surface. Hosted CodeQL (Python and Actions) and a checksum-pinned full-history gitleaks scan run on push, PR, and weekly schedule (`.github/workflows/security.yml`). `make verify` runs `pip-audit --strict` against the whole exported lockfile — every extra and the dev group — with no ignore list, so the audit runs on a laptop and in CI rather than only in CI. The lockfile-drift gate is `uv lock --check`, not `uv sync --frozen`: measured on a deliberately drifted project under uv 0.12.1, `uv lock --check` and `uv sync --locked` exit 1 and `uv sync --frozen` exits 0, because `--frozen` installs from the lockfile without reading `pyproject.toml` and so cannot see the two disagree. |
 | CI/CD | Applies: SHA-pinned workflows mirror `make verify` on Python 3.12 and 3.14, build distributions, and publish the site from committed data only. The publish job first re-derives the newest comparison from its committed assessments, manifest, and ingest evidence and requires a byte-for-byte match, then requires one rendered page per row in it; a generator that no longer reproduces its own published artifact cannot deploy. `make verify` runs the same derivation, but that is a separate workflow whose failure would not by itself stop a deploy, which is why the check is on both paths. |
 | Observability | Applies to the local batch shape plus a static published artifact: finalized run manifests and DuckDB `model_metric` rows retain counts, bytes, and wall time; the site is rebuilt from committed data with no availability objective declared. See [docs/ROADMAP.md](docs/ROADMAP.md). |
