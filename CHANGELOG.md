@@ -9,6 +9,19 @@ no version tags yet; until the first dated release (phase 5 of
 
 ### Fixed
 
+- **The roadmap denied a distribution this repository already publishes.** `docs/ROADMAP.md`
+  stated "No real multi-publisher grade distribution or hosted scorecard surface is claimed
+  yet". Both halves had been false since the cohorts landed: the three committed comparison
+  documents grade **48 files across 39 distinct real publishers** (A 28, B 3, C 7, D 3, F 3,
+  and 4 recorded not graded with the reason stated), the two dated cohorts carry a stated
+  sampling frame and Wilson intervals, and the site is served at
+  <https://chelseakr.github.io/mrf-honest/>. This is the mirror image of the defect the rest of
+  this file guards -- not a number inflated past its evidence, but a published denial of
+  evidence already in hand -- and it is the same failure either way: prose that no longer
+  describes the data beside it. `test_the_roadmap_does_not_deny_the_distribution_it_publishes`
+  now derives the file count, the publisher count and every grade tally from the committed
+  documents, so the paragraph cannot drift from them again in either direction. Closes #62.
+
 - **Three published claims whose gates did not check them.** All three are the same shape:
   a document or a deploy check that carries the authority of a measurement while enforcing
   nothing.
