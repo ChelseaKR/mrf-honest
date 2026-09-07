@@ -9,6 +9,39 @@ no version tags yet; until the first dated release (phase 5 of
 
 ### Added
 
+- **Two archive bounds no test could see, and a refusal about bytes nobody read.** Both found by
+  re-checking the live follow-ups in `docs/PR-TRIAGE.md` against `origin/master` by execution.
+
+  `MAX_MEMBERS = 64` was pinned by nothing: the only test of the cap builds
+  `range(MAX_MEMBERS + 1)`, a fixture always exactly one past whatever the bound happens to be,
+  so `MAX_MEMBERS = 4` and `MAX_MEMBERS = 10000` each left all 21 tests of that module passing.
+  `MAX_MEMBER_EXPANSION_RATIO = 200.0` was pinned in one direction only — raising it to a million
+  fails, and *lowering* it to `4.0` was silent, which is the direction that refuses ordinary CMS
+  CSV as an archive bomb and reads as the publisher's fault. Both are now pinned against
+  literals, on both sides, with the behavioural halves planted separately from the constants so a
+  changed comparison is caught as well as a changed number.
+
+  **And the refusal reason was a claim about contents made without opening them.** `_choose`
+  skips any member whose name does not end in `.json` or `.csv` *before* sniffing, so a
+  CMS-shaped CSV stored extensionless — a shape this project publishes four of in its own
+  committed draw — came back as "no member is a document this project has a profile for" with its
+  bytes unread. The prefilter stays, because the sniffer classifies a CSV and a README alike as
+  `text` and dropping the name would make a document-beside-a-readme archive ambiguous; what
+  changed is that the stated reason now separates the members that were examined from the members
+  that were not, and names the second set. **Nothing about which members are accepted changes.**
+  The `_GRADEABLE_SUFFIXES` comment, which claimed "the leading bytes decide", is corrected to
+  say what the code does.
+
+  **A third instance of the same shape, in the published confidence intervals.** `Z_95` was
+  pinned by nothing: `Z_95 = 1.0` and `Z_95 = 2.5` each left all 31 tests of
+  `tests/test_statistics.py` passing. Every existing test of the interval is a *property* — it
+  brackets the estimate, it stays on the scale, it rejects an empty denominator — and every one
+  of those holds for any `z`. A width is not a property, so nothing saw it, while every published
+  `statistics` block labels the result 95%. At `z = 1.0` the interval for 5 of 10 is
+  (0.3492, 0.6508): a 68% interval published under a 95% label. The width is now pinned against
+  the standard tabulated Wilson values, checked independently against the published closed form
+  rather than against this module's own arithmetic.
+
 - **The two sub-cases of the `"database opened"` kill are now measured every run instead of
   sampled by luck** (the third option in #80, which needs none of that issue's durability
   judgement). The crash matrix could previously say only "the warehouse database opened or it

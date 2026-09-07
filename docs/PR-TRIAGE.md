@@ -49,6 +49,27 @@ cohort id against the published index before it is ever a path, with fifteen hos
 spellings exercised across every tool that takes one. The `release.yml` shallow-clone
 defect is closed by `fetch-depth: 0` on the `build` job.
 
+## Status, 2026-09-06: every live follow-up is now accounted for
+
+Each re-checked against `origin/master` by execution rather than by reading, because this
+document is eight days old and the queue has moved.
+
+| Follow-up | Now |
+|---|---|
+| the vacuous `PUBLISHED` glob in `tests/test_dataset.py` | **already fixed.** A guard test asserts the glob is non-empty, with the same reasoning this document gives. |
+| the 1 GiB total ceiling in `container.py` | **pinned, as this document says.** Mutating it to 64 MiB fails `test_an_oversized_archive_is_refused_from_the_central_directory`. |
+| the 200:1 expansion ratio | **half-pinned, which this document overstates as "VALUE PINNED".** Raising it to 1,000,000 fails; *lowering* it to `4.0` left all 21 tests passing, and lowering is the direction that refuses ordinary publications as archive bombs. Now pinned both ways. |
+| `MAX_MEMBERS = 64` | **not pinned, as this document says.** `4` and `10000` both left all 21 passing. Now pinned against the literal, on both sides of the boundary. |
+| the filename prefilter in `_choose` | **still a prefilter, deliberately, and the reason it publishes is now true.** The bytes cannot distinguish a CSV from a README — both sniff as `text` — so dropping the name would make a document-beside-a-readme archive ambiguous. What was wrong was the *sentence*: a member whose name carried no extension this reader looks at was refused with "no member is a document this project has a profile for", a claim about bytes nobody had read. |
+| the unpinned Wilson interval in `tests/test_statistics.py` | **not pinned, as this document says.** `Z_95 = 1.0` and `Z_95 = 2.5` both left all 31 tests passing; every existing test of the interval is a property that holds for any `z`, and a width is not a property. Now pinned against the standard tabulated values. |
+| the five-versus-six refusal drift in ADR 0007 | **already fixed.** Measured by planting a seventh `RefusalCode`: `test_adr_0007_lists_exactly_the_refusal_codes_this_build_can_emit` and `test_both_documents_state_the_number_of_refusals_the_code_has` both fail, so the count is gated in two places. |
+| `missing_shares` not requiring the interval | **already fixed.** `_missing_qualifiers` requires the share *and* both bounds on the page, and reports a non-numeric bound as its own problem rather than letting `_share`'s `"?"` satisfy a presence check. Its docstring records the same defect this document does. |
+
+**Nothing on the list above is outstanding.** Two items were real and are fixed here; one was
+overstated and is now fixed in the direction it was missing; three were already closed by work
+that landed after this document was written. A reader arriving at this file should start from
+this table rather than from the per-PR review below, which describes a tree that has moved.
+
 **What remains live is the per-PR technical review.** Those defects are not closed by
 the merges: the code they describe is on `master` now, so every finding below about
 unpinned constants in `container.py`, the vacuous `PUBLISHED` glob in

@@ -154,6 +154,135 @@ class TestRefusals:
         assert isinstance(outcome, ArchiveRefused)
         assert outcome.reason is ArchiveRefusal.TOO_MANY_MEMBERS
 
+    def test_a_member_nobody_opened_is_not_reported_as_one_without_a_profile(
+        self, tmp_path: Path
+    ) -> None:
+        """The refusal said "no member is a document this project has a profile for".
+
+        It said that of members it had never opened. ``_choose`` skips any member whose name does
+        not end in ``.json`` or ``.csv`` *before* sniffing, so a CMS-shaped CSV stored under a
+        name with no extension was refused with a sentence about its contents while its bytes
+        went unread -- and this project's own committed draw contains four extensionless CSV
+        endpoints, so it is an observed shape. This asserts the stated reason distinguishes what
+        was examined from what was not.
+
+        Acceptance is unchanged: the name still decides what gets opened, because the sniffer
+        classifies a CSV and a README alike as ``text`` and dropping the name would make a
+        document-beside-a-readme archive ambiguous.
+        """
+
+        archive = _zip(tmp_path / "a.zip", {"standardcharges": CMS_CSV})
+        outcome = select_member(archive)
+        assert isinstance(outcome, ArchiveRefused)
+        assert outcome.reason is ArchiveRefusal.NO_GRADEABLE_MEMBER
+        assert "not examined" in outcome.detail
+        assert "standardcharges" in outcome.detail
+        # The old sentence was a claim about contents. It must not be what comes back.
+        assert "no member is a document this project has a profile for" not in outcome.detail
+
+    def test_a_member_that_was_opened_is_reported_as_examined(self, tmp_path: Path) -> None:
+        """The other half, so the two cases cannot collapse into one wording.
+
+        The fixture's precondition is asserted rather than assumed: the body has to be one the
+        sniffer classifies as neither ``json`` nor ``text``, or the member would be *selected*
+        and this test would pass while asserting nothing about a refusal. An earlier draft of it
+        used an eight-byte PNG header, which this sniffer calls ``text``, and the assertions sat
+        behind a branch that never ran.
+        """
+
+        from mrf_honest.fetch import _sniff_sample
+
+        body = b"\x89PNG\r\n\x1a\n\x00"
+        assert _sniff_sample(body)[0] not in {"json", "text"}, "the fixture would be selected"
+
+        archive = _zip(tmp_path / "a.zip", {"standardcharges.json": body})
+        outcome = select_member(archive)
+        assert isinstance(outcome, ArchiveRefused)
+        assert outcome.reason is ArchiveRefusal.NO_GRADEABLE_MEMBER
+        assert "whose name ends in .json or .csv" in outcome.detail
+        assert "not examined" not in outcome.detail
+
+    def test_both_halves_are_named_when_an_archive_holds_each(self, tmp_path: Path) -> None:
+        """One member opened and rejected, one never opened. The reason has to say both."""
+
+        from mrf_honest.fetch import _sniff_sample
+
+        body = b"\x89PNG\r\n\x1a\n\x00"
+        assert _sniff_sample(body)[0] not in {"json", "text"}
+
+        archive = _zip(tmp_path / "a.zip", {"notes.csv": body, "standardcharges": CMS_CSV})
+        outcome = select_member(archive)
+        assert isinstance(outcome, ArchiveRefused)
+        assert "not opened at all" in outcome.detail
+        assert "'standardcharges'" in outcome.detail
+
+    def test_the_member_cap_is_the_documented_number_and_not_whatever_it_says(
+        self, tmp_path: Path
+    ) -> None:
+        """64, against a literal, on both sides of the boundary.
+
+        Measured on this module before this test existed: ``MAX_MEMBERS = 4`` and
+        ``MAX_MEMBERS = 10000`` each left all 21 tests passing. The only test of the cap builds
+        ``range(MAX_MEMBERS + 1)`` -- a fixture that is always exactly one past whatever the
+        bound happens to be, so it pins the *relationship* and nothing about the number. A reader
+        of ``container.py`` is told 64 is a stated cap, and until now nothing checked that it was.
+
+        The two behavioural halves matter in opposite directions. A silently *lowered* cap starts
+        refusing real publications; a silently *raised* one is an unbounded enumeration the
+        comment says this reader will not do.
+        """
+
+        assert MAX_MEMBERS == 64
+
+        at_cap = {f"file-{index}.txt": b"x" for index in range(63)}
+        at_cap["standardcharges.json"] = CMS_JSON
+        assert len(at_cap) == 64
+        outcome = select_member(_zip(tmp_path / "at-cap.zip", at_cap))
+        assert isinstance(outcome, ArchiveMember), (
+            "an archive of exactly 64 members was refused; the documented cap is 64"
+        )
+        assert outcome.name == "standardcharges.json"
+
+        over_cap = {f"file-{index}.txt": b"x" for index in range(64)}
+        over_cap["standardcharges.json"] = CMS_JSON
+        assert len(over_cap) == 65
+        refused = select_member(_zip(tmp_path / "over-cap.zip", over_cap))
+        assert isinstance(refused, ArchiveRefused)
+        assert refused.reason is ArchiveRefusal.TOO_MANY_MEMBERS
+
+    def test_the_ratio_bound_is_not_quietly_tightened_onto_a_real_publication(
+        self, tmp_path: Path
+    ) -> None:
+        """The other direction of the same bound, which its existing test cannot see.
+
+        ``test_the_ratio_bound_is_the_one_that_is_documented`` builds a 2 MiB run of zeros --
+        about 1,000 to 1 -- and asserts it exceeds the constant, so raising the bound to a
+        million is caught. Measured: *lowering* it to ``4.0`` left all 21 tests passing. That is
+        the dangerous direction: real CMS CSV compresses far better than 4 to 1, so a quietly
+        tightened bound refuses ordinary publications as archive bombs, and the refusal reads as
+        the publisher's fault.
+
+        The fixture is an ordinary repetitive CSV, which lands near 74 to 1 -- inside the stated
+        bound with room either side, and well clear of any plausible tightening.
+        """
+
+        assert MAX_MEMBER_EXPANSION_RATIO == 200.0
+
+        row = b"Example Hospital,2026-08-01,3.0.0,inpatient,DRG,470,12345.67\n"
+        body = b"hospital_name,last_updated_on,version,setting,code_type,code,amount\n" + row * 200
+        path = _zip(tmp_path / "ordinary.zip", {"standardcharges.csv": body})
+        with zipfile.ZipFile(path) as archive:
+            info = archive.infolist()[0]
+        observed = info.file_size / info.compress_size
+        assert 4.0 < observed < 200.0, (
+            f"the fixture's ratio is {observed:.1f}; it has to sit inside the stated bound with "
+            "room either side for this test to mean anything"
+        )
+        outcome = select_member(path)
+        assert isinstance(outcome, ArchiveMember), (
+            "an ordinary repetitive CSV was refused as an archive bomb"
+        )
+
     def test_an_oversized_archive_is_refused_from_the_central_directory(
         self, tmp_path: Path
     ) -> None:
