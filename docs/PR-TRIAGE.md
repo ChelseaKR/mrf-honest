@@ -62,9 +62,10 @@ document is eight days old and the queue has moved.
 | `MAX_MEMBERS = 64` | **not pinned, as this document says.** `4` and `10000` both left all 21 passing. Now pinned against the literal, on both sides of the boundary. |
 | the filename prefilter in `_choose` | **still a prefilter, deliberately, and the reason it publishes is now true.** The bytes cannot distinguish a CSV from a README — both sniff as `text` — so dropping the name would make a document-beside-a-readme archive ambiguous. What was wrong was the *sentence*: a member whose name carried no extension this reader looks at was refused with "no member is a document this project has a profile for", a claim about bytes nobody had read. |
 
-Still live from the list below: the unpinned Wilson interval in `tests/test_statistics.py`, the
-five-versus-six refusal drift in ADR 0007, and `missing_shares` not requiring the interval —
-none of those re-checked here.
+| the unpinned Wilson interval in `tests/test_statistics.py` | **not pinned, as this document says.** `Z_95 = 1.0` and `Z_95 = 2.5` both left all 31 tests passing; every existing test of the interval is a property that holds for any `z`, and a width is not a property. Now pinned against the standard tabulated values. |
+
+Still live from the list below and **not** re-checked here: the five-versus-six refusal drift in
+ADR 0007, and `missing_shares` not requiring the interval.
 
 **What remains live is the per-PR technical review.** Those defects are not closed by
 the merges: the code they describe is on `master` now, so every finding below about
