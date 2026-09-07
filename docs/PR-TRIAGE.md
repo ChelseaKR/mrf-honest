@@ -49,6 +49,23 @@ cohort id against the published index before it is ever a path, with fifteen hos
 spellings exercised across every tool that takes one. The `release.yml` shallow-clone
 defect is closed by `fetch-depth: 0` on the `build` job.
 
+## Status, 2026-09-06: three of the five live follow-ups are closed
+
+Each re-checked against `origin/master` by execution rather than by reading, because this
+document is eight days old and the queue has moved.
+
+| Follow-up | Now |
+|---|---|
+| the vacuous `PUBLISHED` glob in `tests/test_dataset.py` | **already fixed.** A guard test asserts the glob is non-empty, with the same reasoning this document gives. |
+| the 1 GiB total ceiling in `container.py` | **pinned, as this document says.** Mutating it to 64 MiB fails `test_an_oversized_archive_is_refused_from_the_central_directory`. |
+| the 200:1 expansion ratio | **half-pinned, which this document overstates as "VALUE PINNED".** Raising it to 1,000,000 fails; *lowering* it to `4.0` left all 21 tests passing, and lowering is the direction that refuses ordinary publications as archive bombs. Now pinned both ways. |
+| `MAX_MEMBERS = 64` | **not pinned, as this document says.** `4` and `10000` both left all 21 passing. Now pinned against the literal, on both sides of the boundary. |
+| the filename prefilter in `_choose` | **still a prefilter, deliberately, and the reason it publishes is now true.** The bytes cannot distinguish a CSV from a README — both sniff as `text` — so dropping the name would make a document-beside-a-readme archive ambiguous. What was wrong was the *sentence*: a member whose name carried no extension this reader looks at was refused with "no member is a document this project has a profile for", a claim about bytes nobody had read. |
+
+Still live from the list below: the unpinned Wilson interval in `tests/test_statistics.py`, the
+five-versus-six refusal drift in ADR 0007, and `missing_shares` not requiring the interval —
+none of those re-checked here.
+
 **What remains live is the per-PR technical review.** Those defects are not closed by
 the merges: the code they describe is on `master` now, so every finding below about
 unpinned constants in `container.py`, the vacuous `PUBLISHED` glob in
