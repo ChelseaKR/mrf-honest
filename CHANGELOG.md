@@ -7,6 +7,45 @@ no version tags yet; until the first dated release (phase 5 of
 
 ## [Unreleased]
 
+### Fixed
+
+- **The roadmap promised a recovery this code does not have (#80).**
+  `docs/ROADMAP.md` said of a warehouse killed at the instant DuckDB creates
+  `warehouse.duckdb` that "it is not permanent; a re-run recovers it". Measured on the same
+  code: it is permanent. `_connect` is a bare `duckdb.connect`, nothing detects an invalid
+  database file and nothing removes one, so a re-run over that warehouse raises and stops.
+
+  **The sentence survived a measurement in this repository's own suite.** Nothing related the
+  paragraph to the code, and the only thing that ever disagreed with it was a sampled test
+  failing at random: `test_a_killed_run_can_be_re_run_to_completion` asserted unconditional
+  recovery at every marker, passed most runs because the kill usually lands before any bytes
+  are written -- in which case the file is *absent* and the re-run is ordinary -- and failed
+  in CI on 2026-09-06, on a pull request whose entire diff was one line of
+  `.github/workflows/pages.yml`.
+
+  - The paragraph now states what is true, and records why the wrong version survived.
+  - The sampled test reads the state the kill actually produced and asserts the outcome that
+    state has. That is not a weakened assertion: every stage still has to reach a named
+    outcome, an invalid database is still only permitted at the one marker that races the
+    header write, and the refusal branch asserts that nothing was left claiming otherwise.
+    The invariant the old sentence wanted is held deterministically by
+    `test_a_valid_database_left_by_a_kill_re_runs_and_an_invalid_one_does_not`, which
+    constructs both sub-cases rather than racing for them. The branch's expiry is written into
+    its docstring.
+  - A new gate, `test_the_roadmap_does_not_promise_the_recovery_this_code_does_not_have`,
+    **measures the behaviour by running it** and then requires the document to carry exactly
+    one of two verdict sentences -- the one the measurement supports. Both directions, so the
+    day #80 is settled it is the other verdict the paragraph has to carry.
+  - The first version of that gate was the wrong shape and is worth recording: it forbade the
+    words the old claim used, and then fired on the *corrected* paragraph, because a paragraph
+    that records its own correction contains the sentence it is correcting. Gating on a
+    verdict sentence, and requiring exactly one of the two, is what survives a rewrite that
+    narrates the history.
+
+  **This does not settle #80.** Whether an invalid warehouse database should be removed
+  automatically or refused with a named, actionable error is a durability judgement, and the
+  issue stays open for it.
+
 ### Added
 
 - **Two archive bounds no test could see, and a refusal about bytes nobody read.** Both found by
@@ -404,7 +443,8 @@ no version tags yet; until the first dated release (phase 5 of
   of quiet non-interruptions cannot pass as evidence. Two writers are raced against one warehouse
   and one source, and one snapshot is the measured result. One observed state is recorded rather
   than asserted away: killing at the instant DuckDB creates `warehouse.duckdb` leaves a file it
-  will not open read-only, because the file exists before its header does; a re-run recovers it.
+  will not open, because the file exists before its header does. This entry said a re-run recovers
+  it; measured on 2026-09-08, it does not, and the correction is recorded below.
   The interesting part is what the matrix could **not** show: reordering the catalog commit ahead
   of artifact promotion left every marker green, because that window is too narrow for a kill to
   land in. Three deterministic fault injections close it, at promotion, at the Parquet write and
