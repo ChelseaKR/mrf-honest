@@ -139,6 +139,17 @@ def _catalog(warehouse: Path) -> list[tuple[str, str]]:
     return [(str(row[0]), str(row[1])) for row in rows]
 
 
+#: The two verdicts `docs/ROADMAP.md` may state about a warehouse killed while DuckDB was
+#: writing the database header, in the order (recovers, does not). Exactly one belongs in the
+#: document and it must be the one the code measures -- see
+#: `TestCrashMatrix.test_the_roadmap_does_not_promise_the_recovery_this_code_does_not_have`.
+#: Written as whole sentences rather than as key phrases so that a paragraph narrating its own
+#: history has to paraphrase the verdict it is not making.
+RECOVERY_VERDICTS = (
+    "**A re-run recovers that warehouse.**",
+    "**A re-run does not recover that warehouse.**",
+)
+
 #: The three states a `warehouse.duckdb` can be in after a kill, named rather than inferred from
 #: whether an exception came back. `_catalog` already collapses the last two into one sentinel
 #: row, which is enough to assert an invariant and not enough to say which state was visited --
@@ -240,11 +251,14 @@ class TestCrashMatrix:
             catalog = _catalog(warehouse)
             if catalog == [("<unopenable>", "<unopenable>")]:
                 # Measured, and kept rather than asserted away. Killing at the instant DuckDB
-                # first creates `warehouse.duckdb` leaves a file it will not open read-only: the
-                # file exists before its header does. That is not a false claim, which is what
-                # this suite guards against, and it is not permanent either. The invariant is
-                # that a re-run recovers it, and `test_a_killed_run_can_be_re_run_to_completion`
-                # covers every stage including this one.
+                # first creates `warehouse.duckdb` leaves a file it will not open: the file
+                # exists before its header does. That is not a false claim, which is what this
+                # suite guards against. It **is** permanent -- this comment said otherwise until
+                # 2026-09-08, and the sentence it deferred to was passing on luck. Nothing
+                # detects an invalid database file and nothing removes one, so a re-run over this
+                # warehouse raises rather than recovering; that is measured deterministically by
+                # `test_a_valid_database_left_by_a_kill_re_runs_and_an_invalid_one_does_not`, and
+                # what to do about it is open at #80.
                 assert stage == "database opened", (
                     f"an unopenable warehouse after a kill at {stage!r}, which is past the "
                     "window where the database file exists without a header"
@@ -296,12 +310,53 @@ class TestCrashMatrix:
             )
 
     def test_a_killed_run_can_be_re_run_to_completion(self, tmp_path: Path) -> None:
-        """Recovery is the point of a prepared state. A killed warehouse must not be a dead one."""
+        """Recovery is the point of a prepared state. A killed warehouse must not be a dead one
+        -- **except in the one state #80 is open about**, which this test used to assert its way
+        past by luck.
+
+        Until 2026-09-08 this asserted unconditional recovery at every marker. That is not what
+        the code does: a kill at the `"database opened"` marker can leave a `warehouse.duckdb`
+        without a complete header, `_connect` is a bare `duckdb.connect`, and a re-run over that
+        file raises rather than recovering. The assertion passed most runs because the kill
+        usually lands before any bytes are written, in which case the file is *absent* and the
+        re-run is ordinary -- and it failed in CI on 2026-09-06, on a pull request whose whole
+        diff was one line of a workflow file.
+
+        So it now reads the state the kill actually produced and asserts the outcome that state
+        has. That is not a weakened assertion: every stage still has to reach a named outcome,
+        an invalid database is still only permitted at the one marker that races the header
+        write, and the refusal branch still asserts that nothing was left claiming otherwise.
+        The invariant the old sentence wanted is held deterministically by
+        `test_a_valid_database_left_by_a_kill_re_runs_and_an_invalid_one_does_not`, which
+        constructs both sub-cases rather than racing for them.
+
+        **This branch expires when #80 is settled.** On the day a re-run recovers an invalid
+        database -- by removing a file this tool did not finish writing, or by refusing with a
+        named error that is not a `duckdb.Error` -- this assertion, the sibling test above, the
+        deferral comment in the sweep, and `docs/ROADMAP.md`'s durability paragraph all have to
+        be rewritten together.
+        """
 
         source = _source(tmp_path)
         outcomes = self._sweep(tmp_path)
         assert sum(1 for entry in outcomes if entry[1]) >= self.MINIMUM_GENUINE_KILLS
         for stage, _, warehouse in outcomes:
+            state = _database_state(warehouse)
+            if state == DATABASE_INVALID:
+                assert stage == "database opened", (
+                    f"an invalid warehouse database after a kill at {stage!r}, which is past "
+                    "the window where the file exists without a valid header"
+                )
+                assert _re_run(source, warehouse) is None, (
+                    "a re-run recovered an invalid warehouse database. If that is now true, "
+                    "#80 has been fixed and this branch, the sibling deterministic test, the "
+                    "deferral comment in the sweep and docs/ROADMAP.md all have to be "
+                    "rewritten together."
+                )
+                assert not _manifests(warehouse), (
+                    "a re-run that could not open the database still left a manifest behind"
+                )
+                continue
             result = ingest_hospital_file(
                 source,
                 warehouse,
@@ -414,6 +469,63 @@ class TestCrashMatrix:
                 "needs re-measuring"
             )
             assert _catalog(warehouse) == [("<unopenable>", "<unopenable>")]
+
+    def test_the_roadmap_does_not_promise_the_recovery_this_code_does_not_have(
+        self, tmp_path: Path
+    ) -> None:
+        """The published claim, gated on the measured behaviour, in both directions.
+
+        Between the lakehouse landing and 2026-09-08, `docs/ROADMAP.md` said of a warehouse
+        killed while DuckDB was writing the database header that "it is not permanent; a re-run
+        recovers it". Nothing checked that against the code, so the sentence survived a
+        measurement in this very module proving it false, and the only thing that ever
+        disagreed with it was a sampled test failing at random.
+
+        This follows the pattern
+        `tests/test_published_claims.py::test_the_roadmap_does_not_deny_the_distribution_it_publishes`
+        already sets: establish the fact by running the thing, then require the document to
+        agree with it. The measurement is what makes it a gate rather than a spell-check --
+        when #80 is settled and a re-run does recover, the *other* verdict is the one the
+        paragraph has to carry.
+
+        **The gate is on a verdict sentence, not on a phrase appearing somewhere in the
+        prose**, and the first version of it was the wrong shape for exactly the reason that
+        distinction exists: it forbade the words the old claim used, and then fired on the
+        corrected paragraph, because a paragraph that records its own correction contains the
+        sentence it is correcting. So the rule is that the document carries **exactly one** of
+        the two verdicts below, and that it is the one this run measures. A rewrite that
+        narrates the other verdict verbatim fails loudly here rather than passing quietly,
+        which is the outcome to want: it means the paragraph now states two things.
+        """
+
+        source = _source(tmp_path)
+        warehouse = tmp_path / "warehouse-invalid"
+        warehouse.mkdir()
+        (warehouse / "warehouse.duckdb").write_bytes(b"")
+        assert _database_state(warehouse) == DATABASE_INVALID, (
+            "the fixture is not in the state this gate is about, so it measures nothing"
+        )
+
+        recovered = _re_run(source, warehouse) is not None
+        ledger = " ".join(
+            (Path(__file__).resolve().parent.parent / "docs" / "ROADMAP.md")
+            .read_text(encoding="utf-8")
+            .split()
+        )
+
+        present = [verdict for verdict in RECOVERY_VERDICTS if verdict in ledger]
+        assert len(present) == 1, (
+            f"docs/ROADMAP.md carries {len(present)} of the two durability verdicts "
+            f"{RECOVERY_VERDICTS!r}; it has to carry exactly one, and any narration of the "
+            "other has to be paraphrased rather than quoted."
+        )
+        expected = RECOVERY_VERDICTS[0] if recovered else RECOVERY_VERDICTS[1]
+        assert present[0] == expected, (
+            f"docs/ROADMAP.md states {present[0]!r}. Measured on this code, a re-run over a "
+            f"warehouse database this tool did not finish writing "
+            f"{'recovers' if recovered else 'does not recover'} it, so the paragraph has to "
+            f"state {expected!r}. That is the open question at #80."
+        )
 
     def test_the_matrix_covers_more_than_one_stage(self) -> None:
         """A one-point matrix would be a single test wearing a table's clothes."""

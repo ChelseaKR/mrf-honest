@@ -43,7 +43,7 @@ Two of the three durability gaps this paragraph used to leave open are now measu
 third is not. `tests/test_durability.py` kills a real ingest subprocess with SIGKILL at six named
 progress markers and asserts, after every kill, that the catalog reports no completed snapshot and
 that any run it does report has its manifest and every named Parquet on disk; a killed warehouse
-is then re-run to completion at every marker. The kill points are markers rather than wall-clock
+is then re-run at every marker, and recovers at every one except the state named below. The kill points are markers rather than wall-clock
 offsets because offsets were tried first and abandoned: a kill scheduled at a fraction of a run
 measured a second earlier lands wherever the machine's load puts it, interrupting a different
 stage on every run and sometimes none at all. A marker is the same point on a fast machine and a
@@ -51,10 +51,31 @@ slow one, and the sweep fails outright if fewer than four of its six samples wer
 killed, so a run of quiet non-interruptions cannot pass as evidence. Two writers are raced against
 one warehouse and one source, and one snapshot is the measured result.
 
-One observed state is recorded rather than asserted away: killing at the instant DuckDB first
-creates `warehouse.duckdb` leaves a file it will not open read-only, because the file exists
-before its header does. That is not a false claim, which is what this suite guards against, and it
-is not permanent; a re-run recovers it, and the recovery test covers that marker like every other.
+One observed state is recorded rather than asserted away, and this paragraph got it wrong once:
+killing at the instant DuckDB first creates `warehouse.duckdb` leaves a file it will not open,
+because the file exists before its header does. That is not a false claim, which is what this
+suite guards against. **A re-run does not recover that warehouse.** `_connect` is a bare
+`duckdb.connect`; nothing detects an invalid database file and nothing removes one, so a re-run
+over it raises `IOException` and stops.
+
+Until 2026-09-08 this paragraph asserted the opposite, and the reason it survived is worth
+recording. The sweep reaches the state by luck: the kill usually lands before any bytes are
+written, the file is then absent, and the re-run is ordinary. So the recovery test passed most
+runs -- and failed one in CI on 2026-09-06, on a pull request whose whole diff was one line of a
+workflow file.
+
+Two things are now measured deterministically rather than sampled, because the rare direction is
+the one that hides the defect. `test_a_valid_database_left_by_a_kill_re_runs_and_an_invalid_one_does_not`
+constructs both sub-cases by hand and asserts the second does not recover -- an assertion that
+records an open defect and says in its own docstring what has to change when it is settled. And
+`test_an_empty_database_file_is_as_invalid_as_a_partial_one` corrects a second thing this
+paragraph implied: on DuckDB 1.5.5 a zero-byte `warehouse.duckdb` is refused exactly as a
+half-written one is, so the unrecoverable window is the whole of the time the file exists without
+a complete header rather than a sliver of it.
+
+What to do about it -- recover automatically by removing a file this tool did not finish writing,
+or refuse with a named, actionable error and leave the removal to an operator -- is a durability
+judgement rather than a detail, and it is open at #80.
 
 **Sampled kills are evidence, not proof**, and that was measured too: reordering the catalog
 commit ahead of artifact promotion left every marker green, because the window between them is too
@@ -90,7 +111,7 @@ README quotes a ledger figure, this table is the source and the README follows i
 
 | Metric | Target | Measured by | Gate | Last measured |
 |---|---|---|---|---|
-| Branch coverage | >= 85% | `pytest --cov` (branch mode, `fail_under = 85`) | AUTO (`make verify`) | 92.88%, 837 tests passing and 4 skipped, 2026-09-06 |
+| Branch coverage | >= 85% | `pytest --cov` (branch mode, `fail_under = 85`) | AUTO (`make verify`) | 92.88%, 838 tests passing and 4 skipped, 2026-09-07 |
 | Lint findings (ruff `E,F,I,B,S,C90,UP,RUF`, `max-complexity=10`) | 0 | `ruff check src tests perf tools` | AUTO (`make verify`) | 0, 2026-08-16 |
 | Formatting findings | 0 | `ruff format --check src tests perf tools` | AUTO (`make verify`) | 0, 2026-08-16 |
 | `mypy --strict` errors | 0 | `mypy` over `src`, `perf` and `tools` | AUTO (`make verify`) | 0, 2026-08-16 |
