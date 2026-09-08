@@ -239,6 +239,102 @@ These two codes are owned by the remote scorecard policy, not the local inspecti
 | `MRF_AUTOMATION_BARRIER_OBSERVED` | ERROR | The direct-download request received an HTTP access barrier. | [45 CFR § 180.50], [CMS policy FAQ] |
 | `MRF_DIRECT_DOWNLOAD_FAILED` | ERROR | The direct-download request did not produce a verified local body. | [45 CFR § 180.50] |
 
+## Authoritative CSV finding catalog
+
+These codes mirror `CSV_FINDING_CATALOG` in `mrf_honest.inspect_csv`, which grades the CMS
+Tall and Wide CSV templates. They are published in the cohort comparisons and rendered on
+the site, so a reader can reach one of them from a graded row.
+
+`FRESHNESS_ANNUAL_UPDATE_OVERDUE` and `FRESHNESS_DATE_IN_FUTURE` are shared with the JSON
+catalog above, definition for definition, and are listed there rather than twice.
+
+### Conformance
+
+| Code | Severity | Catalog description | Citations |
+|---|---|---|---|
+| `CMS_CSV_ATTESTATION_NOT_CONFIRMED` | WARNING | The attestation value is explicitly false. | [CSV dictionary], [45 CFR § 180.50] |
+| `CMS_CSV_CHARGE_HEADER_ROW_MISSING` | ERROR | The file has no row 3 of standard-charge column headers. | [CSV Tall template], [CSV Wide template], [CSV dictionary] |
+| `CMS_CSV_CODE_TYPE_INVALID` | ERROR | A code-type value is outside the CMS accepted set. | [CSV dictionary], [45 CFR § 180.50] |
+| `CMS_CSV_COLUMN_10TH_PERCENTILE_MISSING` | ERROR | Required standard-charge column 10th_percentile is absent from the header row. | [CSV dictionary], [45 CFR § 180.50] |
+| `CMS_CSV_COLUMN_90TH_PERCENTILE_MISSING` | ERROR | Required standard-charge column 90th_percentile is absent from the header row. | [CSV dictionary], [45 CFR § 180.50] |
+| `CMS_CSV_COLUMN_ADDITIONAL_GENERIC_NOTES_MISSING` | ERROR | Required standard-charge column additional_generic_notes is absent from the header row. | [CSV dictionary], [45 CFR § 180.50] |
+| `CMS_CSV_COLUMN_CODE_PAIR_MISSING` | ERROR | No code\|1 and code\|1\|type column pair is present in the header row. | [CSV dictionary], [45 CFR § 180.50] |
+| `CMS_CSV_COLUMN_COUNT_MISSING` | ERROR | Required standard-charge column count is absent from the header row. | [CSV dictionary], [45 CFR § 180.50] |
+| `CMS_CSV_COLUMN_DESCRIPTION_MISSING` | ERROR | Required standard-charge column description is absent from the header row. | [CSV dictionary], [45 CFR § 180.50] |
+| `CMS_CSV_COLUMN_DRUG_TYPE_OF_MEASUREMENT_MISSING` | ERROR | Required standard-charge column drug_type_of_measurement is absent from the header row. | [CSV dictionary], [45 CFR § 180.50] |
+| `CMS_CSV_COLUMN_DRUG_UNIT_OF_MEASUREMENT_MISSING` | ERROR | Required standard-charge column drug_unit_of_measurement is absent from the header row. | [CSV dictionary], [45 CFR § 180.50] |
+| `CMS_CSV_COLUMN_MEDIAN_AMOUNT_MISSING` | ERROR | Required standard-charge column median_amount is absent from the header row. | [CSV dictionary], [45 CFR § 180.50] |
+| `CMS_CSV_COLUMN_MODIFIERS_MISSING` | ERROR | Required standard-charge column modifiers is absent from the header row. | [CSV dictionary], [45 CFR § 180.50] |
+| `CMS_CSV_COLUMN_PAYER_NAME_MISSING` | ERROR | Required standard-charge column payer_name is absent from the header row. | [CSV dictionary], [45 CFR § 180.50] |
+| `CMS_CSV_COLUMN_PLAN_NAME_MISSING` | ERROR | Required standard-charge column plan_name is absent from the header row. | [CSV dictionary], [45 CFR § 180.50] |
+| `CMS_CSV_COLUMN_SETTING_MISSING` | ERROR | Required standard-charge column setting is absent from the header row. | [CSV dictionary], [45 CFR § 180.50] |
+| `CMS_CSV_COLUMN_STANDARD_CHARGE_DISCOUNTED_CASH_MISSING` | ERROR | Required standard-charge column standard_charge\|discounted_cash is absent from the header row. | [CSV dictionary], [45 CFR § 180.50] |
+| `CMS_CSV_COLUMN_STANDARD_CHARGE_GROSS_MISSING` | ERROR | Required standard-charge column standard_charge\|gross is absent from the header row. | [CSV dictionary], [45 CFR § 180.50] |
+| `CMS_CSV_COLUMN_STANDARD_CHARGE_MAX_MISSING` | ERROR | Required standard-charge column standard_charge\|max is absent from the header row. | [CSV dictionary], [45 CFR § 180.50] |
+| `CMS_CSV_COLUMN_STANDARD_CHARGE_METHODOLOGY_MISSING` | ERROR | Required standard-charge column standard_charge\|methodology is absent from the header row. | [CSV dictionary], [45 CFR § 180.50] |
+| `CMS_CSV_COLUMN_STANDARD_CHARGE_MIN_MISSING` | ERROR | Required standard-charge column standard_charge\|min is absent from the header row. | [CSV dictionary], [45 CFR § 180.50] |
+| `CMS_CSV_COLUMN_STANDARD_CHARGE_NEGOTIATED_ALGORITHM_MISSING` | ERROR | Required standard-charge column standard_charge\|negotiated_algorithm is absent from the header row. | [CSV dictionary], [45 CFR § 180.50] |
+| `CMS_CSV_COLUMN_STANDARD_CHARGE_NEGOTIATED_DOLLAR_MISSING` | ERROR | Required standard-charge column standard_charge\|negotiated_dollar is absent from the header row. | [CSV dictionary], [45 CFR § 180.50] |
+| `CMS_CSV_COLUMN_STANDARD_CHARGE_NEGOTIATED_PERCENTAGE_MISSING` | ERROR | Required standard-charge column standard_charge\|negotiated_percentage is absent from the header row. | [CSV dictionary], [45 CFR § 180.50] |
+| `CMS_CSV_COUNT_VALUE_INVALID` | ERROR | A count of allowed amounts is not '0', '1 through 10', or a whole number over ten. | [CSV dictionary], [45 CFR § 180.50] |
+| `CMS_CSV_DRUG_TYPE_INVALID` | ERROR | A drug type of measurement is outside the CMS accepted set. | [CSV dictionary], [45 CFR § 180.50] |
+| `CMS_CSV_ENCODING_NOT_UTF8` | INFO | The file is not valid UTF-8; it was read as Latin-1 and recorded. | [CSV dictionary] |
+| `CMS_CSV_GENERAL_ATTESTATION_MISSING` | ERROR | Required general data element attestation is absent or unusable. | [CSV dictionary], [45 CFR § 180.50] |
+| `CMS_CSV_GENERAL_ATTESTER_NAME_MISSING` | ERROR | Required general data element attester_name is absent or unusable. | [CSV dictionary], [45 CFR § 180.50] |
+| `CMS_CSV_GENERAL_HOSPITAL_ADDRESS_MISSING` | ERROR | Required general data element hospital_address is absent or unusable. | [CSV dictionary], [45 CFR § 180.50] |
+| `CMS_CSV_GENERAL_HOSPITAL_NAME_MISSING` | ERROR | Required general data element hospital_name is absent or unusable. | [CSV dictionary], [45 CFR § 180.50] |
+| `CMS_CSV_GENERAL_LAST_UPDATED_ON_MISSING` | ERROR | Required general data element last_updated_on is absent or unusable. | [CSV dictionary], [45 CFR § 180.50] |
+| `CMS_CSV_GENERAL_LICENSE_NUMBER_MISSING` | ERROR | Required general data element license_number is absent or unusable. | [CSV dictionary], [45 CFR § 180.50] |
+| `CMS_CSV_GENERAL_LOCATION_NAME_MISSING` | ERROR | Required general data element location_name is absent or unusable. | [CSV dictionary], [45 CFR § 180.50] |
+| `CMS_CSV_GENERAL_TYPE_2_NPI_MISSING` | ERROR | Required general data element type_2_npi is absent or unusable. | [CSV dictionary], [45 CFR § 180.50] |
+| `CMS_CSV_GENERAL_VERSION_MISSING` | ERROR | Required general data element version is absent or unusable. | [CSV dictionary], [45 CFR § 180.50] |
+| `CMS_CSV_HEADER_NOT_UNIQUE` | ERROR | A column header appears more than once across rows 1 and 3. | [CSV dictionary], [45 CFR § 180.50] |
+| `CMS_CSV_LAST_UPDATED_ON_INVALID` | ERROR | last_updated_on is not an ISO YYYY-MM-DD or M/D/YYYY date. | [CSV dictionary], [45 CFR § 180.50] |
+| `CMS_CSV_LAYOUT_AMBIGUOUS` | ERROR | The charge header row mixes Tall payer columns with Wide payer-specific headers. | [CSV Tall template], [CSV Wide template], [CSV dictionary] |
+| `CMS_CSV_METHODOLOGY_INVALID` | ERROR | A standard-charge methodology is outside the CMS accepted set. | [CSV dictionary], [45 CFR § 180.50] |
+| `CMS_CSV_NUMERIC_VALUE_INVALID` | ERROR | A numeric data element holds something other than a positive number. | [CSV dictionary], [45 CFR § 180.50] |
+| `CMS_CSV_PLACEHOLDER_NOT_REPLACED` | ERROR | A template placeholder such as [state], [i], [payer_name], or [plan_name] was published without being replaced. | [CSV dictionary], [45 CFR § 180.50] |
+| `CMS_CSV_ROW_WIDTH_MISMATCH` | ERROR | A data row carries non-blank cells beyond the declared columns. | [CSV dictionary], [45 CFR § 180.50] |
+| `CMS_CSV_SETTING_INVALID` | ERROR | A setting value is outside the CMS accepted set, or blank where blanks are not accepted. | [CSV dictionary], [45 CFR § 180.50] |
+| `CMS_CSV_STREAM_INCOMPLETE` | ERROR | The CSV table could not be completely streamed. | [CSV dictionary], [45 CFR § 180.50] |
+| `CMS_CSV_UTF8_BOM_PRESENT` | INFO | A UTF-8 byte-order mark was present and tolerated. | [CSV dictionary] |
+| `CMS_CSV_VERSION_UNEXPECTED` | ERROR | The template version is not the v3.0.0 version implemented here. | [CSV Tall template], [CSV Wide template], [CSV dictionary] |
+| `CMS_CSV_WIDE_PAYER_HEADER_SET_INCOMPLETE` | ERROR | A Wide payer-and-plan combination is missing some of its nine required headers. | [CSV dictionary], [45 CFR § 180.50] |
+
+### Completeness
+
+| Code | Severity | Catalog description | Citations |
+|---|---|---|---|
+| `CMS_CSV_CHARGE_VALUE_MISSING` | ERROR | An encoded item or service row carries no gross, cash, or payer-specific charge. | [CSV dictionary], [45 CFR § 180.50] |
+| `CMS_CSV_CODE_PAIRING_MISSING` | ERROR | A row with a standard charge has no complete code and code-type pairing. | [CSV dictionary], [45 CFR § 180.50] |
+| `CMS_CSV_CODE_TYPE_UNPAIRED` | ERROR | A code without its code type, or a code type without its code. | [CSV dictionary], [45 CFR § 180.50] |
+| `CMS_CSV_DERIVED_RATE_COUNT_MISSING` | ERROR | A percentage or algorithm rate has no allowed-amount count. | [CSV dictionary], [45 CFR § 180.50] |
+| `CMS_CSV_DERIVED_RATE_PERCENTILES_MISSING` | ERROR | A percentage or algorithm rate with a nonzero count lacks its allowed-amount median, 10th percentile, or 90th percentile. | [CSV dictionary], [45 CFR § 180.50] |
+| `CMS_CSV_DESCRIPTION_MISSING` | ERROR | A data row with codes or charges has no usable description. | [CSV dictionary], [45 CFR § 180.50] |
+| `CMS_CSV_DOLLAR_RANGE_MISSING` | ERROR | A row with a dollar-denominated payer rate lacks the de-identified minimum or maximum negotiated charge. | [CSV dictionary], [45 CFR § 180.50] |
+| `CMS_CSV_DRUG_FIELDS_UNPAIRED` | ERROR | A drug unit of measurement without its type of measurement, or the reverse. | [CSV dictionary], [45 CFR § 180.50] |
+| `CMS_CSV_MODIFIER_ROW_CONTEXT_MISSING` | ERROR | A modifier row without an item or service lacks the required description or accompanying charge or note. | [CSV dictionary], [45 CFR § 180.50] |
+| `CMS_CSV_NDC_DRUG_FIELDS_MISSING` | ERROR | An NDC-coded row lacks its drug unit or type of measurement. | [CSV dictionary], [45 CFR § 180.50] |
+| `CMS_CSV_OTHER_METHODOLOGY_NOTES_MISSING` | ERROR | An 'other' methodology has no explanatory note. | [CSV dictionary], [45 CFR § 180.50] |
+| `CMS_CSV_PAYER_CONTEXT_MISSING` | ERROR | A payer-specific charge without its payer name, plan name, or methodology. | [CSV dictionary], [45 CFR § 180.50] |
+| `CMS_CSV_PAYER_WITHOUT_CHARGE` | ERROR | A payer or plan name is encoded with no payer-specific charge beside it. | [CSV dictionary], [45 CFR § 180.50] |
+| `CMS_CSV_TABLE_EMPTY` | ERROR | The table contains no usable data rows after the header rows. | [CSV dictionary], [45 CFR § 180.50] |
+| `CMS_CSV_ZERO_COUNT_NOTES_MISSING` | ERROR | A derived rate with count zero has no explanatory note. | [CSV dictionary], [45 CFR § 180.50] |
+
+### Interpretability
+
+| Code | Severity | Catalog description | Citations |
+|---|---|---|---|
+| `CSV_INTERPRETABILITY_ALGORITHM_RATES` | INFO | Algorithm rates were observed and kept separate from dollar rates. | [CSV dictionary], [45 CFR § 180.50] |
+| `CSV_INTERPRETABILITY_NO_PAYER_RATES` | WARNING | No payer-specific rate values were observed. | [CSV dictionary], [45 CFR § 180.50] |
+| `CSV_INTERPRETABILITY_PERCENTAGE_RATES` | INFO | Percentage rates were observed and kept separate from dollar rates. | [CSV dictionary], [45 CFR § 180.50] |
+
+### Freshness
+
+| Code | Severity | Catalog description | Citations |
+|---|---|---|---|
+| `CSV_FRESHNESS_DATE_NOT_USABLE` | ERROR | Freshness cannot be assessed from last_updated_on. | [CSV dictionary], [45 CFR § 180.50] |
+
 ## Freshness boundary
 
 Freshness uses calendar dates, not a rolling count of seconds:
@@ -273,6 +369,9 @@ scope. Preserve the evidence and citations when presenting any result.
 [JSON schema]: https://github.com/CMSgov/hospital-price-transparency/blob/master/documentation/JSON/schemas/V3.0.0_Hospital_price_transparency_schema.json
 [45 CFR § 180.50]: https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-E/part-180/subpart-B/section-180.50
 [CMS policy FAQ]: https://www.cms.gov/files/document/hpt-policy-faqs-june-2026.pdf
+[CSV dictionary]: https://github.com/CMSgov/hospital-price-transparency/blob/master/documentation/CSV/README.md
+[CSV Tall template]: https://github.com/CMSgov/hospital-price-transparency/blob/master/documentation/CSV/templates/V3.0.0_Tall_CSV_Format_Template.csv
+[CSV Wide template]: https://github.com/CMSgov/hospital-price-transparency/blob/master/documentation/CSV/templates/V3.0.0_Wide_CSV_Format_Template.csv
 
 ## The CSV profile
 
