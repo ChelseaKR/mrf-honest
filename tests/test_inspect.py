@@ -7,6 +7,7 @@ from datetime import date
 from pathlib import Path
 
 import pytest
+from catalog_coverage import MINIMUM_CATALOGS, catalogued_codes, discover_catalogs
 
 from mrf_honest.inspect import (
     FINDING_CATALOG,
@@ -15,7 +16,6 @@ from mrf_honest.inspect import (
     explain_finding,
     inspect_hospital_file,
 )
-from mrf_honest.scorecard import RETRIEVAL_FINDING_CATALOG
 from mrf_honest.stream import BOM
 
 
@@ -91,6 +91,9 @@ def _write(path: Path, document: object, *, bom: bool = False) -> bytes:
 
 def _codes(result: object) -> set[str]:
     return {finding.code for finding in result.findings}  # type: ignore[attr-defined]
+
+
+_PUBLISHER = PublisherRef("example.test", "Example", "https://example.test/mrf.json")
 
 
 def test_inspects_valid_v3_and_keeps_rate_forms_separate(tmp_path: Path) -> None:
@@ -350,7 +353,125 @@ def test_inspection_policy_has_a_content_fingerprint() -> None:
 
 
 def test_grading_document_covers_the_authoritative_catalogs() -> None:
+    """Every catalog, discovered -- not the two that used to be named here.
+
+    This assertion read ``set(FINDING_CATALOG) | set(RETRIEVAL_FINDING_CATALOG)``.
+    There are three catalogs. It held *because* ``CSV_FINDING_CATALOG`` was outside
+    it: 46 rows documented, 67 CSV codes documented nowhere, and a reader who met a
+    ``CMS_CSV_*`` code on the site found nothing about it. An equality against a
+    hand-listed union goes stale the moment a fourth catalog is added, so the union
+    is discovered and the discovery has a floor of its own.
+    """
+    catalogs = discover_catalogs()
+    assert len(catalogs) >= MINIMUM_CATALOGS, (
+        f"only {[catalog.label for catalog in catalogs]} were discovered; a catalog "
+        "that stops loading must fail here rather than shrink the denominator"
+    )
+    for catalog in catalogs:
+        assert catalog.entries, f"{catalog.label} is empty, so it can vouch for nothing"
+
     document = Path("docs/how-we-grade.md").read_text(encoding="utf-8")
     documented = set(re.findall(r"^\| `([A-Z0-9_]+)` \|", document, flags=re.MULTILINE))
 
-    assert documented == set(FINDING_CATALOG) | set(RETRIEVAL_FINDING_CATALOG)
+    assert documented == set(catalogued_codes(catalogs))
+
+
+# --- rules the suite did not execute ---------------------------------------------------------
+#
+# These six ERROR rules were catalogued, documented, and tripped by nothing. Four of them --
+# CMS_V3_CHARGE_GROUP_NOT_OBJECT, CMS_V3_CHARGE_VALUE_MISSING, CMS_V3_PAYERS_INFORMATION_INVALID
+# and CMS_V3_PAYER_RATE_NOT_OBJECT -- appeared in exactly two files each on origin/master: their
+# emit site and their row in docs/how-we-grade.md. All four decide `--fail-on error` for a
+# hospital publisher. Each test below runs the inspector over a document written to trip one
+# rule, so an entry can only stay green while the rule still does something.
+
+
+def _charge_group(**overrides: object) -> dict[str, object]:
+    document = _document()
+    item = document["standard_charge_information"][0]  # type: ignore[index]
+    item["standard_charges"][0].update(overrides)  # type: ignore[index]
+    return document
+
+
+def test_a_standard_charges_entry_that_is_not_an_object_is_an_error(tmp_path: Path) -> None:
+    document = _document()
+    item = document["standard_charge_information"][0]  # type: ignore[index]
+    item["standard_charges"] = ["a string where a charge group belongs"]  # type: ignore[index]
+    path = tmp_path / "hospital.json"
+    _write(path, document)
+
+    result = inspect_hospital_file(path, _PUBLISHER, as_of=date(2026, 8, 9))
+
+    assert "CMS_V3_CHARGE_GROUP_NOT_OBJECT" in _codes(result)
+
+
+def test_a_charge_group_with_no_charge_at_all_is_an_error(tmp_path: Path) -> None:
+    document = _document()
+    item = document["standard_charge_information"][0]  # type: ignore[index]
+    item["standard_charges"] = [  # type: ignore[index]
+        {"setting": "outpatient", "minimum": 70, "maximum": 100}
+    ]
+    path = tmp_path / "hospital.json"
+    _write(path, document)
+
+    result = inspect_hospital_file(path, _PUBLISHER, as_of=date(2026, 8, 9))
+
+    assert "CMS_V3_CHARGE_VALUE_MISSING" in _codes(result)
+
+
+@pytest.mark.parametrize("payers", [[], "not an array", {}])
+def test_a_payers_information_that_is_not_a_non_empty_array_is_an_error(
+    tmp_path: Path, payers: object
+) -> None:
+    path = tmp_path / "hospital.json"
+    _write(path, _charge_group(payers_information=payers))
+
+    result = inspect_hospital_file(path, _PUBLISHER, as_of=date(2026, 8, 9))
+
+    assert "CMS_V3_PAYERS_INFORMATION_INVALID" in _codes(result)
+
+
+def test_a_payer_rate_entry_that_is_not_an_object_is_an_error(tmp_path: Path) -> None:
+    path = tmp_path / "hospital.json"
+    _write(path, _charge_group(payers_information=["Alpha PPO 800"]))
+
+    result = inspect_hospital_file(path, _PUBLISHER, as_of=date(2026, 8, 9))
+
+    assert "CMS_V3_PAYER_RATE_NOT_OBJECT" in _codes(result)
+
+
+def test_a_percentage_rate_without_an_allowed_amount_count_is_an_error(tmp_path: Path) -> None:
+    path = tmp_path / "hospital.json"
+    _write(
+        path,
+        _charge_group(
+            payers_information=[
+                {
+                    "payer_name": "Alpha",
+                    "plan_name": "PPO",
+                    "methodology": "percent of total billed charges",
+                    "standard_charge_percentage": 70,
+                    "10th_percentile": 50,
+                    "median_amount": 75,
+                    "90th_percentile": 100,
+                }
+            ]
+        ),
+    )
+
+    result = inspect_hospital_file(path, _PUBLISHER, as_of=date(2026, 8, 9))
+
+    assert "CMS_V3_DERIVED_RATE_COUNT_MISSING" in _codes(result)
+
+
+def test_a_document_with_no_standard_charge_information_array_is_an_error(
+    tmp_path: Path,
+) -> None:
+    document = _document()
+    del document["standard_charge_information"]
+    path = tmp_path / "hospital.json"
+    _write(path, document)
+
+    result = inspect_hospital_file(path, _PUBLISHER, as_of=date(2026, 8, 9))
+
+    assert "CMS_V3_ENVELOPE_STANDARD_CHARGE_INFORMATION_MISSING" in _codes(result)
