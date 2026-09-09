@@ -32,6 +32,7 @@ import sys
 from pathlib import Path
 from typing import cast
 
+import frame_coverage
 import pytest
 
 from mrf_honest.ai.corpus import CorpusIndex
@@ -339,10 +340,19 @@ def test_the_two_documents_state_one_measurement() -> None:
 FRAMES = ROOT / "data" / "frames"
 
 
-def _frame_for(comparison_path: Path) -> Path | None:
-    prefix = comparison_path.name.removesuffix(".comparison.json")
-    candidate = FRAMES / f"{prefix}.frame.json"
-    return candidate if candidate.exists() else None
+def _examined_frame(scope: frame_coverage.FrameScope, verdict: str) -> Path:
+    """The frame this comparison names, or the gate's own reason for not reading it.
+
+    A named record that does not resolve **fails**. It is the one case where a skip and a
+    pass are byte-identical to a reader: the document says it was drawn from a frame, and
+    the frame is not there to check it against.
+    """
+    if verdict == frame_coverage.UNRESOLVABLE:
+        raise AssertionError(scope.reason(verdict))
+    if verdict != frame_coverage.EXAMINED:
+        pytest.skip(scope.reason(verdict))
+    assert scope.frame_path is not None
+    return scope.frame_path
 
 
 @pytest.mark.parametrize("comparison_path", PUBLISHED, ids=lambda path: path.name)
@@ -353,12 +363,15 @@ def test_the_random_stratum_is_the_seeded_draw_it_claims_to_be(comparison_path: 
     honesty of every proportion computed over the random stratum rests on the recorded sample
     being that draw rather than a list someone assembled and labelled one. The eligible identifier
     list is committed because CMS refreshes the dataset: a frame that cannot be reconstructed is
-    not a frame. Cohorts predating the frame carry no frame file and are skipped rather than
-    failed -- they were convenience samples and say so.
+    not a frame.
+
+    The frame is the one the comparison **names**, not one built from its filename. Resolving it
+    from the filename skipped the CSV cohort -- which names a frame, was drawn from it, and
+    records the draw -- with the reason "predates the sampling frame". See
+    ``tests/frame_coverage.py``.
     """
-    frame_path = _frame_for(comparison_path)
-    if frame_path is None:
-        pytest.skip(f"{comparison_path.name} predates the sampling frame")
+    scope = frame_coverage.scope_of(comparison_path)
+    frame_path = _examined_frame(scope, scope.draw_verdict)
     frame = json.loads(frame_path.read_text(encoding="utf-8"))
     ids_path = ROOT / str(frame["eligible_facility_ids"])
     lines = ids_path.read_text(encoding="utf-8").splitlines()
@@ -388,6 +401,27 @@ def test_the_random_stratum_is_the_seeded_draw_it_claims_to_be(comparison_path: 
         "in both cases the random stratum is no longer a random sample."
     )
 
+    # The document says which frame it was drawn from; this is where that sentence stops being
+    # taken on trust. Without it a comparison could name any committed frame and the gate above
+    # would happily re-derive that frame's own draw and report a pass about the wrong cohort.
+    comparison = json.loads(comparison_path.read_text(encoding="utf-8"))
+    stated = cast(
+        dict[str, object],
+        cast(
+            dict[str, object], cast(dict[str, object], comparison["collection"])["sampling_frame"]
+        )["stratum_b_random_draw"],
+    )
+    for key, in_frame in (
+        ("seed", draw["seed"]),
+        ("sample_size", draw["sample_size"]),
+        ("eligible_facility_id_sha256", frame["eligible_facility_id_sha256"]),
+    ):
+        assert stated[key] == in_frame, (
+            f"{comparison_path.name} states {key}={stated[key]!r} for the draw it publishes, "
+            f"while {frame_path.name} -- the record it names -- states {in_frame!r}. A cohort "
+            "that names a frame it was not drawn from is not covered by this gate."
+        )
+
 
 @pytest.mark.parametrize("comparison_path", PUBLISHED, ids=lambda path: path.name)
 def test_no_drawn_facility_is_missing_from_the_published_cohort(comparison_path: Path) -> None:
@@ -397,10 +431,16 @@ def test_no_drawn_facility_is_missing_from_the_published_cohort(comparison_path:
     retrieved, or whose publication is in a format this profile does not read, stays visible with
     its reason. A cohort quietly pruned of its failures would grade better and describe less, and
     docs/SAMPLING-FRAME.md promises the opposite in as many words.
+
+    Scoped to the cohort the frame's ``attempts`` describe. A sibling cohort of the same draw
+    grades a different subset under a different profile, so a facility recorded ``graded`` in the
+    frame is graded *as JSON* and its slug is correctly absent from the CSV cohort's rows -- the
+    unscoped gate fails 48 of 48. The sibling's own accounting against the shared draw is
+    ``test_every_drawn_facility_is_accounted_for_across_both_profile_cohorts``, which
+    ``test_a_deferred_cohort_is_covered_by_the_gate_that_defers_to_it`` requires to exist.
     """
-    frame_path = _frame_for(comparison_path)
-    if frame_path is None:
-        pytest.skip(f"{comparison_path.name} predates the sampling frame")
+    scope = frame_coverage.scope_of(comparison_path)
+    frame_path = _examined_frame(scope, scope.accounting_verdict)
     frame = json.loads(frame_path.read_text(encoding="utf-8"))
     comparison = json.loads(comparison_path.read_text(encoding="utf-8"))
     slugs = {str(row["slug"]) for row in cast(list[dict[str, object]], comparison["files"])}
@@ -424,6 +464,129 @@ def test_no_drawn_facility_is_missing_from_the_published_cohort(comparison_path:
                 f"facility {ccn} was drawn and not graded, but no exclusion explains why. A "
                 "drawn target may be excluded with a stated reason; it may never simply vanish."
             )
+
+
+# --- what the two frame gates above can and cannot see -------------------------------------
+#
+# The gates are parametrized over every published comparison, so a narrowing shows up as a
+# `skip` in a list of thirty and nowhere else. These four are the census and its refusals:
+# every comparison is classified, the classification cannot include "the frame moved", a
+# deferral has to name a gate that really covers it, and a gate that examines nothing fails
+# rather than passing over an empty set.
+
+
+def test_every_published_comparison_is_classified_by_the_sampling_frame_gates() -> None:
+    """No comparison falls outside the vocabulary, and the census is a real denominator."""
+    scoped = frame_coverage.scopes()
+    assert len(scoped) == len(PUBLISHED), (
+        "the frame census reads a different set of comparisons from the gates it describes"
+    )
+    for scope in scoped:
+        for gate, verdict in (
+            (frame_coverage.DRAW_GATE, scope.draw_verdict),
+            (frame_coverage.ACCOUNTING_GATE, scope.accounting_verdict),
+        ):
+            assert verdict in frame_coverage.VERDICTS, (
+                f"{gate} has no stated verdict for {scope.comparison}: {verdict!r}"
+            )
+            assert scope.reason(verdict), f"{gate}'s verdict on {scope.comparison} has no reason"
+
+
+def test_no_published_comparison_names_a_frame_record_that_is_not_committed() -> None:
+    """An unresolvable named frame is a failure, never a skip.
+
+    This is the one state where a skip and a pass are the same output: the document asserts it
+    was drawn from a frame, and the record is not there for anything to check it against.
+    """
+    unresolvable = [
+        scope
+        for scope in frame_coverage.scopes()
+        if scope.draw_verdict == frame_coverage.UNRESOLVABLE
+    ]
+    assert not unresolvable, "\n".join(
+        scope.reason(frame_coverage.UNRESOLVABLE) for scope in unresolvable
+    )
+
+
+def test_a_deferred_cohort_is_covered_by_the_gate_that_defers_to_it() -> None:
+    """A deferral is only defensible while the gate it defers to exists and covers the cohort.
+
+    ``test_no_drawn_facility_is_missing_from_the_published_cohort`` skips a cohort that is the
+    sibling of the one the frame's ``attempts`` describe. That skip names another gate. If the
+    named gate is deleted or renamed, the deferral silently becomes a hole, so the name is
+    resolved here rather than trusted.
+    """
+    scoped = frame_coverage.scopes()
+    deferred = [scope for scope in scoped if scope.accounting_verdict == frame_coverage.DEFERRED]
+    covering = globals().get(frame_coverage.SEAM_GATE)
+    assert callable(covering), (
+        f"{frame_coverage.SEAM_GATE} is named as the cover for a deferred cohort and does not "
+        "exist in this module"
+    )
+    published_cohorts = {scope.cohort_id for scope in scoped}
+    for scope in deferred:
+        assert scope.sibling_cohort in published_cohorts, (
+            f"{scope.comparison} defers its per-facility accounting to sibling cohort "
+            f"{scope.sibling_cohort}, which is not published here. A deferral to a document "
+            "nobody holds is not a deferral."
+        )
+        sibling = next(one for one in scoped if one.cohort_id == scope.sibling_cohort)
+        assert sibling.accounting_verdict == frame_coverage.EXAMINED, (
+            f"{scope.comparison} defers to {scope.sibling_cohort}, which is itself "
+            f"{sibling.accounting_verdict}. Two cohorts cannot defer to each other."
+        )
+
+
+def test_each_sampling_frame_gate_examines_at_least_one_cohort() -> None:
+    """A floor, not a count. A gate over an empty set returns no failures and reads as a pass.
+
+    ``MINIMUM_EXAMINED`` is 1 and stays 1: the number of published cohorts is data, and a gate
+    whose denominator a human maintains is the counter that jams a merge queue.
+    """
+    scoped = frame_coverage.scopes()
+    for gate, verdicts in (
+        (frame_coverage.DRAW_GATE, [scope.draw_verdict for scope in scoped]),
+        (frame_coverage.ACCOUNTING_GATE, [scope.accounting_verdict for scope in scoped]),
+    ):
+        examined = verdicts.count(frame_coverage.EXAMINED)
+        assert examined >= frame_coverage.MINIMUM_EXAMINED, (
+            f"{gate} examines {examined} of {len(scoped)} published comparisons; it is a "
+            "statement about nothing"
+        )
+
+
+def test_this_document_states_the_coverage_the_frame_gates_actually_have() -> None:
+    """``docs/SAMPLING-FRAME.md`` publishes both gates' coverage; re-derive both.
+
+    A coverage figure written into prose is a hand-maintained counter the moment nothing
+    recomputes it, and this repository has the shape already: a sentence that was true the day
+    it was written, decaying into a justification for a number nobody can check.
+    """
+    scoped = frame_coverage.scopes()
+    # Wrapped prose puts line breaks inside the sentence this pattern reads.
+    document = " ".join((ROOT / "docs" / "SAMPLING-FRAME.md").read_text(encoding="utf-8").split())
+    for label, pattern, verdicts in (
+        (
+            "seeded-draw",
+            r"The seeded-draw gate examines \*\*(\d+) of (\d+)\*\* published comparisons",
+            [scope.draw_verdict for scope in scoped],
+        ),
+        (
+            "drawn-facility accounting",
+            r"accounting gate examines \*\*(\d+) of (\d+)\*\*",
+            [scope.accounting_verdict for scope in scoped],
+        ),
+    ):
+        stated = re.search(pattern, document)
+        assert stated is not None, (
+            f"docs/SAMPLING-FRAME.md no longer states the {label} gate's coverage"
+        )
+        examined, available = (int(group) for group in stated.groups())
+        assert (examined, available) == (verdicts.count(frame_coverage.EXAMINED), len(scoped)), (
+            f"docs/SAMPLING-FRAME.md says the {label} gate examines {examined} of {available} "
+            f"published comparisons; it examines "
+            f"{verdicts.count(frame_coverage.EXAMINED)} of {len(scoped)}"
+        )
 
 
 def test_the_readme_lead_states_the_cohort_the_comparison_actually_contains() -> None:

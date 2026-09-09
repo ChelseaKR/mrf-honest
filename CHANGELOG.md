@@ -9,6 +9,37 @@ no version tags yet; until the first dated release (phase 5 of
 
 ### Fixed
 
+- **The sampling-frame gates checked one of three published cohorts, and told the other two
+  they predated a frame they name (#95).** Both gates resolved their frame from the
+  comparison's *filename* -- `<prefix>.frame.json` -- so `2026-08-19-csv.comparison.json`
+  looked for a file that does not exist and was skipped with the reason
+  "predates the sampling frame". It does not predate it: its own document names
+  `data/frames/2026-08-19.frame.json` under `collection.sampling_frame.record`, was drawn
+  from it, and records the draw. A failed lookup was rendered as a fact about the data,
+  inside a gate written to catch exactly that.
+
+  - The frame is now the one the comparison **names**. The seeded-draw gate examines 2 of 3
+    published comparisons rather than 1, and additionally holds each comparison's own stated
+    seed, sample size and eligible-identifier digest to the record it names -- so a cohort
+    that names a frame it was not drawn from fails instead of being re-derived against the
+    wrong draw.
+  - A named frame record that is **not committed** now fails rather than skipping. It is the
+    one state where a skip and a pass are the same output.
+  - The per-facility accounting gate stays scoped to the cohort the frame's `attempts`
+    describe, and says so, naming the sibling. `attempts[].detail` is a
+    `hospital-json-v3-2026-08-19` slug, so pointing it at the CSV sibling unchanged fails 48
+    of 48 times, correctly and uselessly. The deferral is **checked**: a test resolves
+    `test_every_drawn_facility_is_accounted_for_across_both_profile_cohorts` by name and
+    requires the named sibling to be published and itself examined, so deleting or renaming
+    the covering gate fails rather than opening a hole.
+  - `tests/frame_coverage.py` prints both gates' coverage in the terminal summary of every
+    run -- how many published comparisons each examines, out of how many exist -- with every
+    unexamined cohort named and its own reason stated. Four structural refusals hold it up
+    (every comparison classified from a closed vocabulary, no unresolvable named record, a
+    deferral that names a real covering gate, and a non-vacuity floor of one). No number a
+    human maintains: `docs/SAMPLING-FRAME.md`'s two figures are re-derived by
+    `test_this_document_states_the_coverage_the_frame_gates_actually_have`.
+
 - **The roadmap promised a recovery this code does not have (#80).**
   `docs/ROADMAP.md` said of a warehouse killed at the instant DuckDB creates
   `warehouse.duckdb` that "it is not permanent; a re-run recovers it". Measured on the same
