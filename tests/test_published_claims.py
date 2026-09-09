@@ -469,10 +469,88 @@ def test_no_drawn_facility_is_missing_from_the_published_cohort(comparison_path:
 # --- what the two frame gates above can and cannot see -------------------------------------
 #
 # The gates are parametrized over every published comparison, so a narrowing shows up as a
-# `skip` in a list of thirty and nowhere else. These four are the census and its refusals:
-# every comparison is classified, the classification cannot include "the frame moved", a
-# deferral has to name a gate that really covers it, and a gate that examines nothing fails
-# rather than passing over an empty set.
+# `skip` in a list of thirty and nowhere else. These are the census and its refusals: every
+# comparison is classified, the classification cannot include "the frame moved", a deferral
+# has to name a gate that really covers it, and a gate that examines nothing fails rather
+# than passing over an empty set.
+#
+# Two of the four states cannot occur in the committed data -- no comparison names a missing
+# record, and none omits `record` while claiming a frame -- so the refusals over them are, on
+# this data, gates that cannot fail. `test_the_frame_classifier_reads_each_state_it_declares`
+# is where they are actually exercised, over synthetic documents, with the accepted case in
+# the same function as the refused ones: a classifier that returned `unresolvable` for
+# everything would satisfy a refusal test on its own.
+
+
+def _comparison_document(sampling_frame: object, *, omit_frame: bool = False) -> dict[str, object]:
+    """The smallest document `scope_of` reads: a cohort id and a collection block."""
+    collection: dict[str, object] = {"utc_date": "2026-08-19"}
+    if not omit_frame:
+        collection["sampling_frame"] = sampling_frame
+    return {"cohort": {"cohort_id": "synthetic-cohort"}, "collection": collection}
+
+
+def test_the_frame_classifier_reads_each_state_it_declares(tmp_path: Path) -> None:
+    """Every verdict in the vocabulary, produced from a document that really has that shape.
+
+    The committed cohorts exercise two of the four states. Without this, the two refusals
+    below are assertions that a set is empty over data that cannot populate it -- which is a
+    statement about the fixture, not a guard on the classifier.
+    """
+    committed = frame_coverage.FRAMES / "2026-08-19.frame.json"
+    assert committed.is_file(), "the resolvable case needs a frame that really exists"
+    cases: tuple[tuple[str, dict[str, object], str], ...] = (
+        (
+            "resolvable, no sibling",
+            _comparison_document({"record": "data/frames/2026-08-19.frame.json"}),
+            frame_coverage.EXAMINED,
+        ),
+        (
+            "resolvable, sibling named",
+            _comparison_document(
+                {
+                    "record": "data/frames/2026-08-19.frame.json",
+                    "sibling_cohort": "hospital-json-v3-2026-08-19",
+                }
+            ),
+            frame_coverage.DEFERRED,
+        ),
+        (
+            "names a record that is not committed",
+            _comparison_document({"record": "data/frames/2026-01-01.frame.json"}),
+            frame_coverage.UNRESOLVABLE,
+        ),
+        (
+            "claims a frame and names no record",
+            _comparison_document({"document": "docs/SAMPLING-FRAME.md"}),
+            frame_coverage.UNRESOLVABLE,
+        ),
+        (
+            "no sampling_frame at all",
+            _comparison_document(None, omit_frame=True),
+            frame_coverage.NO_FRAME,
+        ),
+    )
+    for label, document, expected in cases:
+        path = tmp_path / f"{label.replace(' ', '-').replace(',', '')}.comparison.json"
+        path.write_text(json.dumps(document), encoding="utf-8")
+        scope = frame_coverage.scope_of(path)
+        assert scope.accounting_verdict == expected, (
+            f"{label}: the accounting gate's verdict is {scope.accounting_verdict!r}, "
+            f"expected {expected!r}"
+        )
+        # The draw gate has no sibling rule, so a deferred cohort is examined by it. Asserting
+        # both here is what stops one verdict function being wired to the other.
+        expected_draw = frame_coverage.EXAMINED if expected == frame_coverage.DEFERRED else expected
+        assert scope.draw_verdict == expected_draw, (
+            f"{label}: the draw gate's verdict is {scope.draw_verdict!r}, "
+            f"expected {expected_draw!r}"
+        )
+        # A gate reaching an unresolvable record must raise, not skip: this is where a skip
+        # and a pass stop being distinguishable to anyone reading the output.
+        if expected == frame_coverage.UNRESOLVABLE:
+            with pytest.raises(AssertionError, match="skip cannot be told from a pass"):
+                _examined_frame(scope, scope.draw_verdict)
 
 
 def test_every_published_comparison_is_classified_by_the_sampling_frame_gates() -> None:

@@ -85,6 +85,11 @@ UNRESOLVABLE = "unresolvable_frame_record"
 DEFERRED = "deferred_to_sibling_cohort"
 VERDICTS = frozenset({EXAMINED, NO_FRAME, UNRESOLVABLE, DEFERRED})
 
+#: Stands in for ``record`` when a document declares a sampling frame and names no record
+#: file. It is unresolvable for a different reason from a path that is simply absent, and the
+#: reason a reader is given has to say which.
+NO_RECORD_NAMED = "<no record named>"
+
 #: A floor, not a count. One examined cohort is the difference between a gate
 #: and a sentence; the number of cohorts is data and must never be typed here,
 #: because a gate whose denominator a human maintains jams every open branch the
@@ -128,10 +133,15 @@ class FrameScope:
                 "frame and was a convenience sample, and says so in its own document"
             )
         if verdict == UNRESOLVABLE:
+            what = (
+                "declares a sampling frame and names no record file"
+                if self.declared_record == NO_RECORD_NAMED
+                else f"names the frame record {self.declared_record!r}, which is not committed"
+            )
             return (
-                f"{self.comparison} names the frame record {self.declared_record!r}, which is "
-                "not committed. A named record that does not resolve is the one case where a "
-                "skip cannot be told from a pass, so this fails rather than skipping."
+                f"{self.comparison} {what}. A frame a document asserts and nothing can resolve "
+                "is the one case where a skip cannot be told from a pass, so this fails rather "
+                "than skipping."
             )
         if verdict == DEFERRED:
             return (
@@ -165,7 +175,7 @@ def scope_of(comparison_path: Path) -> FrameScope:
     if not isinstance(collection, dict) or "sampling_frame" not in collection:
         return FrameScope(comparison_path.name, cohort_id, None, None, None)
     if not isinstance(frame, dict) or "record" not in frame:
-        return FrameScope(comparison_path.name, cohort_id, "<no record named>", None, None)
+        return FrameScope(comparison_path.name, cohort_id, NO_RECORD_NAMED, None, None)
     declared = str(frame["record"])
     candidate = ROOT / declared
     sibling = frame.get("sibling_cohort")
