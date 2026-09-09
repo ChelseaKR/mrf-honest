@@ -42,3 +42,12 @@ floor to make a change pass; fix the change.
 - Architecture decisions that are expensive to reverse get an ADR in `docs/adr/`
   (`docs/adr/0000-record-architecture-decisions.md`).
 - Changes land with a `CHANGELOG.md` entry under `[Unreleased]`.
+
+## Commercial solicitation
+
+Issues here are not open to bids. They are design records — written so a decision is
+reconstructable later — not scope documents for outside quoting, and unsolicited offers to
+implement one for a fee will be declined.
+
+Contributions through the normal fork-and-PR process are welcome, and `good first issue` is the
+place to start.
