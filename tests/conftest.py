@@ -25,6 +25,7 @@ from catalog_coverage import (
     catalogued_codes,
     discover_catalogs,
 )
+from frame_coverage import census_lines as frame_census_lines
 
 import mrf_honest
 from mrf_honest.inspect import Finding
@@ -112,6 +113,11 @@ def census(config: pytest.Config, *, failures: int) -> EmissionCensus:
 def pytest_terminal_summary(terminalreporter: Any, exitstatus: int, config: pytest.Config) -> None:
     result = census(config, failures=len(terminalreporter.stats.get("failed", [])))
     for line in result.lines():
+        terminalreporter.write_line(line)
+    # The sampling-frame census is a property of the committed documents and the gates' scope
+    # rules rather than of this invocation, so unlike the emission census above it needs no
+    # third value for a filtered run: it is equally true when nothing ran.
+    for line in frame_census_lines():
         terminalreporter.write_line(line)
 
 

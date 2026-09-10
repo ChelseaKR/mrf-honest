@@ -210,3 +210,38 @@ own profile with its own fingerprinted policies, and a distribution computed acr
 compare findings produced by different rule sets. "Two thirds of the draw falls outside the
 profile" stops being the headline; what replaces it is stated per cohort, on the site, with the
 same fail-closed exclusion discipline this document promised.
+
+## 2026-09-08: which cohort the frame's `attempts` describe, and what each gate examines
+
+`data/frames/2026-08-19.frame.json` is named by both 2026-08-19 cohorts, and its `attempts[]`
+rows are **not** symmetric between them. Each row's `outcome` and `detail` describe the
+**JSON** cohort: `detail` is a `hospital-json-v3-2026-08-19` slug, and a facility recorded
+`graded` there is graded *as JSON*. The CSV cohort is that draw's sibling — it declares
+`collection.sampling_frame.sibling_cohort` and grades the CSV-retrievable targets the JSON
+cohort recorded as format exclusions — so a facility graded in the frame is correctly absent
+from its rows.
+
+Two gates read the frame, and they have different scopes for that reason:
+
+| Gate | Scope | Why |
+|---|---|---|
+| `test_the_random_stratum_is_the_seeded_draw_it_claims_to_be` | every cohort naming a frame record | the draw is a property of the frame, and both cohorts declare the same seed, sample size and eligible-identifier digest — each is now checked against the record it names |
+| `test_no_drawn_facility_is_missing_from_the_published_cohort` | the cohort the `attempts` describe | pointing it at a sibling unchanged fails 48 of 48 times, correctly and uselessly |
+
+**A cohort the second gate defers is not a cohort nobody checks.** Its accounting against the
+shared draw is `test_every_drawn_facility_is_accounted_for_across_both_profile_cohorts`, which
+walks the seam between the two documents; a test resolves that name rather than trusting it, so
+deleting or renaming the covering gate fails rather than silently opening a hole.
+
+**Three rules the gates now hold to, and the reason for each.** The frame is the one the
+comparison *names*, never one built from its filename — a filename convention reported the CSV
+cohort as predating a frame it names and was drawn from, which is a failed lookup rendered as a
+fact about the data. A named record that is not committed **fails**, because that is the one
+state where a skip and a pass are the same output. And both gates print how many of the
+published comparisons they examine, out of how many exist, on every run, with every cohort
+they do not examine named and its reason stated.
+
+The seeded-draw gate examines **2 of 3** published comparisons; the drawn-facility accounting
+gate examines **1 of 3**. Both figures are re-derived from the committed documents by
+`test_this_document_states_the_coverage_the_frame_gates_actually_have`, so a cohort added or a
+scope rule changed fails here rather than leaving a number nobody recomputes.
