@@ -197,6 +197,19 @@ def test_every_published_page_explains_missing_contract_evidence(
             reason = str(lakehouse["reason"]).replace("'", "&#x27;")
             assert reason in page, f"{row['slug']} hides why the warehouse refused it"
             assert "not a finding about the file" in page
+        elif isinstance(lakehouse, dict) and lakehouse.get("status") == "contract_failed":
+            # The other way an ingest ends without a snapshot. Until it had a status of its own
+            # it reached the page as no record at all, which the branch below renders as "No
+            # warehouse ingest was recorded" -- the same sentence a file nobody tried to load
+            # gets. The reason and every violation have to be on the page.
+            assert "a data contract rejected it" in page
+            assert "not a limit of this project's scope" in page
+            violations = cast(list[dict[str, object]], lakehouse["violations"])
+            assert violations, f"{row['slug']} claims a contract failure with no violation"
+            for violation in violations:
+                assert f"{violation['model']}.{violation['rule']}" in page
+                assert f"{violation['violating_rows']} row(s)" in page
+                assert str(violation["message"]) in page
         elif lakehouse is None:
             assert "No warehouse ingest was recorded" in page
         else:

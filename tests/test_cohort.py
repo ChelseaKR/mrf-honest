@@ -592,14 +592,16 @@ def test_refusal_evidence_obeys_the_same_cohort_binding(tmp_path: Path) -> None:
 
 
 def test_comparison_version_announces_the_document_shape(tmp_path: Path) -> None:
-    """Version 2 changed what ``files[].lakehouse`` can be; version 3 added ``statistics``.
+    """Version 2 changed what ``files[].lakehouse`` can be; version 3 added ``statistics``;
+    version 4 added its ``contract_failed`` branch, which a version-3 reader would mistake for a
+    completed load because it is a present record whose status is not ``refused``.
 
-    The grade policy moved for neither: the rule table is untouched and every grade is
+    The grade policy moved for none of them: the rule table is untouched and every grade is
     unchanged, so the fingerprint must stay put rather than announce a regrade that did not
     happen (ADR 0005).
     """
     comparison = build_comparison(_two_records(tmp_path), _manifest(), generated_at=GENERATED_AT)
-    assert comparison["comparison_version"] == COMPARISON_VERSION == 3
+    assert comparison["comparison_version"] == COMPARISON_VERSION == 4
     assert "statistics" in comparison
     cohort = cast(dict[str, object], comparison["cohort"])
     policy = cast(dict[str, object], cohort["grade_policy"])
@@ -806,3 +808,65 @@ def test_the_shares_partition_the_stratum_exactly(tmp_path: Path) -> None:
     estimates = cast(list[dict[str, object]], statistics["estimates"])
     assert sum(cast(int, estimate["numerator"]) for estimate in estimates) == 22
     assert abs(sum(cast(float, estimate["point"]) for estimate in estimates) - 1.0) < 1e-9
+
+
+# --- contract-failure evidence, published rather than absent ---------------------------------
+
+
+def _contract_failed_evidence(content: str) -> dict[str, object]:
+    return {
+        "status": "contract_failed",
+        "source_file_id": content,
+        "publisher_id": "example-health",
+        "reason": "data contract failed: stg_modifier_payer.unique_canonical_payer_plan: 40 row(s)",
+        "violations": [
+            {
+                "model": "stg_modifier_payer",
+                "rule": "unique_canonical_payer_plan",
+                "violating_rows": 40,
+                "message": "a modifier must have at most one mapping per canonical payer-plan pair",
+            }
+        ],
+    }
+
+
+def test_a_contract_failure_is_carried_into_the_comparison_with_its_violations(
+    tmp_path: Path,
+) -> None:
+    """A rejected load must reach the row it applies to, not vanish into an exit code.
+
+    ``refused`` and ``contract_failed`` are separate statuses because they say opposite things:
+    a refusal is a limit of what this project implements and is never a finding about the file,
+    while a contract failure says the verified body carries rows a declared invariant forbids.
+    Neither touches the grade.
+    """
+    records = _two_records(tmp_path / "bodies")
+    content = cast(str, cast(dict[str, object], records[0]["retrieval"])["content_sha256"])
+    comparison = build_comparison(
+        records,
+        _manifest(),
+        ingest_results=[_contract_failed_evidence(content)],
+        generated_at=GENERATED_AT,
+    )
+    row = next(
+        entry
+        for entry in cast(list[dict[str, object]], comparison["files"])
+        if entry["content_sha256"] == content
+    )
+    lakehouse = cast(dict[str, object], row["lakehouse"])
+    assert lakehouse["status"] == "contract_failed"
+    assert lakehouse["violations"] == _contract_failed_evidence(content)["violations"]
+    assert cast(dict[str, object], row["grade"])["grade"] == "A", (
+        "warehouse evidence is not a grading input and must not move a letter in either direction"
+    )
+
+
+def test_contract_failure_evidence_without_its_violations_is_refused(tmp_path: Path) -> None:
+    """Same rule the refusal branch holds to: an incomplete record publishes the same
+    unexplained absence it exists to replace, so half of one is worse than none."""
+    records = _two_records(tmp_path / "bodies")
+    content = cast(str, cast(dict[str, object], records[0]["retrieval"])["content_sha256"])
+    evidence = _contract_failed_evidence(content)
+    del evidence["violations"]
+    with pytest.raises(CohortError, match="violations"):
+        build_comparison(records, _manifest(), ingest_results=[evidence], generated_at=GENERATED_AT)

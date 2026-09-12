@@ -72,9 +72,25 @@ COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("completeness_status", "string", "OBSERVED, FINDINGS, or NOT_ASSESSED."),
     ("interpretability_status", "string", "OBSERVED, FINDINGS, or NOT_ASSESSED."),
     ("freshness_status", "string", "OBSERVED, FINDINGS, or NOT_ASSESSED."),
-    ("error_findings", "integer", "Count of ERROR findings across all dimensions."),
-    ("warning_findings", "integer", "Count of WARNING findings across all dimensions."),
-    ("info_findings", "integer", "Count of INFO findings, which never lower a grade."),
+    (
+        "error_findings",
+        "integer",
+        "Count of ERROR findings across all dimensions. Zero where nothing was assessed as "
+        "well as where nothing was wrong: read it with the *_status columns, which say which "
+        "of the two this row is.",
+    ),
+    (
+        "warning_findings",
+        "integer",
+        "Count of WARNING findings across all dimensions. Zero where nothing was assessed as "
+        "well as where nothing was wrong; see error_findings.",
+    ),
+    (
+        "info_findings",
+        "integer",
+        "Count of INFO findings, which never lower a grade. Zero where nothing was assessed as "
+        "well as where nothing was observed; see error_findings.",
+    ),
     ("network_attempted", "boolean", "Whether a network retrieval was attempted."),
     ("verified_body_available", "boolean", "Whether a verified body was admitted."),
     ("inspection_scan_completed", "boolean", "Whether the charge array was streamed to the end."),

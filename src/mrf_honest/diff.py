@@ -77,7 +77,7 @@ DIFF_VERSION = 2
 #: does not understand, which is the failure this project keeps finding elsewhere. A test asserts
 #: that the current ``COMPARISON_VERSION`` is a member, so bumping the cohort document forces
 #: somebody to look at this reader instead of discovering the mismatch in published output.
-READABLE_COMPARISON_VERSIONS = frozenset({1, 2, 3})
+READABLE_COMPARISON_VERSIONS = frozenset({1, 2, 3, 4})
 
 #: Compared, and nothing moved.
 EXIT_NO_REGRESSION = 0

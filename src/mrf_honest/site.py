@@ -21,7 +21,12 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import cast
 
-from mrf_honest.cohort import INGEST_REFUSED, LOCAL_DIMENSIONS, NOT_GRADED
+from mrf_honest.cohort import (
+    INGEST_CONTRACT_FAILED,
+    INGEST_REFUSED,
+    LOCAL_DIMENSIONS,
+    NOT_GRADED,
+)
 from mrf_honest.dataset import api_documents, dataset_csv, encode, table_schema
 from mrf_honest.inspect import FINDING_CATALOG
 from mrf_honest.inspect_csv import CSV_FINDING_CATALOG
@@ -443,6 +448,27 @@ def _lakehouse_section(row: Mapping[str, object]) -> str:
             "<h2>Warehouse contracts</h2><p>No warehouse ingest was recorded for this file in "
             "this cohort, so no contract evidence exists for it. Absence of that check is "
             "stated here rather than implied as a pass.</p>"
+        )
+    if lakehouse.get("status") == INGEST_CONTRACT_FAILED:
+        # A contract failure is evidence *about the file*, unlike the refusal below, and the
+        # page has to say which of the two it is looking at. It still does not touch the grade:
+        # warehouse evidence is never a grading input, in either direction.
+        rows = "".join(
+            f'<li class="finding"><span class="finding-copy"><code>'
+            f"{_e(item.get('model'))}.{_e(item.get('rule'))}</code>: "
+            f"{_e(item.get('violating_rows'))} row(s) — {_e(item.get('message'))}</span></li>"
+            for item in cast(Sequence[Mapping[str, object]], lakehouse.get("violations") or ())
+        )
+        return (
+            "<h2>Warehouse contracts</h2>"
+            "<p>This project's local warehouse read the verified body and a data contract "
+            "rejected it, so no snapshot was produced. A contract violation fails the build "
+            "rather than warning, and the rows it rejected are named below. This is a statement "
+            "about rows in the file, not a limit of this project's scope — and it does not "
+            "affect the grade above, because warehouse evidence is never a grading input. It is "
+            "stated here rather than left as an absence a reader could not tell from a file "
+            "nobody tried to load.</p>"
+            f'<ul class="findings">{rows}</ul>'
         )
     if lakehouse.get("status") == INGEST_REFUSED:
         # The reason is the whole point of this branch. A refusal rendered as a bare absence
