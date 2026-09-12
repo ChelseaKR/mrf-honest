@@ -39,10 +39,12 @@ from mrf_honest.systems import (
     NO_DISCOVERY_EVIDENCE,
     NOT_INSPECTED,
     RECONCILED,
+    SYSTEMS_VERSION,
     SystemsError,
     human_report,
     reconcile,
     select_discovery_evidence,
+    superseding_failures,
 )
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -634,7 +636,7 @@ def test_the_cli_writes_a_json_document(tmp_path: Path, capsys: pytest.CaptureFi
     )
     assert status == 0
     document = json.loads(capsys.readouterr().out)
-    assert document["systems_version"] == 1
+    assert document["systems_version"] == SYSTEMS_VERSION
     assert document["status"] == RECONCILED
     assert [system["publisher_id"] for system in document["systems"]] == ["stanford-health-care"]
 
@@ -647,3 +649,181 @@ def test_the_cli_prints_a_human_report(tmp_path: Path, capsys: pytest.CaptureFix
     out = capsys.readouterr().out
     assert "stanford-health-care" in out
     assert "No file's grade or findings are read into any row above" in out
+
+
+# --- a record that is the newest usable one, and not the newest attempt ----------------------
+
+
+def _failed_attempt(
+    domain: str,
+    *,
+    attempted_at: str,
+    status: str = "robots_disallowed",
+    error: str = (
+        "unreachable: HTTP 301: robots.txt unreachable, treated as a complete disallow "
+        "(RFC 9309 2.3.1.4)"
+    ),
+    http_status: int | None = 301,
+) -> dict[str, object]:
+    """A discovery attempt that produced no parsed document, shaped as the registry writes one.
+
+    Taken from the real `msh.ms.gov` row the 2026-09-12 CSV re-collection wrote: `discovery` is
+    `null`, `attempts` is 0 because the robots decision preceded any request for the file, and
+    the reason is in `fetch.error`.
+    """
+    url = f"https://{domain}/cms-hpt.txt"
+    return {
+        "attempted_at": attempted_at,
+        "discovery": None,
+        "domain": domain,
+        "fetch": {
+            "attempted_at": attempted_at,
+            "attempts": 0,
+            "content_sha256": None,
+            "error": error,
+            "http_status": http_status,
+            "status": status,
+            "url": url,
+        },
+        "kind": "discovery",
+        "problems": [],
+        "url": url,
+        "version": 2,
+    }
+
+
+def test_a_later_attempt_that_failed_is_named_beside_the_record_it_did_not_refresh() -> None:
+    """The defect: a stale record and a current one rendered identically apart from a date."""
+    records = _rows(STANFORD, TRI_VALLEY)
+    discovery = [
+        _stanford_system(attempted_at="2026-08-14T00:00:00Z"),
+        _failed_attempt("stanfordhealthcare.org", attempted_at="2026-08-14T12:00:00Z"),
+    ]
+    document = reconcile(records, discovery)
+
+    later = cast(dict[str, object], _system(document)["discovery"])[
+        "later_attempt_that_did_not_refresh_it"
+    ]
+    assert later is not None, "the failed attempt is in the registry and has to be in the document"
+    failure = cast(dict[str, object], later)
+    assert failure["attempted_at"] == "2026-08-14T12:00:00Z"
+    assert failure["status"] == "robots_disallowed"
+    assert failure["http_status"] == 301
+    assert "RFC 9309" in str(failure["reason"])
+    assert "not a statement that the origin stopped publishing" in str(failure["basis"])
+
+    coverage = cast(dict[str, object], document["coverage"])
+    assert coverage["rows_declared_by_a_record_a_later_attempt_did_not_refresh"] == 2
+    assert coverage["rows_declared_by_a_listed_location"] == 2, (
+        "the rows are still declared -- by a record whose date is the date of its own evidence"
+    )
+    evidence = cast(dict[str, object], document["discovery_evidence"])
+    assert evidence["records_a_later_attempt_did_not_refresh"] == 1
+
+
+def test_a_record_nothing_superseded_says_so_rather_than_saying_nothing() -> None:
+    document = reconcile(_rows(STANFORD, TRI_VALLEY), [_stanford_system()])
+    discovery = cast(dict[str, object], _system(document)["discovery"])
+    assert "later_attempt_that_did_not_refresh_it" in discovery
+    assert discovery["later_attempt_that_did_not_refresh_it"] is None
+    coverage = cast(dict[str, object], document["coverage"])
+    assert coverage["rows_declared_by_a_record_a_later_attempt_did_not_refresh"] == 0
+    evidence = cast(dict[str, object], document["discovery_evidence"])
+    assert evidence["records_a_later_attempt_did_not_refresh"] == 0
+
+
+def test_the_human_report_says_the_rows_rest_on_the_older_date() -> None:
+    document = reconcile(
+        _rows(STANFORD, TRI_VALLEY),
+        [
+            _stanford_system(attempted_at="2026-08-14T00:00:00Z"),
+            _failed_attempt("stanfordhealthcare.org", attempted_at="2026-08-14T12:00:00Z"),
+        ],
+    )
+    out = human_report(document)
+    assert "of those, 2 declared by a record a later attempt did not refresh" in out
+    assert "! a later attempt on 2026-08-14T12:00:00Z did not refresh this record" in out
+    assert "robots_disallowed" in out
+
+
+def test_reconcile_takes_the_later_record_when_it_parsed() -> None:
+    """Through `reconcile` the later parsed record simply becomes the selected one."""
+    later = _stanford_system(attempted_at="2026-08-14T12:00:00Z")
+    document = reconcile(_rows(STANFORD, TRI_VALLEY), [_stanford_system(), later])
+    discovery = cast(dict[str, object], _system(document)["discovery"])
+    assert discovery["retrieved_at"] == "2026-08-14T12:00:00Z"
+    assert discovery["later_attempt_that_did_not_refresh_it"] is None
+
+
+def test_a_later_attempt_that_parsed_is_never_reported_as_a_failure() -> None:
+    """Driven against `superseding_failures` directly, because `reconcile` cannot reach it.
+
+    Through `reconcile` a later record that parsed is the one `select_discovery_evidence`
+    chooses, so the date guard alone already excludes it and this branch never executes -- which
+    is how the first version of this test passed against a copy with the branch deleted. The
+    function is public and its docstring invites a caller to supply its own frozen per-cohort
+    subset, so the contract is exercised where the contract lives: a record that parsed did
+    refresh this origin, and saying otherwise would be a false statement about a named origin.
+    """
+    later = _stanford_system(attempted_at="2026-08-14T12:00:00Z")
+    failures = superseding_failures(
+        [later],
+        as_of="2026-08-14",
+        selected=[_stanford_system(attempted_at="2026-08-14T00:00:00Z")],
+    )
+    assert failures == {}
+
+    # The same call with a record that did *not* parse reports it, so the emptiness above is the
+    # branch under test and not a fixture that reaches nothing.
+    assert superseding_failures(
+        [_failed_attempt("stanfordhealthcare.org", attempted_at="2026-08-14T12:00:00Z")],
+        as_of="2026-08-14",
+        selected=[_stanford_system(attempted_at="2026-08-14T00:00:00Z")],
+    )
+
+
+def test_a_failure_after_the_cohort_is_not_read_back_onto_it() -> None:
+    """An old cohort must not be annotated with something that had not happened yet."""
+    failures = superseding_failures(
+        [_failed_attempt("stanfordhealthcare.org", attempted_at="2026-09-12T00:00:00Z")],
+        as_of="2026-08-14",
+        selected=[_stanford_system()],
+    )
+    assert failures == {}
+
+
+def test_only_the_newest_failed_attempt_is_reported() -> None:
+    failures = superseding_failures(
+        [
+            _failed_attempt(
+                "stanfordhealthcare.org", attempted_at="2026-08-14T06:00:00Z", status="http_error"
+            ),
+            _failed_attempt(
+                "stanfordhealthcare.org",
+                attempted_at="2026-08-14T18:00:00Z",
+                status="network_error",
+            ),
+        ],
+        as_of="2026-08-14",
+        selected=[_stanford_system()],
+    )
+    assert list(failures) == ["stanfordhealthcare.org"]
+    assert failures["stanfordhealthcare.org"]["status"] == "network_error"
+
+
+def test_a_failure_for_a_domain_no_record_was_selected_from_is_not_reported() -> None:
+    """It cannot have superseded anything this reconciliation read."""
+    failures = superseding_failures(
+        [_failed_attempt("elsewhere.example", attempted_at="2026-08-14T18:00:00Z")],
+        as_of="2026-08-14",
+        selected=[_stanford_system()],
+    )
+    assert failures == {}
+
+
+def test_an_unreconciled_cohort_leaves_the_count_undetermined_rather_than_zero() -> None:
+    """Nothing was selected, so nothing can have been superseded -- and 0 would read as checked."""
+    document = reconcile(_rows(STANFORD), [])
+    coverage = cast(dict[str, object], document["coverage"])
+    assert document["status"] == NO_DISCOVERY_EVIDENCE
+    assert coverage["rows_declared_by_a_record_a_later_attempt_did_not_refresh"] is None

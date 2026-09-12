@@ -49,6 +49,22 @@ no version tags yet; until the first dated release (phase 5 of
   depends on is involved: warehouse evidence is not a grading input in either direction (ADR
   0005).
 
+- **`systems` fell back to an older discovery record without saying a newer attempt had failed.**
+  The reconciliation runs against the newest `cms-hpt.txt` record that *succeeded*, which is
+  right -- a document retrieved last month still says what that origin listed last month. What it
+  did not say is that a later attempt was made and produced nothing, and a stale record and a
+  current one rendered identically apart from their dates. Observed on the 2026-09-12 CSV
+  re-collection: `msh.ms.gov`'s `robots.txt` began answering HTTP 301, which RFC 9309 § 2.3.1.4
+  makes a complete disallow, so its `cms-hpt.txt` could not be retrieved at all that day -- and
+  the report rendered its 2026-08-19 record under a header line saying all 25 graded rows were
+  declared by a listed location. Each record now names the later attempt, its status and its
+  stated reason; `coverage` counts the rows resting on one as their own subset of the rows a
+  listed location declares, rather than as a separate class or as nothing; and the document
+  version moves to 2. A later attempt that *parsed* is not reported -- it refreshed the record --
+  and a failure dated after the cohort is never read back onto it. On a cohort nothing was
+  reconciled against, the new count is `null` rather than `0`, because 0 would read as "checked,
+  all current".
+
 - **A grade carried its date and never its age, and the page never stated a "today" to subtract
   it from.** Every published row has always carried `as_of`. A date on a static page is not an
   answer to "is this still true?": the reader has to know what day it is and do the arithmetic,

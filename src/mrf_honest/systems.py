@@ -25,6 +25,19 @@ checkable is whether the file's own ``location_name`` array covers the locations
 discovery file pointed at it -- a cross-source consistency check that neither document supports
 alone.
 
+**Falling back to an older record is right; being silent about it is not.** Reconciliation runs
+against the newest discovery record that *succeeded*, which is correct -- a document retrieved
+last month still says what that system listed last month. What the document has to add is that a
+newer attempt was made and produced nothing: "this origin lists this file" and "this origin
+listed this file twenty-four days ago, and today it serves nothing this tool can read" are
+different facts about a named hospital, and a date printed beside each is not the difference,
+because a stale record and a current one render identically apart from that date. Measured on the
+2026-09-12 CSV re-collection: ``msh.ms.gov``'s ``robots.txt`` began answering HTTP 301, which
+RFC 9309 § 2.3.1.4 makes a complete disallow, so its ``cms-hpt.txt`` could not be retrieved at
+all -- and the reconciliation rendered its 2026-08-19 record with no other signal, under a header
+line saying every graded row was declared by a listed location. Every such record now names the
+later attempt and its reason, and the rows resting on one are counted as their own subset.
+
 **Two absences that must not read alike.** A listed location with no graded file in this cohort is
 almost never a publication defect: these cohorts are drawn samples, so most of a system's
 locations were simply never targeted. That is reported as this project's sampling scope, in its
@@ -55,7 +68,7 @@ from mrf_honest.cohort import grade_assessment
 from mrf_honest.scorecard import require_comparable
 
 #: Bumped when this document's shape changes.
-SYSTEMS_VERSION = 1
+SYSTEMS_VERSION = 2
 
 #: The CMS general data elements this reconciliation reads, in dictionary order.
 GENERAL_DATA_ELEMENTS = (
@@ -236,6 +249,62 @@ def select_discovery_evidence(
     return tuple(sorted(selected, key=lambda record: str(record.get("url"))))
 
 
+#: What a superseding failure means, stated in the document rather than left to inference.
+SUPERSEDED_BASIS = (
+    "a later attempt to retrieve this origin's cms-hpt.txt, on or before this cohort's date, "
+    "produced nothing this reconciliation can read, so the record below is the newest usable one "
+    "and not the newest attempt. The reconciliation is still made against it -- a document "
+    "retrieved earlier still says what that origin listed earlier -- but what it says is a fact "
+    "as of its own date. It is not a statement that the origin stopped publishing: a robots.txt "
+    "that could not be read, an HTTP status, or a network error is a fact about a request from "
+    "one client on one date."
+)
+
+
+def _failed_attempt(record: Mapping[str, object]) -> dict[str, object]:
+    """The reason a later attempt produced no usable record, from its own fetch evidence."""
+    fetch = _mapping(record.get("fetch")) or {}
+    return {
+        "attempted_at": record.get("attempted_at"),
+        "url": record.get("url"),
+        "status": fetch.get("status"),
+        "http_status": fetch.get("http_status"),
+        "reason": fetch.get("error"),
+        "basis": SUPERSEDED_BASIS,
+    }
+
+
+def superseding_failures(
+    records: Iterable[Mapping[str, object]],
+    *,
+    as_of: str,
+    selected: Sequence[Mapping[str, object]],
+) -> dict[str, dict[str, object]]:
+    """Per selected domain, the newest later attempt that yielded no usable discovery record.
+
+    Only attempts strictly newer than the selected record and no newer than the cohort are
+    considered, so a reconciliation of an old cohort is never annotated with a failure that had
+    not happened yet. A later attempt that *did* parse is not a failure and is skipped -- it
+    would have been selected instead, and reporting it would say a record was superseded by one
+    that refreshed it perfectly well.
+    """
+    chosen = {str(record.get("domain")): str(record.get("attempted_at")) for record in selected}
+    newest: dict[str, Mapping[str, object]] = {}
+    for record in records:
+        attempted = str(record.get("attempted_at"))
+        if attempted[:10] > as_of:
+            continue
+        domain = str(record.get("domain"))
+        if domain not in chosen or attempted <= chosen[domain]:
+            continue
+        if _entries(record):
+            continue
+        current = newest.get(domain)
+        if current is None or attempted > str(current.get("attempted_at")):
+            newest[domain] = record
+    return {domain: _failed_attempt(record) for domain, record in sorted(newest.items())}
+
+
 def _element_values(envelope: Mapping[str, object] | None) -> dict[str, object]:
     if envelope is None:
         return {name: None for name in GENERAL_DATA_ELEMENTS}
@@ -340,6 +409,8 @@ def _listed_entry(entry: Mapping[str, object]) -> dict[str, object]:
 def _system_entry(
     discovery: Mapping[str, object],
     views: Sequence[Mapping[str, object]],
+    *,
+    later_failed_attempt: Mapping[str, object] | None = None,
 ) -> dict[str, object]:
     entries = _entries(discovery)
     digests: dict[str, list[Mapping[str, object]]] = {}
@@ -402,6 +473,9 @@ def _system_entry(
             "retrieved_at": discovery.get("attempted_at"),
             "content_sha256": fetch.get("content_sha256"),
             "citation": CMS_DISCOVERY_CITATION,
+            "later_attempt_that_did_not_refresh_it": (
+                dict(later_failed_attempt) if later_failed_attempt is not None else None
+            ),
         },
         "locations_listed": len(entries),
         "locations_served_by_a_graded_file": served,
@@ -490,11 +564,19 @@ def _unreconciled(
                 cast(Mapping[str, object], rows[0].get("comparison_scope") or {})
             ),
         },
-        "discovery_evidence": {"records_selected": 0, "records": []},
+        "discovery_evidence": {
+            "records_selected": 0,
+            "records_a_later_attempt_did_not_refresh": 0,
+            "records": [],
+        },
         "coverage": {
             "rows": len(views),
             "rows_declared_by_a_listed_location": None,
             "rows_no_listed_location_declares": None,
+            # Absent rather than zero, for the same reason as the two above: with no record
+            # selected there is none to have been superseded, and 0 would read as "checked, all
+            # current".
+            "rows_declared_by_a_record_a_later_attempt_did_not_refresh": None,
         },
         "graded_without_a_listed_location": [],
         "systems": [],
@@ -526,6 +608,7 @@ def reconcile(
         return _unreconciled(rows, views, as_of)
 
     by_source, unlisted = _route_rows(views, selected)
+    superseded = superseding_failures(discovery_records, as_of=as_of, selected=selected)
 
     selected_by_url = {str(record.get("url")): record for record in selected}
     publishers: list[dict[str, object]] = []
@@ -535,7 +618,23 @@ def reconcile(
             # Single-location publishers get no system entry: there is nothing to reconcile
             # across, and an empty section would read as a checked-and-clean result.
             continue
-        publishers.append(_system_entry(discovery, by_source[url]))
+        publishers.append(
+            _system_entry(
+                discovery,
+                by_source[url],
+                later_failed_attempt=superseded.get(str(discovery.get("domain"))),
+            )
+        )
+
+    # Counted over every graded row, not only the multi-location systems above, because the
+    # question "how much of this cohort rests on a document nobody could retrieve again?" is
+    # about the cohort. It is a *subset* of the rows a listed location declares and is rendered
+    # as one: these rows are declared, by a record whose date is the date of its own evidence.
+    rows_on_superseded = sum(
+        len(rows)
+        for url, rows in by_source.items()
+        if str(selected_by_url[url].get("domain")) in superseded
+    )
 
     return {
         "systems_version": SYSTEMS_VERSION,
@@ -550,8 +649,15 @@ def reconcile(
         },
         "discovery_evidence": {
             "records_selected": len(selected),
+            "records_a_later_attempt_did_not_refresh": len(superseded),
             "records": [
-                {"url": record.get("url"), "retrieved_at": record.get("attempted_at")}
+                {
+                    "url": record.get("url"),
+                    "retrieved_at": record.get("attempted_at"),
+                    "later_attempt_that_did_not_refresh_it": superseded.get(
+                        str(record.get("domain"))
+                    ),
+                }
                 for record in selected
             ],
         },
@@ -559,6 +665,7 @@ def reconcile(
             "rows": len(views),
             "rows_declared_by_a_listed_location": len(views) - len(unlisted),
             "rows_no_listed_location_declares": len(unlisted),
+            "rows_declared_by_a_record_a_later_attempt_did_not_refresh": rows_on_superseded,
         },
         "graded_without_a_listed_location": unlisted,
         "systems": publishers,
@@ -596,6 +703,73 @@ def _summary(
     }
 
 
+def _system_lines(system: Mapping[str, object]) -> list[str]:
+    """One system's block of the plain-text report.
+
+    Split out of ``human_report`` because adding the superseding-attempt line put that function
+    at McCabe 11 against this project's ``max-complexity = 10``, and CONTRIBUTING says to fix the
+    change rather than the floor.
+    """
+    discovery = cast(Mapping[str, object], system["discovery"])
+    assessed = cast(Sequence[object], system["locations_assessed_in_this_cohort"])
+    not_assessed = cast(Mapping[str, object], system["locations_not_assessed_in_this_cohort"])
+    lines = [
+        f"{system['publisher_id']} ({discovery['url']}, retrieved {discovery['retrieved_at']})"
+    ]
+    later = discovery["later_attempt_that_did_not_refresh_it"]
+    if later is not None:
+        failed = cast(Mapping[str, object], later)
+        lines.append(
+            f"  ! a later attempt on {failed['attempted_at']} did not refresh this record: "
+            f"{failed['status']} ({failed['reason']}). The rows below rest on the date above."
+        )
+    lines.append(
+        f"  {system['locations_listed']} location(s) listed; "
+        f"{system['locations_served_by_a_graded_file']} served by a file graded here "
+        f"({len(assessed)} file(s)); {not_assessed['count']} not assessed in this cohort "
+        "(this project's sampling scope, not a defect)"
+    )
+    blocks = cast(Mapping[str, object], system["blocks_that_are_not_location_entries"])
+    if blocks["count"]:
+        lines.append(
+            f"  ({blocks['count']} block(s) in the file are not location entries and are "
+            "not counted above)"
+        )
+    for missing in cast(Sequence[object], system["locations_listed_without_an_mrf_url"]):
+        entry = cast(Mapping[str, object], missing)
+        lines.append(f"  ! listed with no mrf-url: {entry['location_name']}")
+    for shared in cast(Sequence[object], system["files_serving_several_listed_locations"]):
+        share = cast(Mapping[str, object], shared)
+        listed = ", ".join(cast(Sequence[str], share["listed_locations"]))
+        lines.append(f"  one file for several listed locations: {share['slug']} <- {listed}")
+    for graded in assessed:
+        file_row = cast(Mapping[str, object], graded)
+        agreement = cast(Mapping[str, object], file_row["location_name_agreement"])
+        lines.append(
+            f"  {file_row['slug']}: grade {file_row['grade']}, location names {agreement['state']}"
+        )
+    lines.extend(_disagreement_lines(cast(Sequence[object], system["disagreements"])))
+    return lines
+
+
+def _disagreement_lines(disagreements: Sequence[object]) -> list[str]:
+    lines: list[str] = []
+    for raw_disagreement in disagreements:
+        disagreement = cast(Mapping[str, object], raw_disagreement)
+        mark = "!" if disagreement["basis"] == MUST_AGREE else "-"
+        label = (
+            "files disagree on"
+            if disagreement["basis"] == MUST_AGREE
+            else "files differ on (expected to vary by location)"
+        )
+        lines.append(f"  {mark} {label} {disagreement['element']}:")
+        for value in cast(Sequence[object], disagreement["values"]):
+            pair = cast(Mapping[str, object], value)
+            files = ", ".join(cast(Sequence[str], pair["files"]))
+            lines.append(f"      {pair['value']!r} ({files})")
+    return lines
+
+
 def human_report(document: Mapping[str, object]) -> str:
     """A deterministic plain-text report of one reconciliation."""
     cohort = cast(Mapping[str, object], document["cohort"])
@@ -606,10 +780,12 @@ def human_report(document: Mapping[str, object]) -> str:
             f"not reconciled.\n{document['reason']}"
         )
     summary = cast(Mapping[str, object], document["summary"])
+    superseded_rows = coverage["rows_declared_by_a_record_a_later_attempt_did_not_refresh"]
     lines = [
         f"cohort as of {cohort['as_of']}: {coverage['rows']} graded file(s), "
         f"{coverage['rows_declared_by_a_listed_location']} declared by a listed location, "
         f"{coverage['rows_no_listed_location_declares']} declared by none",
+        f"of those, {superseded_rows} declared by a record a later attempt did not refresh",
         f"{summary['multi_location_systems']} multi-location system(s)",
         "",
     ]
@@ -617,52 +793,7 @@ def human_report(document: Mapping[str, object]) -> str:
         row = cast(Mapping[str, object], entry)
         lines.append(f"! {row['slug']}: no retrieved cms-hpt.txt declares this file")
     for entry in cast(Sequence[object], document["systems"]):
-        system = cast(Mapping[str, object], entry)
-        discovery = cast(Mapping[str, object], system["discovery"])
-        assessed = cast(Sequence[object], system["locations_assessed_in_this_cohort"])
-        not_assessed = cast(Mapping[str, object], system["locations_not_assessed_in_this_cohort"])
-        lines.append(
-            f"{system['publisher_id']} ({discovery['url']}, retrieved {discovery['retrieved_at']})"
-        )
-        lines.append(
-            f"  {system['locations_listed']} location(s) listed; "
-            f"{system['locations_served_by_a_graded_file']} served by a file graded here "
-            f"({len(assessed)} file(s)); {not_assessed['count']} not assessed in this cohort "
-            "(this project's sampling scope, not a defect)"
-        )
-        blocks = cast(Mapping[str, object], system["blocks_that_are_not_location_entries"])
-        if blocks["count"]:
-            lines.append(
-                f"  ({blocks['count']} block(s) in the file are not location entries and are "
-                "not counted above)"
-            )
-        for missing in cast(Sequence[object], system["locations_listed_without_an_mrf_url"]):
-            entry = cast(Mapping[str, object], missing)
-            lines.append(f"  ! listed with no mrf-url: {entry['location_name']}")
-        for shared in cast(Sequence[object], system["files_serving_several_listed_locations"]):
-            share = cast(Mapping[str, object], shared)
-            listed = ", ".join(cast(Sequence[str], share["listed_locations"]))
-            lines.append(f"  one file for several listed locations: {share['slug']} <- {listed}")
-        for graded in assessed:
-            file_row = cast(Mapping[str, object], graded)
-            agreement = cast(Mapping[str, object], file_row["location_name_agreement"])
-            lines.append(
-                f"  {file_row['slug']}: grade {file_row['grade']}, location names "
-                f"{agreement['state']}"
-            )
-        for raw_disagreement in cast(Sequence[object], system["disagreements"]):
-            disagreement = cast(Mapping[str, object], raw_disagreement)
-            mark = "!" if disagreement["basis"] == MUST_AGREE else "-"
-            label = (
-                "files disagree on"
-                if disagreement["basis"] == MUST_AGREE
-                else "files differ on (expected to vary by location)"
-            )
-            lines.append(f"  {mark} {label} {disagreement['element']}:")
-            for value in cast(Sequence[object], disagreement["values"]):
-                pair = cast(Mapping[str, object], value)
-                files = ", ".join(cast(Sequence[str], pair["files"]))
-                lines.append(f"      {pair['value']!r} ({files})")
+        lines.extend(_system_lines(cast(Mapping[str, object], entry)))
     lines.append("")
     lines.append(
         f"{summary['locations_listed']} location(s) listed across those systems, "
