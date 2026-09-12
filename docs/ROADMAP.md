@@ -95,8 +95,14 @@ rendered pages disagree with that document — the coverage sentence must carry 
 count, and every row must have its own rendered page that the index links to. There is no scheduled
 refresh, no alert destination, and no declared availability objective — the site is a published
 artifact, not a service, and it never fetches anything at build time. Scheduled collection
-remains out of scope until the `robots.txt` policy, per-host pacing, and `Retry-After` work
-below; any future scheduled job must take a real service/job tier declaration before shipping.
+remains out of scope — but no longer for the reason this paragraph used to give. The
+`robots.txt` policy, per-host pacing and `Retry-After` work it named shipped on 2026-08-15 and
+is described below; the issue that named it is closed. The one remaining gate is a real
+service/job tier declaration, which `docs/EXPANSION-PLAN.md` phase 14 records as an owner
+decision about what this project promises to keep running rather than a file an agent should
+author. What a refresh would actually cost, measured on the two committed collections rather
+than assumed, is in
+[docs/findings/what-a-re-collection-actually-cost-2026-09-12.md](findings/what-a-re-collection-actually-cost-2026-09-12.md).
 
 ## Metrics ledger
 
@@ -111,7 +117,7 @@ README quotes a ledger figure, this table is the source and the README follows i
 
 | Metric | Target | Measured by | Gate | Last measured |
 |---|---|---|---|---|
-| Branch coverage | >= 85% | `pytest --cov` (branch mode, `fail_under = 85`) | AUTO (`make verify`) | 93.08%, 936 tests passing and 4 skipped, 2026-09-12 || Lint findings (ruff `E,F,I,B,S,C90,UP,RUF`, `max-complexity=10`) | 0 | `ruff check src tests perf tools` | AUTO (`make verify`) | 0, 2026-08-16 |
+| Branch coverage | >= 85% | `pytest --cov` (branch mode, `fail_under = 85`) | AUTO (`make verify`) | 93.11%, 954 tests passing and 4 skipped, 2026-09-12 || Lint findings (ruff `E,F,I,B,S,C90,UP,RUF`, `max-complexity=10`) | 0 | `ruff check src tests perf tools` | AUTO (`make verify`) | 0, 2026-08-16 |
 | Formatting findings | 0 | `ruff format --check src tests perf tools` | AUTO (`make verify`) | 0, 2026-08-16 |
 | `mypy --strict` errors | 0 | `mypy` over `src`, `perf` and `tools` | AUTO (`make verify`) | 0, 2026-08-16 |
 | Lockfile drift | none | `uv lock --check` (**not** `uv sync --frozen`, which cannot see drift) | AUTO (`make verify`, CI `uv sync --locked`) | in sync, 2026-08-16 |

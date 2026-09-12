@@ -7,6 +7,21 @@ no version tags yet; until the first dated release (phase 5 of
 
 ## [Unreleased]
 
+### Added
+
+- **What a refresh actually costs, measured rather than assumed.**
+  [docs/findings/what-a-re-collection-actually-cost-2026-09-12.md](docs/findings/what-a-re-collection-actually-cost-2026-09-12.md)
+  derives, from the two committed collections and nothing else, where the bytes of a
+  re-collection go. **Only 4 of 42 files' bytes changed**, and 22 of 42 subjects answered HTTP
+  304 and moved no body at all — and the re-collection still cost **62%** of what a cold pass of
+  the same 42 would have cost (2,984,626,191 wire bytes against roughly 4.81 GB). **43.7% of it
+  moved content this project already held byte for byte**, the largest single bucket being
+  733,080,497 bytes for two files whose URL rotated its query-string credential while their
+  `ETag` and `Last-Modified` stayed identical across the rotation. A "7% of files change so 7% of
+  the bytes move" reading of a monthly refresh is wrong by an order of magnitude, and the
+  difference is the whole input to the tier decision. Every figure is re-derived by
+  `tests/test_published_claims.py` from the registries, so the document cannot drift from them.
+
 ### Changed
 
 - **Both cohorts re-collected on 2026-09-12; the published grades were twenty-four days old.**
@@ -32,6 +47,18 @@ no version tags yet; until the first dated release (phase 5 of
   is the write-up.
 
 ### Fixed
+- **Five documents blocked scheduled collection on work that shipped four weeks earlier.**
+  `.github/workflows/pages.yml`, `docs/ROADMAP.md`, `docs/IMPLEMENTATION-PLAN.md`,
+  `docs/PHASE-2-FINDINGS.md` and `docs/PHASE-3-FINDINGS.md` all said broad scheduled retrieval
+  was waiting on the `robots.txt` policy, per-host pacing and `Retry-After` work. That work
+  shipped on 2026-08-15 (`src/mrf_honest/politeness.py`), with no override path, and the issue
+  naming it is closed. Each of those documents now names the gate that is actually left — the
+  service/job tier declaration that `docs/EXPANSION-PLAN.md` phase 14 records as an owner
+  decision about what this project promises to keep running, and explicitly not a file an agent
+  should author. The two dated findings documents keep their original sentence with a dated
+  retirement note beside it, because they record what was unproven on the day they were written.
+  A gate in `tests/test_published_claims.py` fails if any of the three live documents restates
+  the retired blocker, and is shown to bite on both of the sentences that used to stand.
 
 - **The ingest memory ceiling was called "documented" and was not, and 256MB cannot load a real
   hospital file.** The README named the default DuckDB memory limit as "an operator setting,

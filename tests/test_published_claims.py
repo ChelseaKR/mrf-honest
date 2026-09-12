@@ -1221,3 +1221,210 @@ def test_the_roadmap_does_not_deny_the_distribution_it_publishes() -> None:
                 f"docs/ROADMAP.md does not state grade {claim} as {value}; the committed "
                 f"documents record {grades}."
             )
+
+
+# --- what a re-collection cost, and the blocker that was retired a month before ---------------
+
+
+REFRESH_COST = ROOT / "docs" / "findings" / "what-a-re-collection-actually-cost-2026-09-12.md"
+
+#: The two dated collections the finding compares, as the pairs of registries that carry them.
+COLLECTIONS = {
+    "2026-08-19": ("2026-08-19.assessments.jsonl", "2026-08-19-csv.assessments.jsonl"),
+    "2026-09-12": ("2026-09-12.assessments.jsonl", "2026-09-12-csv.assessments.jsonl"),
+}
+
+
+def _subjects(*names: str) -> dict[str, dict[str, object]]:
+    """Every row of one dated collection, keyed by publisher/location."""
+    rows: dict[str, dict[str, object]] = {}
+    for name in names:
+        for record in AssessmentRegistry(COHORTS / name).records():
+            subject = cast(dict[str, object], record["subject"])
+            publisher = cast(dict[str, object], subject["publisher"])
+            rows[f"{publisher['identifier']}/{subject['location_id']}"] = dict(record)
+    return rows
+
+
+def _retrieval(record: dict[str, object]) -> dict[str, object]:
+    return cast(dict[str, object], record.get("retrieval") or {})
+
+
+def _wire(record: dict[str, object]) -> int:
+    return int(cast(int, _retrieval(record).get("wire_size_bytes") or 0))
+
+
+def refresh_cost_figures() -> dict[str, int]:
+    """Every number the finding publishes, re-derived from the registries it names."""
+    old = _subjects(*COLLECTIONS["2026-08-19"])
+    new = _subjects(*COLLECTIONS["2026-09-12"])
+    shared = sorted(set(old) & set(new))
+
+    buckets = {"changed": 0, "first_retrieval": 0, "identical_rotated_url": 0, "identical": 0}
+    changed_subjects = 0
+    for key in shared:
+        if _retrieval(new[key]).get("status") != "fetched":
+            continue
+        before, after = _retrieval(old[key]), _retrieval(new[key])
+        rotated = cast(dict[str, object], old[key]["subject"]).get("requested_url_sha256") != cast(
+            dict[str, object], new[key]["subject"]
+        ).get("requested_url_sha256")
+        body_before, body_after = before.get("content_sha256"), after.get("content_sha256")
+        if not (body_before and body_after):
+            buckets["first_retrieval"] += _wire(new[key])
+        elif body_before != body_after:
+            buckets["changed"] += _wire(new[key])
+            changed_subjects += 1
+        elif rotated:
+            buckets["identical_rotated_url"] += _wire(new[key])
+        else:
+            buckets["identical"] += _wire(new[key])
+
+    revalidated = [k for k in shared if _retrieval(new[k]).get("status") == "not_modified"]
+    return {
+        "subjects": len(shared),
+        "changed_subjects": changed_subjects,
+        "cold_wire": sum(_wire(row) for row in old.values()),
+        "refresh_wire": sum(_wire(row) for row in new.values()),
+        "revalidated": len(revalidated),
+        "revalidated_bytes_held": sum(
+            int(cast(int, _retrieval(new[k]).get("size_bytes") or 0)) for k in revalidated
+        ),
+        "revalidated_wire_avoided": sum(_wire(old[k]) for k in revalidated),
+        **buckets,
+    }
+
+
+FIGURES = refresh_cost_figures()
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        "cold_wire",
+        "refresh_wire",
+        "revalidated_bytes_held",
+        "revalidated_wire_avoided",
+        "changed",
+        "first_retrieval",
+        "identical_rotated_url",
+        "identical",
+    ],
+)
+def test_every_byte_count_in_the_refresh_finding_is_re_derived(key: str) -> None:
+    """A findings document is where a number is most likely to be typed and then never checked."""
+    text = REFRESH_COST.read_text(encoding="utf-8")
+    assert f"{FIGURES[key]:,}" in text, (
+        f"docs/findings/what-a-re-collection-actually-cost-2026-09-12.md does not state "
+        f"{key} as {FIGURES[key]:,}, which is what the committed registries hold."
+    )
+
+
+def test_the_refresh_finding_states_how_many_files_actually_changed() -> None:
+    assert FIGURES["changed_subjects"] == 4, FIGURES
+    assert FIGURES["subjects"] == 42, FIGURES
+    text = " ".join(REFRESH_COST.read_text(encoding="utf-8").split())
+    assert "Only 4 of the 42 files' bytes had changed." in text
+    assert f"**{FIGURES['revalidated']} of 42** subjects answered HTTP 304" in text
+
+
+def test_the_four_buckets_account_for_every_wire_byte_the_refresh_moved() -> None:
+    """A table whose rows do not sum to its total is the shape this project exists to refuse."""
+    assert (
+        FIGURES["changed"]
+        + FIGURES["first_retrieval"]
+        + FIGURES["identical_rotated_url"]
+        + FIGURES["identical"]
+    ) == FIGURES["refresh_wire"]
+
+
+#: The sentence five documents used to carry: that scheduled collection waits on the robots.txt,
+#: pacing and Retry-After work. That work shipped 2026-08-15 and the issue naming it is closed,
+#: so any document still saying it sends the next reader to re-solve a solved problem.
+#: The phrasings that make the politeness work the thing being waited on, rather than a
+#: capability being described.
+BLOCKER_PHRASES = ("blocked on", "out of scope until", "remain explicit prerequisites")
+
+#: How far either side of the mention to look. Wide enough to cross the clause that separates
+#: the phrase from the capability it names in all five documents; narrow enough that a document
+#: describing the capability in one paragraph and using the word "blocked" about something else
+#: two paragraphs later does not match.
+BLOCKER_WINDOW = 220
+
+
+def retired_blocker_finding(text: str) -> str | None:
+    """The passage that still makes the shipped politeness work the outstanding blocker."""
+    joined = " ".join(text.split())
+    for match in re.finditer("Retry-After", joined):
+        start = max(0, match.start() - BLOCKER_WINDOW)
+        window = joined[start : match.end() + BLOCKER_WINDOW]
+        if any(phrase in window.lower() for phrase in BLOCKER_PHRASES):
+            return window
+    return None
+
+
+#: Every tracked document that used to state it. Listed rather than globbed so that a document
+#: dropping out of the list is a visible edit and not a silent loss of coverage.
+DOCUMENTS_THAT_NAMED_THE_RETIRED_BLOCKER = (
+    ".github/workflows/pages.yml",
+    "docs/ROADMAP.md",
+    "docs/IMPLEMENTATION-PLAN.md",
+)
+
+#: Verbatim from `.github/workflows/pages.yml` before this was corrected. It is the control: a
+#: pattern that cannot match the text it was written for cannot fail on a regression either.
+THE_SENTENCE_AS_IT_STOOD = (
+    "There is deliberately no scheduled collection here — broad scheduled retrieval remains "
+    "blocked on the robots.txt/pacing/Retry-After work recorded in docs/ROADMAP.md, and a "
+    "publish workflow must not quietly become a crawler."
+)
+
+#: Verbatim from `docs/IMPLEMENTATION-PLAN.md` before this was corrected. The blocker phrase
+#: comes *after* the capability here, which is why the check looks both ways.
+THE_OTHER_SENTENCE_AS_IT_STOOD = (
+    "A broad scheduled collector is not yet authorized by this checkbox: `robots.txt` policy, "
+    "per-host pacing, and `Retry-After` handling remain\nexplicit prerequisites in the "
+    "responsible-tech audit."
+)
+
+
+def test_the_retired_blocker_pattern_matches_the_sentence_it_was_written_for() -> None:
+    """Run first, and deliberately: the gate below is vacuous if this does not hold.
+
+    Both historical phrasings are driven, because a pattern tuned to one of them would have let
+    the other stand. The second is `docs/IMPLEMENTATION-PLAN.md`'s, where the blocker phrase
+    follows the capability instead of preceding it.
+    """
+    assert retired_blocker_finding(THE_SENTENCE_AS_IT_STOOD) is not None
+    assert retired_blocker_finding(THE_OTHER_SENTENCE_AS_IT_STOOD) is not None
+
+
+def test_a_document_that_merely_mentions_the_capability_is_not_a_finding() -> None:
+    """The other direction: describing the shipped work must not trip the gate."""
+    assert (
+        retired_blocker_finding(
+            "politeness.py obeys robots.txt before the first request, holds a per-host interval, "
+            "and honours Retry-After on 429 and 503 ahead of this tool's own backoff."
+        )
+        is None
+    )
+
+
+@pytest.mark.parametrize("document", DOCUMENTS_THAT_NAMED_THE_RETIRED_BLOCKER)
+def test_no_live_document_still_blocks_scheduled_collection_on_work_that_shipped(
+    document: str,
+) -> None:
+    finding = retired_blocker_finding((ROOT / document).read_text(encoding="utf-8"))
+    assert finding is None, (
+        f"{document} still says scheduled collection waits on the robots.txt/pacing/Retry-After "
+        f"work: {finding!r}. That shipped on 2026-08-15 (src/mrf_honest/politeness.py). "
+        "The remaining gate is the service/job tier declaration in docs/EXPANSION-PLAN.md "
+        "phase 14."
+    )
+
+
+@pytest.mark.parametrize("document", DOCUMENTS_THAT_NAMED_THE_RETIRED_BLOCKER)
+def test_each_of_those_documents_names_the_gate_that_is_actually_left(document: str) -> None:
+    """Deleting the wrong reason without stating the right one leaves no reason at all."""
+    text = " ".join((ROOT / document).read_text(encoding="utf-8").split())
+    assert "service/job tier declaration" in text, document

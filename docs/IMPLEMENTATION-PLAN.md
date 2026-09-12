@@ -34,8 +34,10 @@ premise weakens and the project should be rescoped or dropped. Better to learn t
 - [x] Record fetch outcomes per publisher as data, including failures, with dates
 
 The implemented fetch path is operator-invoked and serial. A broad scheduled collector is not yet
-authorized by this checkbox: `robots.txt` policy, per-host pacing, and `Retry-After` handling remain
-explicit prerequisites in the responsible-tech audit.
+authorized by this checkbox. The `robots.txt` policy, per-host pacing and `Retry-After` handling
+this paragraph used to name as the outstanding prerequisites shipped on 2026-08-15
+(`src/mrf_honest/politeness.py`); what remains is the service/job tier declaration recorded in
+`docs/EXPANSION-PLAN.md` phase 14 as an owner decision.
 
 **Deliverable:** can ingest the largest file found in phase 0 on a laptop, with bounded memory.
 Measure and publish the peak memory and wall time; those numbers are the credibility.
