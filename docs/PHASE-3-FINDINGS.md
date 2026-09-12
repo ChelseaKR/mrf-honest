@@ -93,7 +93,10 @@ vendor site. An absent TXT on a guessed hospital corporate domain is not publish
 - The assessment registry is an atomic single-writer local artifact. Concurrent writers and a
   scheduled service are unsupported.
 - Broad collection remains blocked on `robots.txt` policy, per-host pacing, and `Retry-After`
-  handling.
+  handling. *(Retired 2026-08-15: `src/mrf_honest/politeness.py` implements all three. Left in
+  place with this note rather than deleted, because this document records what was true when it
+  was written. The remaining gate on a scheduled job is the service/job tier declaration in
+  `docs/EXPANSION-PLAN.md` phase 14.)*
 - HTTPS-only retrieval is this project's security policy, not a CMS requirement. MIME type, HEAD,
   range support, ETag, Last-Modified, and Content-Length are not graded as CMS requirements.
 

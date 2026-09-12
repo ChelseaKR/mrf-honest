@@ -180,4 +180,7 @@ memory advice would send the next reader after a setting that is not the cause.
 - Crash tests cover handled partial promotion and interrupted post-commit manifest finalization,
   not a full SIGKILL/fsync matrix across every persistence boundary.
 - Broad scheduled retrieval still needs a robots policy, per-host pacing, and `Retry-After`
-  handling.
+  handling. *(Retired 2026-08-15: `src/mrf_honest/politeness.py` implements all three, with no
+  override path. Left in place with this note rather than deleted, because this document records
+  what was unproven on 2026-08-09. The remaining gate on a scheduled job is the service/job tier
+  declaration in `docs/EXPANSION-PLAN.md` phase 14.)*

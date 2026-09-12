@@ -2,9 +2,15 @@ name: publish
 
 # The site is rebuilt only from data already committed to this repository: the newest
 # data/cohorts/*.comparison.json, which `mrf-honest compare` generated from persisted,
-# integrity-verified assessment rows. There is deliberately no scheduled collection here —
-# broad scheduled retrieval remains blocked on the robots.txt/pacing/Retry-After work recorded
-# in docs/ROADMAP.md, and a publish workflow must not quietly become a crawler.
+# integrity-verified assessment rows. There is deliberately no scheduled collection here, and a
+# publish workflow must not quietly become a crawler.
+#
+# This comment used to name the robots.txt/pacing/Retry-After work as what scheduled retrieval
+# was waiting on. That work shipped on 2026-08-15 (src/mrf_honest/politeness.py), and the issue
+# that named it is closed. What a scheduled job still needs is a service/job tier declaration —
+# see the Observability section of docs/ROADMAP.md — which docs/EXPANSION-PLAN.md phase 14
+# records as an owner decision about what this project promises to keep running. Naming a solved
+# problem as the blocker sends the next person to re-solve it.
 on:
   push:
     branches: [master]
