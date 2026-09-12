@@ -75,8 +75,9 @@ parsers reject; the catalog records it as a tolerated `INFO` observation, and al
 
 The first real cohort also broke the pipeline twice, and both breaks are published: a CSV
 dialect the spool reader guessed instead of declared (fixed, regression-pinned), and a default
-memory ceiling the two largest exports exceeded (an operator setting, documented). Finding that
-out on six files instead of six hundred is the point of grading a small cohort first.
+memory ceiling the two largest exports exceeded — an operator setting, and the working value is
+written down in [docs/PHASE-2-FINDINGS.md](docs/PHASE-2-FINDINGS.md#the-ingest-memory-ceiling-is-an-operator-setting).
+Finding that out on six files instead of six hundred is the point of grading a small cohort first.
 
 ## The idea in one paragraph
 
@@ -141,10 +142,15 @@ uv run mrf-honest probe https://files.example.org/standardcharges \
   --contact operator@example.org
 
 # Build a contracted local snapshot. DuckDB is supplied by the dev group or the lakehouse extra.
+# --memory-limit defaults to 256MB, which is a one-file acceptance figure and is too small for a
+# real hospital file: the 2026-09-12 cohort ran at 6GB and four threads, and 256MB stopped at
+# 138 MB of source. docs/PHASE-2-FINDINGS.md records what was measured at which size.
 uv run mrf-honest ingest prices.json \
   --publisher-id example-health \
   --warehouse warehouse \
   --as-of 2026-08-09 \
+  --memory-limit 6GB \
+  --threads 4 \
   --format json
 
 # Retrieve one file and atomically retain its remote-plus-local scorecard.
@@ -361,7 +367,7 @@ ADR in [docs/adr/](docs/adr/). No blank rows, no silent skips.
 
 | Standard | State |
 |---|---|
-| Code Quality | Applies: `make verify` runs six gates — `ruff check` (security `S` rules, `max-complexity=10`), `ruff format --check`, `mypy --strict`, pytest with a branch-coverage floor of 85, `uv lock --check`, and `pip-audit --strict` over the exported lockfile. Current: 924 tests passing and 4 skipped, 93.08% branch coverage, zero lint/format/type findings, lockfile in sync, zero known vulnerabilities (2026-09-12). Floors: Python >= 3.12 (`.python-version` pins 3.14), ruff >= 0.15, mypy >= 1.18, locked in `uv.lock`. Dev tooling is a PEP 735 `[dependency-groups]` group, so `uv sync` installs it and a published wheel never carries it. |
+| Code Quality | Applies: `make verify` runs six gates — `ruff check` (security `S` rules, `max-complexity=10`), `ruff format --check`, `mypy --strict`, pytest with a branch-coverage floor of 85, `uv lock --check`, and `pip-audit --strict` over the exported lockfile. Current: 927 tests passing and 4 skipped, 93.08% branch coverage, zero lint/format/type findings, lockfile in sync, zero known vulnerabilities (2026-09-12). Floors: Python >= 3.12 (`.python-version` pins 3.14), ruff >= 0.15, mypy >= 1.18, locked in `uv.lock`. Dev tooling is a PEP 735 `[dependency-groups]` group, so `uv sync` installs it and a published wheel never carries it. |
 | Security & Supply-Chain | Applies: the streaming, inspection, discovery, fetch, registry, comparison, and site path is standard-library-only; DuckDB is an optional lakehouse dependency ([ADRs 0002-0003](docs/adr/)) and the `anthropic` SDK an optional `ai` extra that only the narration layer imports ([ADR 0006](docs/adr/0006-ai-narration-outside-the-graded-path.md)). The lockfile, ruff `S` gate, HTTPS/redirect validation, bounded downloads, and SHA-pinned CI actions reduce the current surface. Hosted CodeQL (Python and Actions) and a checksum-pinned full-history gitleaks scan run on push, PR, and weekly schedule (`.github/workflows/security.yml`). `make verify` runs `pip-audit --strict` against the whole exported lockfile — every extra and the dev group — with no ignore list, so the audit runs on a laptop and in CI rather than only in CI. The lockfile-drift gate is `uv lock --check`, not `uv sync --frozen`: measured on a deliberately drifted project under uv 0.12.1, `uv lock --check` and `uv sync --locked` exit 1 and `uv sync --frozen` exits 0, because `--frozen` installs from the lockfile without reading `pyproject.toml` and so cannot see the two disagree. |
 | CI/CD | Applies: SHA-pinned workflows mirror `make verify` on Python 3.12 and 3.14, build distributions, and publish the site from committed data only. The publish job first re-derives the newest comparison from its committed assessments, manifest, and ingest evidence and requires a byte-for-byte match, then requires one rendered page per row in it; a generator that no longer reproduces its own published artifact cannot deploy. `make verify` runs the same derivation, but that is a separate workflow whose failure would not by itself stop a deploy, which is why the check is on both paths. |
 | Observability | Applies to the local batch shape plus a static published artifact: finalized run manifests and DuckDB `model_metric` rows retain counts, bytes, and wall time; the site is rebuilt from committed data with no availability objective declared. See [docs/ROADMAP.md](docs/ROADMAP.md). |

@@ -33,6 +33,22 @@ no version tags yet; until the first dated release (phase 5 of
 
 ### Fixed
 
+- **The ingest memory ceiling was called "documented" and was not, and 256MB cannot load a real
+  hospital file.** The README named the default DuckDB memory limit as "an operator setting,
+  documented"; nothing in `docs/`, this file or the README stated a working value, so the
+  2026-09-12 re-collection met the ceiling as a DuckDB traceback -- `Out of Memory Error: failed
+  to allocate data of size 100.3 MiB` at the Parquet export, on CHI Health Lakeside's
+  138,540,999 source bytes -- rather than as a setting somebody chose. `docs/PHASE-2-FINDINGS.md`
+  now records what was measured at which size: the 256MB/two-thread figures in that document are
+  a one-file 2026-08-09 acceptance against 64,828,148 bytes, and all twelve files the 2026-09-12
+  JSON cohort loaded (6,713,916 to 630,969,424 source bytes) ingested at `6GB` and four threads.
+  The failure also says which kind of failure it is now: an out-of-memory error carries the
+  configured limit, the thread count and the sentence that this is an operator setting and not a
+  defect in the file or the pipeline. Only that failure -- annotating an unrelated exception with
+  memory advice would send the next reader after a cause that is not the cause. Nothing a grade
+  depends on is involved: warehouse evidence is not a grading input in either direction (ADR
+  0005).
+
 - **A grade carried its date and never its age, and the page never stated a "today" to subtract
   it from.** Every published row has always carried `as_of`. A date on a static page is not an
   answer to "is this still true?": the reader has to know what day it is and do the arithmetic,

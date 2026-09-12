@@ -128,6 +128,45 @@ artifacts fail closed. Physical Parquet bytes are not promised to match across i
 warehouses because insertion-order preservation is disabled; archived input, stable keys,
 contracts, counts, logical results, and a run's verified inventory are the reproducibility boundary.
 
+## The ingest memory ceiling is an operator setting
+
+The `--memory-limit 256MB --threads 2` above is the **one-file acceptance figure** from this
+document's own 2026-08-09 run against a 64,828,148-byte source. It is the CLI default, and it is
+too small for a real hospital file. Nothing said so until now, so the next person to ingest a
+cohort met the ceiling as a DuckDB traceback instead of as a setting:
+
+```text
+error: lakehouse build failed during Parquet export: Out of Memory Error:
+failed to allocate data of size 100.3 MiB (237.5 MiB/244.1 MiB used)
+```
+
+That is CHI Health Lakeside, 138,540,999 source bytes, the sixth-largest file in the 2026-09-12
+JSON cohort.
+
+**Measured working values.** All twelve files the 2026-09-12 JSON cohort loaded — from
+6,713,916 to 630,969,424 source bytes — ingested at `--memory-limit 6GB --threads 4`, which
+DuckDB reported as an effective limit of `5.5 GiB`. Those settings are recorded per run in the
+manifests that ingest wrote (`warehouse/runs/*.json`; the warehouse is gitignored, so this is
+local evidence, not a committed artifact). The figures in the rest of this document are **not**
+restated under those settings: they are a 2026-08-09 measurement of one file at 256MB and stay
+as they were measured.
+
+| Source bytes | `--memory-limit` | `--threads` | Outcome |
+|---:|---|---:|---|
+| 64,828,148 | `256MB` | 2 | loaded (this document's acceptance run, 2026-08-09) |
+| 138,540,999 | `256MB` | 2 | out of memory during Parquet export, 2026-09-12 |
+| 6,713,916 – 630,969,424 | `6GB` | 4 | all twelve loaded, 2026-09-12 |
+
+Nothing a grade depends on is involved: warehouse evidence is not a grading input in either
+direction (ADR 0005), so an ingest that could not fit changes what this project can *publish
+about* a file and never what it grades it.
+
+**And the failure now says which it is.** `lakehouse.memory_limit_note` appends the configured
+limit, the thread count, and the sentence "this is the configured DuckDB memory_limit being
+exceeded, which is an operator setting and not a defect in the source file or in this pipeline"
+to an out-of-memory failure and to no other failure — annotating an unrelated exception with
+memory advice would send the next reader after a setting that is not the cause.
+
 ## What remains unproven
 
 - This run covers one hospital file. The documented multi-publisher query has not been executed

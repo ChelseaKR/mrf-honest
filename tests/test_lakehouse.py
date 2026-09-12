@@ -885,3 +885,67 @@ def test_a_contract_failure_is_still_a_contract_error_for_every_existing_caller(
     source = _write(tmp_path / "hospital.json", _document(setting="telehealth"))
     with pytest.raises(ContractError, match="accepted_setting"):
         ingest_hospital_file(source, tmp_path / "warehouse", publisher=PublisherRef("example"))
+
+
+# --- a ceiling an operator set has to say so when it stops the build -------------------------
+
+
+#: DuckDB's real wording, taken verbatim from the 2026-09-12 re-collection's failure on CHI
+#: Health Lakeside at the CLI default of 256MB. Written out rather than referenced from the
+#: module under test so that changing the marker there fails here.
+DUCKDB_OOM_MESSAGE = (
+    "Out of Memory Error: failed to allocate data of size 100.3 MiB (237.5 MiB/244.1 MiB used)"
+)
+
+
+def test_an_out_of_memory_failure_names_the_setting_that_caused_it() -> None:
+    note = lakehouse.memory_limit_note(
+        duckdb.OutOfMemoryException(DUCKDB_OOM_MESSAGE), memory_limit="256MB", threads=2
+    )
+    assert note is not None
+    assert "'256MB'" in note, "the note has to name the value that was actually configured"
+    assert "2 thread(s)" in note
+    assert "operator setting" in note
+    assert "docs/PHASE-2-FINDINGS.md" in note, "the operator needs somewhere to read a value off"
+
+
+def test_no_other_failure_is_annotated_with_memory_advice() -> None:
+    """The same defect in the other direction: advice pointing at a setting that is not the cause.
+
+    Two shapes are checked -- an unrelated DuckDB exception and a plain one -- because matching
+    on the exception *type* rather than its wording would pass the first and fail the second.
+    """
+    unrelated = duckdb.InvalidInputException("Invalid Input Error: no such column")
+    assert lakehouse.memory_limit_note(unrelated, memory_limit="256MB", threads=2) is None
+    assert lakehouse.memory_limit_note(ValueError("nope"), memory_limit="256MB", threads=2) is None
+
+
+def test_the_build_carries_the_advice_out_to_the_operator(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """End to end: the wrapper is what the operator reads, and it has to carry the sentence.
+
+    The failure is injected at `_duckdb_runtime`, which runs after the settings are applied and
+    before anything is staged, because a real out-of-memory failure needs a file large enough
+    that no test should download it. What is proved here is the wrapping, not DuckDB's limits.
+    """
+
+    def explode(*_args: object, **_kwargs: object) -> dict[str, object]:
+        raise duckdb.OutOfMemoryException(DUCKDB_OOM_MESSAGE)
+
+    monkeypatch.setattr(lakehouse, "_duckdb_runtime", explode)
+    source = _write(tmp_path / "hospital.json", _document())
+
+    with pytest.raises(LakehouseError) as raised:
+        ingest_hospital_file(
+            source,
+            tmp_path / "warehouse",
+            publisher=PublisherRef("example"),
+            memory_limit="256MB",
+            threads=2,
+        )
+
+    message = str(raised.value)
+    assert "Out of Memory Error" in message, "the underlying failure is still reported verbatim"
+    assert "'256MB'" in message
+    assert "operator setting" in message
