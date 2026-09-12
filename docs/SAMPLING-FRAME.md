@@ -241,7 +241,7 @@ state where a skip and a pass are the same output. And both gates print how many
 published comparisons they examine, out of how many exist, on every run, with every cohort
 they do not examine named and its reason stated.
 
-The seeded-draw gate examines **2 of 3** published comparisons; the drawn-facility accounting
-gate examines **1 of 3**. Both figures are re-derived from the committed documents by
+The seeded-draw gate examines **4 of 5** published comparisons; the drawn-facility accounting
+gate examines **2 of 5**. Both figures are re-derived from the committed documents by
 `test_this_document_states_the_coverage_the_frame_gates_actually_have`, so a cohort added or a
 scope rule changed fails here rather than leaving a number nobody recomputes.

@@ -3,16 +3,19 @@
 **Deterministic, spec-cited grades for hospital price-transparency files, published with the
 evidence attached.**
 
-Two graded cohorts are live, one per CMS file format, side by side and never pooled. The JSON
-cohort covers 17 machine-readable files across 15 publishers, discovered from
-CMS-conventional `cms-hpt.txt` documents, retrieved in one identified run, streamed without
-loading into memory, and graded fail-closed. The distribution is 12 **A**, 1 **B**, 2 **C**,
-2 **F**, and 0 not graded. Every grade, count, and finding on the
+Two graded cohorts are live, one per CMS file format, side by side and never pooled, **both
+collected 2026-09-12**. The JSON cohort covers 17 machine-readable files across 15 publishers,
+discovered from CMS-conventional `cms-hpt.txt` documents, retrieved in one identified run,
+streamed without loading into memory, and graded fail-closed. The distribution is 13 **A**,
+1 **B**, 2 **C**, 1 **F**, and 0 not graded. Every grade, count, and finding on the
 [site](https://chelseakr.github.io/mrf-honest/) is generated from the committed comparison
-documents ([JSON cohort](data/cohorts/2026-08-19.comparison.json),
-[CSV cohort](data/cohorts/2026-08-19-csv.comparison.json)), never typed in, and each finding
+documents ([JSON cohort](data/cohorts/2026-09-12.comparison.json),
+[CSV cohort](data/cohorts/2026-09-12-csv.comparison.json)), never typed in, and each finding
 cites the CMS rule ([45 CFR § 180.50]) or
 [CMS schema documentation](https://github.com/CMSgov/hospital-price-transparency) it rests on.
+Every grade carries the date it was measured, and every page that publishes one states how old
+that measurement is on the day the page was built — a date a reader has to subtract from a
+"today" the page never states is not an answer to "is this still true?"
 
 **The cohorts have a stated sampling frame**, which the first one did not
 ([docs/SAMPLING-FRAME.md](docs/SAMPLING-FRAME.md)). Eleven of the seventeen JSON files come from
@@ -29,37 +32,46 @@ hospitals — 32 of 48 — publish their standard charges as CSV, ZIP, or a vend
 answers `text/csv` rather than JSON; until 2026-08-19 every one was a recorded exclusion, and
 the letter distribution above described hospitals that chose JSON, not hospitals. A second
 assessment profile now implements CMS's CSV v3.0.0 templates, Tall and Wide, and a sibling
-cohort grades all 25 CSV targets of the same draw. The CSV distribution is 11 **A**, 2 **B**,
-4 **C**, 3 **D**, 1 **F**, and 4 not graded — two hosts whose `robots.txt` says no, honored;
+cohort grades all 25 CSV targets of the same draw. The CSV distribution is 12 **A**, 2 **B**,
+4 **C**, 2 **D**, 1 **F**, and 4 not graded — two hosts whose `robots.txt` says no, honored;
 two files over this project's own 1 GiB ceiling, stated rather than blamed on the publisher.
 What remains outside both profiles stays recorded: 7 ZIP archives, 4 origins whose
 `cms-hpt.txt` could not be retrieved, and 1 whose location entry did not resolve.
 
-**The CSV profile's first real cohort produced its own best findings.** Across six files,
-118,411 payer or plan names are encoded with no charge beside them — the CSV data dictionary's
-first conditional requirement, violated at scale. The distribution of that number is itself the
-finding: 118,096 of the instances sit in the two files still publishing the superseded v2.0.0
-template more than seven months after CMS's v3.0.0 effective date — in one of them, every
-single data row — while the four current-template files carry only a few-hundred-row residual.
-That is the same defect class as the Cedars-Sinai finding below, measured now in CSV; a third
-hospital declares template `3.0.1`, a version CMS never published. One hospital's own `cms-hpt.txt` points at a URL that
-answers HTTP 404; that is the CSV cohort's F, stated with the dated reason. A single file
-carries 4,785 methodology values outside the CMS accepted set; 3 files are not valid UTF-8 and
-were read as Latin-1 with the tolerance recorded, and 8 of the 25 begin with a UTF-8
-byte-order mark.
+**The CSV profile's headline finding halved between two collections, and the reason is a
+hospital, not a policy.** Across five files, 36,450 payer or plan names are encoded with no
+charge beside them — the CSV data dictionary's first conditional requirement, violated at
+scale. The distribution of that number is itself the finding: 36,135 of the instances sit in
+the one file still publishing the superseded v2.0.0 template eight months after CMS's v3.0.0
+effective date — in it, every single data row — while the four current-template files carry
+only a few-hundred-row residual. On 2026-08-19 the same measurement was 118,411 across six
+files, because Minden Medical Center was then publishing v2.0.0 too; it has since republished
+under the current template, and its 81,961 payer-without-charge instances, its 4,785 invalid
+methodology values and its version error are all gone. That is what a second dated collection
+is *for*, and it is why the change is stated here as a change rather than as a smaller number.
+Another hospital declares template `3.0.1`, a version CMS never published. One hospital's own
+`cms-hpt.txt` points at a URL that answers HTTP 404; that is the CSV cohort's F, stated with the
+dated reason. 0 methodology values outside the CMS accepted set remain in this cohort, down from
+4,785; 3 files are not valid UTF-8 and were read as Latin-1 with the tolerance recorded, and 8
+of the 25 begin with a UTF-8 byte-order mark.
 
-The two **F**s are retrieval failures at the URLs the hospitals' own `cms-hpt.txt` documents
-publish — Northside Hospital Duluth's answers HTTP 403 to an identified client, and Rio Grande
-Regional Hospital's answers HTTP 409, *"Public access is not permitted on this storage account."*
-Both are stated with the dated reason rather than dropped. The two **C**s are both version
-strings: an 884 MB Cedars-Sinai file that declares the superseded 2.0.0 template seven months
-after CMS's v3.0.0 effective date while carrying, element for element, the v3.0.0 envelope that
-version string says it does not have ([the finding, with
-evidence](docs/findings/superseded-template-version-2026-08-14.md)), and Central Maine Medical
-Center's, which declares `3.0` where CMS specifies `3.0.0`. The one **B** is a conforming file
-whose own `last_updated_on` is more than a year before the assessment date. 5 of the 17 files
-begin with a UTF-8 byte-order mark that RFC 8259 forbids and strict JSON parsers reject; the
-catalog records it as a tolerated `INFO` observation, and all five grade **A**.
+The one **F** is a retrieval failure at the URL the hospital's own `cms-hpt.txt` document
+publishes: Northside Hospital Duluth's answers HTTP 403 to an identified client, stated with
+the dated reason rather than dropped. On 2026-08-19 there were two. The second was Rio Grande
+Regional Hospital, whose URL then answered HTTP 409, *"Public access is not permitted on this
+storage account."* Its `cms-hpt.txt` now publishes a working URL for the same file — the
+storage account's shared access signature was rotated — and the file behind it grades **A**.
+Nothing about the grading changed; the hospital's own published address did, which is exactly
+the kind of movement a dated re-collection exists to catch and a single-dated cohort cannot.
+The two **C**s are both version strings: an 884 MB Cedars-Sinai file that declares the
+superseded 2.0.0 template eight months after CMS's v3.0.0 effective date while carrying,
+element for element, the v3.0.0 envelope that version string says it does not have ([the
+finding, with evidence](docs/findings/superseded-template-version-2026-08-14.md)), and Central
+Maine Medical Center's, which declares `3.0` where CMS specifies `3.0.0`. The one **B** is a
+conforming file whose own `last_updated_on` is more than a year before the assessment date.
+3 of the 17 files begin with a UTF-8 byte-order mark that RFC 8259 forbids and strict JSON
+parsers reject; the catalog records it as a tolerated `INFO` observation, and all three grade
+**A**. There were 5 on 2026-08-19: UC Health republished both of its files without the mark.
 
 The first real cohort also broke the pipeline twice, and both breaks are published: a CSV
 dialect the spool reader guessed instead of declared (fixed, regression-pinned), and a default
@@ -274,12 +286,14 @@ Built:
 - A DuckDB + partitioned-Parquet lakehouse with 13 documented models, executable data contracts
   at every layer boundary, exact raw text retention, `DECIMAL(38,10)` numerics, and idempotent
   content-addressed run identity ([docs/MODEL-DAG.md](docs/MODEL-DAG.md),
-  [ADR 0003](docs/adr/0003-local-lakehouse-duckdb-parquet.md)). 13 of the cohort files are
+  [ADR 0003](docs/adr/0003-local-lakehouse-duckdb-parquet.md)). 12 of the cohort files are
   contracted through it; two declare a template version the v3-only pipeline does not implement
-  (`2.0.0`, and `3.0` where CMS specifies `3.0.0`) and it refuses them, and two were never
-  retrieved at all. Each refusal is recorded as evidence with its reason and published on the
-  file's page, because a limit of this project rendered as a bare absence reads like an unnamed
-  defect in a named hospital's file.
+  (`2.0.0`, and `3.0` where CMS specifies `3.0.0`) and it refuses them, two carry rows a data
+  contract rejects (`stg_modifier_payer.unique_canonical_payer_plan`, 40 rows each), and one was
+  never retrieved at all. Each refusal and each contract failure is recorded as evidence with
+  its reason and published on the file's page, because a limit of this project rendered as a
+  bare absence reads like an unnamed defect in a named hospital's file — and so does a contract
+  failure rendered as no record at all, which is what happened until 2026-09-12.
 - `robots.txt`, per-host pacing and `Retry-After` enforced in the fetcher rather than by an
   operator's habits (`src/mrf_honest/politeness.py`). robots is fetched before the first request
   and obeyed with no override flag; an unreachable `robots.txt` is a complete disallow per
@@ -347,7 +361,7 @@ ADR in [docs/adr/](docs/adr/). No blank rows, no silent skips.
 
 | Standard | State |
 |---|---|
-| Code Quality | Applies: `make verify` runs six gates — `ruff check` (security `S` rules, `max-complexity=10`), `ruff format --check`, `mypy --strict`, pytest with a branch-coverage floor of 85, `uv lock --check`, and `pip-audit --strict` over the exported lockfile. Current: 899 tests passing and 3 skipped, 93.13% branch coverage, zero lint/format/type findings, lockfile in sync, zero known vulnerabilities (2026-09-08). Floors: Python >= 3.12 (`.python-version` pins 3.14), ruff >= 0.15, mypy >= 1.18, locked in `uv.lock`. Dev tooling is a PEP 735 `[dependency-groups]` group, so `uv sync` installs it and a published wheel never carries it. |
+| Code Quality | Applies: `make verify` runs six gates — `ruff check` (security `S` rules, `max-complexity=10`), `ruff format --check`, `mypy --strict`, pytest with a branch-coverage floor of 85, `uv lock --check`, and `pip-audit --strict` over the exported lockfile. Current: 924 tests passing and 4 skipped, 93.08% branch coverage, zero lint/format/type findings, lockfile in sync, zero known vulnerabilities (2026-09-12). Floors: Python >= 3.12 (`.python-version` pins 3.14), ruff >= 0.15, mypy >= 1.18, locked in `uv.lock`. Dev tooling is a PEP 735 `[dependency-groups]` group, so `uv sync` installs it and a published wheel never carries it. |
 | Security & Supply-Chain | Applies: the streaming, inspection, discovery, fetch, registry, comparison, and site path is standard-library-only; DuckDB is an optional lakehouse dependency ([ADRs 0002-0003](docs/adr/)) and the `anthropic` SDK an optional `ai` extra that only the narration layer imports ([ADR 0006](docs/adr/0006-ai-narration-outside-the-graded-path.md)). The lockfile, ruff `S` gate, HTTPS/redirect validation, bounded downloads, and SHA-pinned CI actions reduce the current surface. Hosted CodeQL (Python and Actions) and a checksum-pinned full-history gitleaks scan run on push, PR, and weekly schedule (`.github/workflows/security.yml`). `make verify` runs `pip-audit --strict` against the whole exported lockfile — every extra and the dev group — with no ignore list, so the audit runs on a laptop and in CI rather than only in CI. The lockfile-drift gate is `uv lock --check`, not `uv sync --frozen`: measured on a deliberately drifted project under uv 0.12.1, `uv lock --check` and `uv sync --locked` exit 1 and `uv sync --frozen` exits 0, because `--frozen` installs from the lockfile without reading `pyproject.toml` and so cannot see the two disagree. |
 | CI/CD | Applies: SHA-pinned workflows mirror `make verify` on Python 3.12 and 3.14, build distributions, and publish the site from committed data only. The publish job first re-derives the newest comparison from its committed assessments, manifest, and ingest evidence and requires a byte-for-byte match, then requires one rendered page per row in it; a generator that no longer reproduces its own published artifact cannot deploy. `make verify` runs the same derivation, but that is a separate workflow whose failure would not by itself stop a deploy, which is why the check is on both paths. |
 | Observability | Applies to the local batch shape plus a static published artifact: finalized run manifests and DuckDB `model_metric` rows retain counts, bytes, and wall time; the site is rebuilt from committed data with no availability objective declared. See [docs/ROADMAP.md](docs/ROADMAP.md). |
