@@ -65,7 +65,10 @@ from mrf_honest.cohort import NOT_GRADED
 from mrf_honest.receipt import Receipt, receipt_from_row
 
 #: Bumped when this document's shape changes.
-DIFF_VERSION = 1
+#: Version 2 added ``subject_url.before_sha256``/``after_sha256`` and ``redacted_difference``.
+#: A consumer reading version 1 saw only the published (redacted) URL strings and could not tell
+#: a rotated access signature from no change at all.
+DIFF_VERSION = 2
 
 #: Comparison-document versions whose fields this reader has actually been checked against.
 #:
@@ -302,10 +305,23 @@ def _subject_diff(
     # it says: comparing the bytes of two different files as though one had changed into the
     # other is the exact conflation this module exists to prevent.
     url_changed = before_row.get("requested_url_sha256") != after_row.get("requested_url_sha256")
+    # The digests, not only the strings. A published ``requested_url`` has its userinfo, query
+    # and fragment redacted (``scorecard``'s ``url_publication`` rule) while the digest covers
+    # the exact URL, so two genuinely different URLs can publish as the same string -- which is
+    # what an HCA-style storage account does every time it rotates its access signature. The
+    # comparison above has always read the digests and been right; the document carried only the
+    # strings, so a consumer of it, and the report below, could see a change announced and two
+    # identical URLs beside it with nothing to reconcile them.
     entry["subject_url"] = {
         "changed": url_changed,
         "before": before_row.get("requested_url"),
         "after": after_row.get("requested_url"),
+        "before_sha256": before_row.get("requested_url_sha256"),
+        "after_sha256": after_row.get("requested_url_sha256"),
+        # True when the difference lies entirely inside the redacted part of the URL. Stated
+        # rather than left for a reader to infer from two strings that look the same.
+        "redacted_difference": url_changed
+        and before_row.get("requested_url") == after_row.get("requested_url"),
     }
 
     def _layer(name: str, changes: list[dict[str, object]]) -> dict[str, object]:
@@ -538,6 +554,27 @@ def _change_lines(prefix: str, layer: Mapping[str, object]) -> list[str]:
     return lines
 
 
+def _subject_url_lines(url: Mapping[str, object]) -> list[str]:
+    """State a URL change so a reader can see what changed.
+
+    A published ``requested_url`` has its userinfo, query and fragment redacted, while the
+    digest beside it covers the exact URL. When a storage account rotates an access signature,
+    the two published strings are identical and the change is real: printing them either side
+    of an arrow announced a difference and then showed none. The digests carry it, so the line
+    names them and says where the difference lies.
+    """
+    if not url["changed"]:
+        return []
+    if url.get("redacted_difference"):
+        return [
+            "    a different URL was graded, differing only inside the redacted "
+            f"userinfo/query/fragment: {url['before']} "
+            f"(sha256 {str(url['before_sha256'])[:16]}\u2026 -> "
+            f"{str(url['after_sha256'])[:16]}\u2026)"
+        ]
+    return [f"    a different URL was graded: {url['before']} -> {url['after']}"]
+
+
 def human_report(document: Mapping[str, object]) -> str:
     """A deterministic plain-text report of one diff document."""
     before = cast(Mapping[str, object], document["before"])
@@ -570,9 +607,7 @@ def human_report(document: Mapping[str, object]) -> str:
         else:
             head = "no change"
         lines.append(f"{subject['slug']}: {head}")
-        url = cast(Mapping[str, object], subject["subject_url"])
-        if url["changed"]:
-            lines.append(f"    a different URL was graded: {url['before']} -> {url['after']}")
+        lines.extend(_subject_url_lines(cast(Mapping[str, object], subject["subject_url"])))
         lines.extend(_change_lines("retrieval", cast(Mapping[str, object], subject["retrieval"])))
         lines.extend(_change_lines("document", cast(Mapping[str, object], subject["document"])))
         judgement = cast(Mapping[str, object], subject["judgement"])

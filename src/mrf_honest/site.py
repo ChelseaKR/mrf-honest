@@ -17,6 +17,7 @@ import json
 import shutil
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import cast
 
@@ -165,6 +166,28 @@ _CAVEAT = (
     "official CMS validator."
 )
 
+#: How old a measurement may be before every page carrying it says so in words.
+#:
+#: A grade is a statement about bytes a server returned on one day. Its date has always been
+#: published -- and a date alone is a number a reader has to do arithmetic on, against a "today"
+#: the page never states. The age below is therefore rendered next to every grade, computed from
+#: the row's own ``as_of`` and the date the page was built, with both dates named so the
+#: subtraction is checkable rather than asserted.
+#:
+#: Deliberately a published threshold and not a build gate. A calendar-driven check turns `main`
+#: red on a day nobody committed anything, which trains a reader to ignore it; the same number
+#: spent on the page tells the person who is actually deciding whether to trust the grade. What
+#: *is* gated is the mechanism: ``tests/test_site.py`` requires every rendered grade to carry its
+#: own age, and requires this sentence to appear once a cohort passes the threshold.
+STALE_AFTER_DAYS = 30
+
+#: What a page says when a row's measurement date cannot be read.
+#:
+#: An unparseable ``as_of`` must never render as an age of zero -- "measured today" is the most
+#: flattering possible reading of a date nobody could read, and it is the exact defect this
+#: project exists to catch. The absence is stated instead.
+UNDATED_MEASUREMENT = "its measurement date could not be read, so its age is not stated"
+
 
 @dataclass(frozen=True)
 class Page:
@@ -178,6 +201,69 @@ class Page:
 
 def _e(value: object) -> str:
     return html.escape(str(value))
+
+
+def measurement_age_days(as_of: object, built_on: date) -> int | None:
+    """How many days old one measurement is on the day the page is built, or ``None``.
+
+    ``None`` is returned for anything that is not an ISO date -- a missing ``as_of``, a
+    malformed one, a number. It is never zero: a date that could not be read is not a
+    measurement taken today, and the two must not render alike. Callers pass the result to
+    ``_freshness_phrase``, which states the absence.
+
+    A negative result is possible and is returned as-is rather than clamped. A cohort dated
+    after the build is a real defect (a mis-stamped ``as_of``, a clock that ran backwards), and
+    the page saying "measured -3 days before this build" is how a reader finds out; clamping it
+    to zero would present that as a fresh measurement, which is the whole failure mode this
+    function exists to avoid.
+    """
+    if not isinstance(as_of, str):
+        return None
+    try:
+        measured = date.fromisoformat(as_of)
+    except ValueError:
+        return None
+    return (built_on - measured).days
+
+
+def _days(count: int) -> str:
+    return "1 day" if abs(count) == 1 else f"{count:,} days"
+
+
+def _freshness_phrase(as_of: object, built_on: date) -> str:
+    """The age of one measurement in words, with both dates named.
+
+    Both dates, always: an age with only one date in sight is a number a reader cannot check.
+    """
+    age = measurement_age_days(as_of, built_on)
+    if age is None:
+        return UNDATED_MEASUREMENT
+    if age == 0:
+        return f"measured {_e(as_of)}, the day this page was built"
+    if age < 0:
+        return (
+            f"measured {_e(as_of)}, which is {_days(-age)} AFTER this page was built "
+            f"({built_on.isoformat()}); one of the two dates is wrong"
+        )
+    return f"measured {_e(as_of)}, {_days(age)} before this page was built ({built_on.isoformat()})"
+
+
+def _staleness_note(as_of: object, built_on: date) -> str:
+    """The plain sentence a cohort older than the published threshold carries, or nothing."""
+    age = measurement_age_days(as_of, built_on)
+    if age is None:
+        return (
+            " This cohort's collection date could not be read, so its age is unknown; treat "
+            "it as out of date until it is re-collected."
+        )
+    if age <= STALE_AFTER_DAYS:
+        return ""
+    return (
+        f" <strong>This measurement is more than {STALE_AFTER_DAYS} days old.</strong> Hospitals "
+        f"republish these files on their own schedules, so a grade collected {_days(age)} ago "
+        f"may no longer describe the file at that URL today. Nothing here has been re-collected "
+        f"since {_e(as_of)}."
+    )
 
 
 def _json_ld(payload: Mapping[str, object]) -> str:
@@ -307,7 +393,47 @@ def _counts_list(row: Mapping[str, object]) -> str:
         for key, label in fields
         if isinstance(counts.get(key), int)
     )
-    return f'<dl class="facts">{items}</dl>'
+    return f'{_partial_scan_note(row)}<dl class="facts">{items}</dl>'
+
+
+def _counts_heading(row: Mapping[str, object]) -> str:
+    """ "What the file contains" is a claim, and an incomplete read cannot make it."""
+    coverage = row.get("coverage")
+    completed = coverage.get("inspection_scan_completed") if isinstance(coverage, Mapping) else None
+    if completed is True:
+        return "What the file contains"
+    return "What the read reached before it stopped"
+
+
+def _partial_scan_note(row: Mapping[str, object]) -> str:
+    """Say when these counts are how far the read got, not what the file holds.
+
+    When a document stops mid-stream -- a truncated transfer, a parse error, a web page served
+    where a file was asked for -- the inspector keeps the counts it had reached and records
+    ``inspection_scan_completed: false`` beside them. The grade is already ``F`` for it and the
+    grade's own sentence names the failure. This block did not: it rendered a partial reader's
+    running totals under the heading "What the file contains", in the same table, the same
+    shape and the same confident commas as a file that was read to the end.
+
+    That is the project's own defect class, one surface further out. A number produced by a read
+    that stopped is not a measurement of the document; it is a lower bound on it, and the page
+    has to say which of the two a reader is looking at. ``dataset.csv`` already carries
+    ``inspection_scan_completed`` in the row beside these counts; the page carried nothing.
+    """
+    coverage = row.get("coverage")
+    completed = coverage.get("inspection_scan_completed") if isinstance(coverage, Mapping) else None
+    if completed is True:
+        return ""
+    if completed is False:
+        return (
+            '<p class="dim-note">The read of this document did not reach the end, so the figures '
+            "below are <strong>how far the read got before it failed</strong> — a floor, not a "
+            "count of what the file holds. The grade above states what stopped it.</p>"
+        )
+    return (
+        '<p class="dim-note">This record does not state whether the read reached the end of the '
+        "document, so the figures below cannot be read as counts of what the file holds.</p>"
+    )
 
 
 def _lakehouse_section(row: Mapping[str, object]) -> str:
@@ -356,7 +482,7 @@ def _lakehouse_section(row: Mapping[str, object]) -> str:
     )
 
 
-def _provenance_section(row: Mapping[str, object]) -> str:
+def _provenance_section(row: Mapping[str, object], built_on: date) -> str:
     sha = row.get("content_sha256")
     size = row.get("size_bytes")
     size_html = f"{size:,} bytes" if isinstance(size, int) else "no verified body"
@@ -366,6 +492,8 @@ def _provenance_section(row: Mapping[str, object]) -> str:
         f"<div><dt>Requested URL</dt><dd><code>{_e(row.get('requested_url'))}</code></dd></div>"
         f"<div><dt>Observed at</dt><dd>{_e(row.get('observed_at'))} (UTC)</dd></div>"
         f"<div><dt>Assessment date</dt><dd>{_e(row.get('as_of'))}</dd></div>"
+        f"<div><dt>Age of this measurement</dt>"
+        f"<dd>{_freshness_phrase(row.get('as_of'), built_on)}</dd></div>"
         f"<div><dt>Decoded size</dt><dd>{size_html}</dd></div>"
         f"<div><dt>Content SHA-256</dt><dd>{sha_html}</dd></div>"
         f"<div><dt>File last_updated_on</dt><dd>{_e(row.get('last_updated_on') or 'not stated')}"
@@ -405,7 +533,12 @@ def _receipt_paragraph(row: Mapping[str, object]) -> str:
     )
 
 
-def file_page(row: Mapping[str, object], comparison: Mapping[str, object], origin: str) -> Page:
+def file_page(
+    row: Mapping[str, object],
+    comparison: Mapping[str, object],
+    origin: str,
+    built_on: date,
+) -> Page:
     grade = _grade_of(row)
     name = _display_name(row)
     location = str(row["location_id"])
@@ -433,13 +566,14 @@ def file_page(row: Mapping[str, object], comparison: Mapping[str, object], origi
     body = (
         f'<nav class="crumbs"><a href="../../../">All graded files</a></nav>'
         f'<header class="hero"><p class="eyebrow">Hospital price-transparency file</p>'
-        f'<h1>{_e(name)}</h1><p class="lede">Location <code>{_e(location)}</code>, assessed '
-        f"{_e(row.get('as_of'))}.</p>{_grade_badge(grade_value)}"
+        f'<h1>{_e(name)}</h1><p class="lede">Location <code>{_e(location)}</code>. '
+        f"This grade was {_freshness_phrase(row.get('as_of'), built_on)}."
+        f"</p>{_grade_badge(grade_value)}"
         f'<p class="grade-reason">{_e(grade["reason"])}.</p></header>'
         f"<h2>Dimensions and findings</h2>{sections}"
-        f"<h2>What the file contains</h2>{_counts_list(row)}"
+        f"<h2>{_counts_heading(row)}</h2>{_counts_list(row)}"
         f"{_lakehouse_section(row)}"
-        f"{_provenance_section(row)}"
+        f"{_provenance_section(row, built_on)}"
         f'<p class="caveat">{_CAVEAT}</p>{jsonld}'
     )
     word = _GRADE_WORDS.get(grade_value, "")
@@ -453,7 +587,7 @@ def file_page(row: Mapping[str, object], comparison: Mapping[str, object], origi
     )
 
 
-def _index_row(row: Mapping[str, object]) -> str:
+def _index_row(row: Mapping[str, object], built_on: date) -> str:
     grade = _grade_of(row)
     slug = str(row["slug"])
     reason = str(grade["reason"])
@@ -461,7 +595,7 @@ def _index_row(row: Mapping[str, object]) -> str:
         f'<li class="card">{_grade_badge(str(grade["grade"]))}'
         f'<div><h3><a href="hospital/{_e(slug)}/">{_e(_display_name(row))}</a></h3>'
         f'<p class="meta">Location <code>{_e(row["location_id"])}</code> · '
-        f"assessed {_e(row.get('as_of'))}</p>"
+        f"{_freshness_phrase(row.get('as_of'), built_on)}</p>"
         f'<p class="meta">{_e(reason)}.</p></div></li>'
     )
 
@@ -552,6 +686,32 @@ def _coverage_sentence(comparison: Mapping[str, object]) -> str:
         f"verified body; {summary['graded']} were graded and {not_graded} "
         f"recorded as not graded with the reason stated. {provenance}"
     )
+
+
+def _freshness_sentence(comparison: Mapping[str, object], built_on: date) -> str:
+    """When this cohort was collected, how old that is today, and whether it is still current.
+
+    The coverage sentence above already names the collection date. This one does the subtraction
+    the reader would otherwise have to do against a "today" no static page states, and names both
+    dates so the arithmetic is checkable. Past ``STALE_AFTER_DAYS`` it says plainly that the
+    cohort may no longer describe the files at those URLs -- the sentence a stale dataset is
+    least likely to volunteer about itself.
+    """
+    cohort = cast(Mapping[str, object], comparison["cohort"])
+    as_of = cohort.get("as_of")
+    age = measurement_age_days(as_of, built_on)
+    if age is None:
+        opening = (
+            "This cohort states no readable collection date, so how old it is cannot be computed."
+        )
+    elif age == 0:
+        opening = f"Collected {_e(as_of)}, the day this page was built."
+    else:
+        opening = (
+            f"Collected {_e(as_of)}. This page was built {built_on.isoformat()}, "
+            f"{_days(age)} later."
+        )
+    return f"{opening}{_staleness_note(as_of, built_on)}"
 
 
 def missing_shares(comparison: Mapping[str, object], html: str) -> list[str]:
@@ -696,10 +856,11 @@ def _estimate_row(estimate: Mapping[str, object]) -> str:
 def _cohort_section(
     comparison: Mapping[str, object],
     references: Mapping[str, tuple[str, str]],
+    built_on: date,
 ) -> str:
     cohort = cast(Mapping[str, object], comparison["cohort"])
     summary = _summary(comparison)
-    cards = "".join(_index_row(row) for row in _rows(comparison))
+    cards = "".join(_index_row(row, built_on) for row in _rows(comparison))
     exclusions = _exclusion_rows(comparison, references)
     exclusion_block = (
         "<h3>Checked and recorded, not graded</h3>"
@@ -716,6 +877,7 @@ def _cohort_section(
         f"<h2>Files graded under the {_e(_cohort_title(comparison))} profile "
         f"({_e(cohort.get('as_of'))})</h2>"
         f'<p class="coverage">{_coverage_sentence(comparison)}</p>'
+        f'<p class="freshness">{_freshness_sentence(comparison, built_on)}</p>'
         f'<div class="dist-row">{_distribution_html(summary)}</div>'
         f"{_statistics_section(comparison)}"
         f'<ul class="cards">{cards}</ul>'
@@ -723,10 +885,12 @@ def _cohort_section(
     )
 
 
-def index_page(comparisons: Sequence[Mapping[str, object]], origin: str) -> Page:
+def index_page(comparisons: Sequence[Mapping[str, object]], origin: str, built_on: date) -> Page:
     references = _cross_references(comparisons)
     first_cohort = cast(Mapping[str, object], comparisons[0]["cohort"])
-    sections = "".join(_cohort_section(comparison, references) for comparison in comparisons)
+    sections = "".join(
+        _cohort_section(comparison, references, built_on) for comparison in comparisons
+    )
     data_links = " · ".join(
         f'<a href="data/{_e(_cohort_data_name(comparison))}">machine-readable comparison '
         f"({_e(_cohort_title(comparison))})</a>"
@@ -1008,7 +1172,7 @@ def _discovery_tags(page: Page, origin: str) -> str:
     )
 
 
-def _shell(page: Page, origin: str, generated_at: str) -> str:
+def _shell(page: Page, origin: str, generated_at: str, built_on: date) -> str:
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -1026,7 +1190,8 @@ def _shell(page: Page, origin: str, generated_at: str) -> str:
 {page.body}
 </main>
 <footer>
-<p>Generated {_e(generated_at)} from the committed comparison document. Only public,
+<p>Built {built_on.isoformat()} from the comparison document generated {_e(generated_at)}; the
+grades themselves were collected on the dates each cohort and each file page state. Only public,
 CMS-mandated machine-readable files are read; retrieval is identified, bounded, and respects
 robots.txt. <a href="https://github.com/ChelseaKR/mrf-honest">Source and methodology</a>.</p>
 <p>Something here wrong about your file? <a href="{CORRECTIONS_URL}">Corrections, disputes and
@@ -1037,14 +1202,14 @@ removal</a>. A removal request is honoured on request: you are not asked to prov
 """
 
 
-def write_page(out_dir: Path, page: Page, origin: str, generated_at: str) -> Path:
+def write_page(out_dir: Path, page: Page, origin: str, generated_at: str, built_on: date) -> Path:
     directory = out_dir / page.path if page.path else out_dir
     directory.mkdir(parents=True, exist_ok=True)
     if page.path == "404":
         target = out_dir / "404.html"
     else:
         target = directory / "index.html"
-    target.write_text(_shell(page, origin, generated_at), encoding="utf-8")
+    target.write_text(_shell(page, origin, generated_at, built_on), encoding="utf-8")
     return target
 
 
@@ -1172,6 +1337,7 @@ def render_site(
     out_dir: Path,
     *,
     origin: str = DEFAULT_ORIGIN,
+    built_on: date | None = None,
 ) -> list[Path]:
     """Render the complete static site for one or more cohort comparison documents.
 
@@ -1195,13 +1361,16 @@ def render_site(
                 )
             slugs[slug] = cohort_id
     generated_at = str(comparisons[0].get("generated_at"))
+    # The build date, not the collection date. Every page states both, and the difference
+    # between them is the age this render publishes beside each grade.
+    when = built_on if built_on is not None else datetime.now(UTC).date()
     pages = [
-        index_page(comparisons, origin),
+        index_page(comparisons, origin, when),
         methods_page(comparisons, origin),
-        *(file_page(row, entry, origin) for entry in comparisons for row in _rows(entry)),
+        *(file_page(row, entry, origin, when) for entry in comparisons for row in _rows(entry)),
         not_found_page(),
     ]
-    written = [write_page(out_dir, page, origin, generated_at) for page in pages]
+    written = [write_page(out_dir, page, origin, generated_at, when) for page in pages]
     data_dir = out_dir / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
     for index, entry in enumerate(comparisons):
@@ -1265,6 +1434,7 @@ code { background: var(--wash); padding: .1em .3em; border-radius: 3px;
   padding: .2rem .8rem; margin-right: .5rem; }
 .coverage { background: var(--wash); border-left: 3px solid var(--accent);
   padding: .8rem 1rem; }
+.freshness { color: var(--muted); font-size: .9rem; margin: .4rem 0 1rem; }
 .dimension { border: 1px solid var(--line); border-radius: 8px;
   padding: .8rem 1rem; margin: .8rem 0; }
 .status { font-size: .7rem; font-weight: 700; letter-spacing: .05em;
