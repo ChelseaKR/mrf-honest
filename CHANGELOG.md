@@ -1,11 +1,13 @@
 # Changelog
 
 All notable changes to this project are documented here, in the
-[Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format. The project is pre-release with
-no version tags yet; until the first dated release (phase 5 of
-[docs/IMPLEMENTATION-PLAN.md](docs/IMPLEMENTATION-PLAN.md)), entries are grouped by date.
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format. Entries before `0.1.0` are
+grouped by date rather than by version: they were written while nothing had been released, and
+they are left as they were written rather than retrofitted into versions that never existed.
 
 ## [Unreleased]
+
+## [0.1.0] - 2026-09-13
 
 ### Security
 
@@ -30,6 +32,28 @@ no version tags yet; until the first dated release (phase 5 of
   if the dispatched tag stops reaching the script through `env:` at all.
 
 ### Added
+
+- **The first release.** `v0.1.0` is the first signed tag this project has ever had.
+  [ADR 0008](docs/adr/0008-release-versioning-applies.md) supersedes ADR 0001's
+  Release & Versioning **N/A** declaration, whose own "revisit if" clause had fired on every
+  count: the repository is public, the site is published from it, and `action.yml` and
+  `.pre-commit-hooks.yaml` are surfaces built for *other* repositories, both of which told a
+  consumer to pin a ref that did not exist. Documenting a pinning discipline while shipping
+  nothing to pin asks a consumer to do the careful thing and then leaves the careless thing as
+  the only option — which matters here more than usual, because the grade is a pure function of
+  bytes, an `as_of` date and a policy fingerprint the commit determines, so a floated branch
+  floats the grading policy.
+
+  `docs/before-you-post-it.md` and `.pre-commit-hooks.yaml` now name `v0.1.0`.
+  `CITATION.cff` gains `version` and `date-released`, which ADR 0001 had it omit. Nothing is
+  published to any index: `release.yml` has no upload step and no registry credential, and
+  adding one is a separate decision. The site is **not** versioned with the package — it stays a
+  continuously rebuilt artifact of committed data, and what dates a published grade is the
+  cohort's `as_of`.
+
+  The dated headings further down stay grouped by date. They were written while nothing had
+  been released, and retrofitting them into versions that never existed would be a fabricated
+  history of releases.
 
 - **What a refresh actually costs, measured rather than assumed.**
   [docs/findings/what-a-re-collection-actually-cost-2026-09-12.md](docs/findings/what-a-re-collection-actually-cost-2026-09-12.md)

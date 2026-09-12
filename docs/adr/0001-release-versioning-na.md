@@ -2,7 +2,12 @@
 
 ## Status
 
-Accepted - 2026-08-07
+Superseded by [0008](0008-release-versioning-applies.md) - 2026-09-12. Accepted 2026-08-07.
+
+The "revisit if" clause at the bottom of this document is what fired: the repository gained a
+public remote, phase 5 published the dataset and the site, and the GitHub Action and pre-commit
+hook told consumers to pin a tag. The context below is left exactly as it was written, because it
+records why the declaration was right at the time.
 
 ## Context
 

@@ -147,49 +147,95 @@ def version_against_tags(declared: str, tags: Sequence[str]) -> str | None:
     )
 
 
-#: Where a reader is told, in prose, that nothing has been released. Required while there
-#: are no tags; retired by the commit that cuts the first one -- both directions gated.
-UNRELEASED_STATEMENTS: tuple[tuple[str, str], ...] = (
-    ("README.md", r"Release & Versioning \| N/A \(pre-publication as a package: no tags"),
-    ("CHANGELOG.md", r"The project is pre-release with\nno version tags yet"),
-    ("CITATION.cff", r"Pre-release: version and date-released will be added"),
-    ("docs/adr/0001-release-versioning-na.md", r"mrf-honest has zero git tags"),
+#: Where a reader is told, in prose, what this project's release state is. Each row is a
+#: document, the sentence that has to stand while there are no tags, and the sentence that has
+#: to stand once there are. Both are checked in both states: a document that still says nothing
+#: has been released after a release, and a document that announces one before it exists, are
+#: the same defect seen from two sides.
+#:
+#: This table used to hold only the first of the two, which was right while nothing had been
+#: released and became half a gate the moment something was. The `mrf-honest has zero git tags`
+#: line of ADR 0001 is deliberately *not* the sentence watched there: it is that ADR's Context,
+#: which records why the declaration was right in August and is left exactly as written. What
+#: changes on a release is the ADR's Status, so that is what this row reads.
+RELEASE_STANCE: tuple[tuple[str, str, str], ...] = (
+    (
+        "README.md",
+        r"Release & Versioning \| N/A \(pre-publication as a package: no tags",
+        r"Release & Versioning \| Applies: `v0\.1\.0` is the first signed tag",
+    ),
+    (
+        "CHANGELOG.md",
+        r"The project is pre-release with\nno version tags yet",
+        r"\n## \[0\.1\.0\] - \d{4}-\d{2}-\d{2}\n",
+    ),
+    (
+        "CITATION.cff",
+        r"Pre-release: version and date-released will be added",
+        r"^date-released: \d{4}-\d{2}-\d{2}$",
+    ),
+    (
+        "docs/adr/0001-release-versioning-na.md",
+        r"## Status\n\nAccepted - 2026-08-07",
+        r"Superseded by \[0008\]",
+    ),
 )
 
 
-def unreleased_statement_findings(root: Path, tags: Sequence[str]) -> list[str]:
+def stance_findings(root: Path, tags: Sequence[str]) -> list[str]:
+    """Every document whose stated release stance disagrees with the tags that exist."""
+
     findings = []
-    for name, pattern in UNRELEASED_STATEMENTS:
+    for name, unreleased, released in RELEASE_STANCE:
         text = (root / name).read_text(encoding="utf-8")
-        present = re.search(pattern, text) is not None
-        if not tags and not present:
-            findings.append(
-                f"{name} no longer tells a reader that nothing has been released (expected to "
-                f"match {pattern!r}), and no tag exists to make that true."
-            )
-        if tags and present:
-            findings.append(
-                f"{name} still says nothing has been released, but {newest_tag(tags)!r} exists."
-            )
+        says_unreleased = re.search(unreleased, text, re.MULTILINE) is not None
+        says_released = re.search(released, text, re.MULTILINE) is not None
+        if not tags:
+            if not says_unreleased:
+                findings.append(
+                    f"{name} no longer tells a reader that nothing has been released (expected "
+                    f"to match {unreleased!r}), and no tag exists to make that true."
+                )
+            if says_released:
+                findings.append(
+                    f"{name} announces a release (matches {released!r}), and this repository "
+                    "has no tags."
+                )
+        else:
+            if says_unreleased:
+                findings.append(
+                    f"{name} still says nothing has been released, but {newest_tag(tags)!r} exists."
+                )
+            if not says_released:
+                findings.append(
+                    f"{name} does not state the release that exists (expected to match "
+                    f"{released!r}); the newest tag is {newest_tag(tags)!r}."
+                )
     return findings
 
 
 def citation_findings(root: Path, tags: Sequence[str]) -> list[str]:
-    """ADR 0001: `CITATION.cff` omits `version` and `date-released` until a real release.
+    """`CITATION.cff` names a release in `version` and `date-released`, iff there is one.
 
-    Both name a release. Without a tag there is none to name, and CFF permits their
-    absence for pre-release software.
+    ADR 0001 had both omitted while nothing had been released, and CFF permits their absence
+    for pre-release software. ADR 0008 requires them once a tag exists: a citation file that
+    cannot say which version was cited is the same gap in the other direction.
     """
 
     text = (root / "CITATION.cff").read_text(encoding="utf-8")
     findings = []
-    if not tags:
-        for key in ("version", "date-released"):
-            if re.search(rf"^{key}:", text, re.MULTILINE):
-                findings.append(
-                    f"CITATION.cff declares {key}, but this repository has no tags "
-                    "(ADR 0001 omits both until the first dated release)."
-                )
+    for key in ("version", "date-released"):
+        present = re.search(rf"^{key}:", text, re.MULTILINE) is not None
+        if not tags and present:
+            findings.append(
+                f"CITATION.cff declares {key}, but this repository has no tags "
+                "(ADR 0001 omits both until the first dated release)."
+            )
+        if tags and not present:
+            findings.append(
+                f"CITATION.cff omits {key}, but {newest_tag(tags)!r} exists "
+                "(ADR 0008 requires both once a release is tagged)."
+            )
     return findings
 
 
@@ -287,7 +333,7 @@ def test_every_runtime_statement_of_the_version_agrees_with_pyproject() -> None:
 
 
 def test_the_documents_say_nothing_has_been_released_while_nothing_has() -> None:
-    findings = unreleased_statement_findings(ROOT, TAGS) + citation_findings(ROOT, TAGS)
+    findings = stance_findings(ROOT, TAGS) + citation_findings(ROOT, TAGS)
     assert findings == [], findings
 
 
@@ -384,50 +430,78 @@ def sabotage(tmp_path: Path) -> Path:
 
 
 def test_the_clean_tree_produces_no_findings_at_all(sabotage: Path) -> None:
-    """Without this, every negative control below could pass for the wrong reason."""
+    """Without this, every negative control below could pass for the wrong reason.
+
+    Driven against the tags this repository actually has, not a convenient list: the point is
+    that the documents on disk agree with reality, and a hard-coded tag list here would make the
+    whole section agree with a repository nobody has.
+    """
 
     assert declared_version(sabotage) == DECLARED
-    assert unreleased_statement_findings(sabotage, []) == []
-    assert citation_findings(sabotage, []) == []
+    assert stance_findings(sabotage, TAGS) == []
+    assert citation_findings(sabotage, TAGS) == []
 
 
-@pytest.mark.parametrize(("document", "pattern"), UNRELEASED_STATEMENTS)
+@pytest.mark.parametrize(("document", "unreleased", "released"), RELEASE_STANCE)
 def test_deleting_a_release_stance_sentence_is_caught(
-    sabotage: Path, document: str, pattern: str
+    sabotage: Path, document: str, unreleased: str, released: str
 ) -> None:
+    """Whichever of the two sentences is the true one today, removing it has to be a finding."""
+
+    pattern = released if TAGS else unreleased
     path = sabotage / document
     before = path.read_text(encoding="utf-8")
-    after = re.sub(pattern, "REMOVED", before)
+    after = re.sub(pattern, "REMOVED", before, flags=re.MULTILINE)
     path.write_text(after, encoding="utf-8")
 
     assert after != before, f"the sabotage did not land: {pattern!r} never matched {document}"
-    assert re.search(pattern, after) is None
+    assert re.search(pattern, after, re.MULTILINE) is None
 
-    findings = unreleased_statement_findings(sabotage, [])
+    findings = stance_findings(sabotage, TAGS)
     assert any(document in finding for finding in findings), findings
 
 
-def test_a_stance_sentence_left_standing_after_a_release_is_caught(sabotage: Path) -> None:
-    """The other direction: the first tag has to retire these sentences."""
+def test_a_stance_sentence_from_the_wrong_state_is_caught(sabotage: Path) -> None:
+    """The other direction, driven on an untouched copy against the state this repo is not in.
 
-    findings = unreleased_statement_findings(sabotage, ["v0.1.0"])
-    assert len(findings) == len(UNRELEASED_STATEMENTS)
-    assert all("v0.1.0" in finding for finding in findings)
+    Every document has to be a finding there, and none in the state it is in (above). That is
+    what makes this two-sided rather than a check that happens to pass in whichever state it
+    was written for -- the shape that made the first release impossible to land.
+    """
+
+    wrong_state: list[str] = [] if TAGS else ["v0.1.0"]
+    findings = stance_findings(sabotage, wrong_state)
+
+    # Two findings per document, not one: in the state these documents are not describing, each
+    # of them both fails to say the thing that state requires and says the thing it forbids.
+    # Asserting one per document would pass while half the gate did nothing.
+    assert len(findings) == 2 * len(RELEASE_STANCE), findings
+    for document, _unreleased, _released in RELEASE_STANCE:
+        assert sum(document in finding for finding in findings) == 2, (document, findings)
 
 
 @pytest.mark.parametrize("key", ["version", "date-released"])
-def test_a_citation_release_field_without_a_tag_is_caught(sabotage: Path, key: str) -> None:
-    """ADR 0001's consequence, reproduced deliberately on a copy."""
+def test_a_citation_release_field_that_disagrees_with_the_tags_is_caught(
+    sabotage: Path, key: str
+) -> None:
+    """ADR 0001's consequence and ADR 0008's, reproduced deliberately on a copy.
+
+    Removing the field is the sabotage once a release exists; adding one is the sabotage before
+    it does. The control tracks the state the repository is actually in.
+    """
 
     path = sabotage / "CITATION.cff"
     before = path.read_text(encoding="utf-8")
-    after = f"{before}{key}: 9.9.9\n"
+    if TAGS:
+        after = re.sub(rf"^{key}:.*\n", "", before, flags=re.MULTILINE)
+        assert re.search(rf"^{key}:", after, re.MULTILINE) is None, "the sabotage did not land"
+    else:
+        after = f"{before}{key}: 9.9.9\n"
+        assert re.search(rf"^{key}:", after, re.MULTILINE), "the sabotage did not land"
+    assert after != before, "the sabotage did not land"
     path.write_text(after, encoding="utf-8")
 
-    assert re.search(rf"^{key}:", after, re.MULTILINE), "the sabotage did not land"
-
-    assert citation_findings(sabotage, []) != []
-    assert citation_findings(sabotage, ["v0.1.0"]) == []
+    assert citation_findings(sabotage, TAGS) != []
 
 
 def test_a_runtime_version_drifting_from_pyproject_is_caught() -> None:

@@ -186,13 +186,28 @@ class TestVersionAgreement:
     def test_a_changelog_entry_is_required(self) -> None:
         assert "CHANGELOG.md" in _run_text("verify-tag")
 
-    def test_the_current_version_would_be_refused_today(self) -> None:
-        """This is the honest state of the repository: 0.1.0.dev0 is not releasable, and the
-        workflow says so rather than shipping a wheel that claims otherwise."""
+    def test_the_declared_version_is_one_this_workflow_would_accept(self) -> None:
+        """The honest state of the repository, held against the workflow's own refusals.
+
+        This used to assert the opposite -- that the declared version was `0.1.0.dev0` and
+        therefore *not* releasable -- which was the honest state while nothing had been
+        released, and was one of the things that made the first release impossible to land.
+        What it was checking is that the declared version and the workflow agree about whether
+        a release is possible, and that is what it checks now, against the same two refusals
+        `release.yml` implements: the `*dev*|*rc*|*a*|*b*` case pattern, and the changelog
+        section keyed on the declared version.
+        """
 
         version = re.search(r'^version = "([^"]+)"', (ROOT / "pyproject.toml").read_text(), re.M)
         assert version is not None
-        assert "dev" in version.group(1)
+        declared = version.group(1)
+        for marker in ("dev", "rc"):
+            assert marker not in declared, (
+                f"pyproject.toml declares {declared!r}; release.yml refuses a pre-release version."
+            )
+        assert f"[{declared}]" in (ROOT / "CHANGELOG.md").read_text(encoding="utf-8"), (
+            f"release.yml requires a CHANGELOG.md section named [{declared}] and there is none."
+        )
 
 
 class TestNothingIsPublished:
