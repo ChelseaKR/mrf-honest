@@ -22,6 +22,45 @@ no version tags yet; until the first dated release (phase 5 of
   difference is the whole input to the tier decision. Every figure is re-derived by
   `tests/test_published_claims.py` from the registries, so the document cannot drift from them.
 
+- **`mrf-honest census`: count the files discovery has already located, beside the files the
+  cohorts graded.** A cohort answers how good a file is. Nothing was asking the cheaper and much
+  larger question — *which files does this project know the address of?* — and the answer turned
+  out to be **550 distinct files at 49 origins, against 41 graded**, with no request made to
+  learn it.
+
+  That gap matters because of which half is expensive. `docs/SAMPLING-FRAME.md` calls resolving a
+  facility to the website hosting its file "the one manual step in the frame, and the frame's
+  weakest joint", and it was wrong on ten of the first forty-eight candidate origins. One
+  retrieved `cms-hpt.txt` resolves that joint for **every location it names** — 49 documents name
+  656 locations — for a few kilobytes. Grading is the cost that scales per file, at a mean of
+  182 MB. So the affordable shape is to locate broadly and grade on demand, and this verb is the
+  first half of it. 406 of the 550 are a candidate for a profile this project already implements.
+
+  Five refusals are enforced rather than documented. A URL extension is a **candidate**, never a
+  determination — the 2026-08-19 run spent 669,479,338 bytes learning that four extensionless
+  targets were CSV, which is why `probe` exists. A URL that carries no usable extension is its
+  own population and is never folded into "a format we do not grade". An origin that produced no
+  body is never an origin that publishes nothing, and is kept **apart** from an origin that
+  answered with a body no location could be read out of — three of those carry the parser's own
+  "served HTML rather than a cms-hpt.txt document", and merging them would say a server refused a
+  request it answered. "Not graded here" is stated as this project's collection scope. And **no
+  share is computed against the 3,024-hospital frame**: the frame enumerates facilities, this
+  enumerates locations named by documents, and the join does not exist — a test asserts every
+  population is an integer so a share across it cannot appear. Contact details gathered during
+  discovery are never carried, which `docs/CORRECTIONS.md` promises and a test asserts over the
+  whole serialised document.
+
+  One discriminator was added after the fact and is worth naming: on a checkout with **no**
+  discovery registry the first version reported "17 graded row(s) match no located file", having
+  read nothing. The census now carries a `status`, and that one count is `null` rather than `0`
+  when no document was read, while every count of something that really was examined stays zero.
+
+  Like `mrf-honest systems`, this is a command over local operator evidence and not published
+  output, because the discovery registry it reads is deliberately gitignored. The write-up is
+  [docs/findings/what-discovery-already-located-2026-09-12.md](docs/findings/what-discovery-already-located-2026-09-12.md).
+  `scorecard.public_url` and `scorecard.text_digest` are exported under public names so that
+  anything publishing a URL uses the project's one rule for it.
+
 ### Changed
 
 - **Both cohorts re-collected on 2026-09-12; the published grades were twenty-four days old.**
