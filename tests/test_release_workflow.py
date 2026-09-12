@@ -9,6 +9,7 @@ the tagged commit, and hold no credential that could publish anything anywhere.
 
 from __future__ import annotations
 
+import base64
 import re
 from pathlib import Path
 from typing import Any, cast
@@ -68,11 +69,49 @@ class TestTheKeyStaysWithTheMaintainer:
         assert "::error" in run
         assert "::warning" not in run
 
-    def test_the_repository_ships_no_placeholder_trust_root(self) -> None:
-        """The point of the check above. A committed placeholder key would look configured and
-        trust nobody, which is worse than an absent file that stops the job."""
+    def test_the_committed_trust_root_is_real_keys_and_nothing_else(self) -> None:
+        """The point of the check above, and it had to change shape to stay honest.
 
-        assert not (ROOT / ".github" / "allowed_signers").exists()
+        This used to assert that `.github/allowed_signers` did not exist at all. That was true
+        while no release had ever been prepared, and it became the thing standing between this
+        repository and its first one: `release.yml` stops at its second step without the file,
+        and the file could not be added while a test forbade it.
+
+        What the check was ever about is not the file's absence. It is that a committed trust
+        root must be a real public key and not a placeholder -- a placeholder looks configured
+        and trusts nobody, which is worse than an absent file that stops the job. So every line
+        is parsed as OpenSSH's `allowed_signers` format and the key material is decoded: the
+        SSH wire format begins with a length-prefixed copy of the algorithm name, so a
+        plausible-looking base64 blob that is not a key fails here rather than at a release.
+        """
+
+        path = ROOT / ".github" / "allowed_signers"
+        assert path.is_file() and path.stat().st_size > 0, (
+            "the release trust root is missing. release.yml refuses to verify a tag without it, "
+            "so no release can be cut; if it was removed deliberately, this test is the record."
+        )
+
+        lines = [
+            line
+            for line in path.read_text(encoding="utf-8").splitlines()
+            if line.strip() and not line.lstrip().startswith("#")
+        ]
+        assert lines, "the trust root has no entries; an empty file trusts nobody"
+
+        for line in lines:
+            lowered = line.lower()
+            for marker in ("example", "placeholder", "replace", "changeme", "todo", "your-key"):
+                assert marker not in lowered, f"placeholder trust root: {line!r}"
+
+            principals, algorithm, material = line.split(" ", 2)
+            assert "@" in principals, f"no principal on {line!r}"
+            assert algorithm in {"ssh-ed25519", "ssh-rsa", "ecdsa-sha2-nistp256"}, algorithm
+
+            blob = base64.b64decode(material.split(" ")[0], validate=True)
+            length = int.from_bytes(blob[:4], "big")
+            assert blob[4 : 4 + length].decode("ascii") == algorithm, (
+                f"the key material in {line!r} does not encode {algorithm}; it is not a key."
+            )
 
 
 class TestTheReleaseIsAClaimAboutOneCommit:
