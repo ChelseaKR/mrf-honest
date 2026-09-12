@@ -79,10 +79,22 @@ CSV_GRADE_POLICY_VERSION = "cms-hospital-csv-v3-file-grade-v1"
 #: input, the rule table below is byte-identical, and every grade in a re-derived cohort is
 #: unchanged; moving the grade fingerprint would announce a regrade that did not happen and
 #: would make old and new cohorts falsely incomparable (ADR 0005).
-COMPARISON_VERSION = 3
+#: Version 4 added the ``contract_failed`` branch of ``files[].lakehouse``: a consumer reading
+#: version 3 could assume that a present record whose status is not ``refused`` describes a
+#: completed load, and a contract failure is neither of those.
+COMPARISON_VERSION = 4
 
 #: ``status`` of an ingest attempt the warehouse declined for scope reasons.
 INGEST_REFUSED = "refused"
+
+#: ``status`` of an ingest attempt a data contract rejected.
+#:
+#: Distinct from ``INGEST_REFUSED`` because the two say opposite things. A refusal is a limit of
+#: what this project implements and is never a finding about the file; a contract failure is a
+#: statement that the verified body carries rows a declared invariant forbids. Rendering either
+#: as a bare absence -- which is what happened to this one until it had a status of its own --
+#: publishes a project's silence as a hospital's.
+INGEST_CONTRACT_FAILED = "contract_failed"
 
 #: The four dimensions the local inspector can evidence; retrievability is handled separately.
 LOCAL_DIMENSIONS = ("conformance", "completeness", "interpretability", "freshness")
@@ -394,6 +406,29 @@ def _subject_fields(record: Mapping[str, object]) -> tuple[str, str, str, str, s
 
 def _sanitized_ingest(raw: Mapping[str, object]) -> dict[str, object]:
     status = _required_str(raw, "status")
+    if status == INGEST_CONTRACT_FAILED:
+        # Same rule as the refusal branch: an incomplete record publishes the same unexplained
+        # absence the branch exists to replace, so it is refused rather than half-rendered.
+        violations = raw.get("violations")
+        if not isinstance(violations, Sequence) or isinstance(violations, (str, bytes)):
+            raise CohortError("contract-failed ingest evidence carries no 'violations' list")
+        return {
+            "status": status,
+            "source_file_id": _required_str(raw, "source_file_id"),
+            "publisher_id": _required_str(raw, "publisher_id"),
+            "reason": _required_str(raw, "reason"),
+            "violations": [
+                {
+                    "model": _required_str(cast(Mapping[str, object], violation), "model"),
+                    "rule": _required_str(cast(Mapping[str, object], violation), "rule"),
+                    "violating_rows": int(
+                        cast(int, cast(Mapping[str, object], violation)["violating_rows"])
+                    ),
+                    "message": _required_str(cast(Mapping[str, object], violation), "message"),
+                }
+                for violation in violations
+            ],
+        }
     if status == INGEST_REFUSED:
         # Every field is required. A refusal record without its reason would publish the same
         # unexplained absence as no record at all, which is the whole defect this branch fixes,

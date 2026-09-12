@@ -5,6 +5,7 @@ import json
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
+from typing import cast
 
 import duckdb
 import pytest
@@ -12,6 +13,7 @@ import pytest
 import mrf_honest.lakehouse as lakehouse
 from mrf_honest.contracts import ContractError, validate_contracts
 from mrf_honest.lakehouse import (
+    LakehouseContractFailure,
     LakehouseError,
     PublisherRef,
     ingest_hospital_file,
@@ -837,3 +839,49 @@ def test_spool_load_declares_quoting_beyond_the_sniffer_sample(tmp_path: Path) -
             "SELECT modifier_codes_json FROM stg_charge_group WHERE charge_group_id = 'group-last'"
         ).fetchone()[0]
         assert json.loads(modifier_json) == ["51"]
+
+
+# --- a contract failure is evidence, not only an exit code -----------------------------------
+
+
+def test_a_contract_failure_carries_publishable_evidence(tmp_path: Path) -> None:
+    """One ingest attempt, one evidence document -- for both ways an attempt can end.
+
+    A scope refusal already produced a document `compare --ingest-result` could publish. A
+    contract failure produced a traceback and nothing else, so the comparison had no record and
+    the file page said "No warehouse ingest was recorded for this file" -- the same sentence it
+    shows for a file nobody ever tried to load. Measured on two republished UC Health files in
+    the 2026-09-12 cohort, whose only published trace of a rejected load was that absence.
+    """
+    source = _write(tmp_path / "hospital.json", _document(setting="telehealth"))
+    digest = hashlib.sha256(source.read_bytes()).hexdigest()
+
+    with pytest.raises(LakehouseContractFailure) as raised:
+        ingest_hospital_file(source, tmp_path / "warehouse", publisher=PublisherRef("example"))
+
+    evidence = raised.value.to_dict(publisher_id="example")
+    assert evidence["status"] == "contract_failed"
+    assert evidence["source_file_id"] == digest, (
+        "the evidence must key to the bytes the cohort graded, or it cannot be joined to a row"
+    )
+    assert evidence["publisher_id"] == "example"
+    violations = cast(list[dict[str, object]], evidence["violations"])
+    assert violations, "a contract failure with no violation names nothing"
+    assert {str(item["model"]) for item in violations} == {"stg_charge_group"}
+    assert {str(item["rule"]) for item in violations} == {"accepted_setting"}
+    assert all(int(cast(int, item["violating_rows"])) > 0 for item in violations)
+    assert all(str(item["message"]).strip() for item in violations)
+
+
+def test_a_contract_failure_is_still_a_contract_error_for_every_existing_caller(
+    tmp_path: Path,
+) -> None:
+    """Adding the evidence must not quietly change what the build does on a violation.
+
+    `docs/MODEL-DAG.md` and the warehouse section of the README both promise that a contract
+    violation fails the build rather than warning. Every caller that catches `ContractError`
+    keeps working because the new exception is one.
+    """
+    source = _write(tmp_path / "hospital.json", _document(setting="telehealth"))
+    with pytest.raises(ContractError, match="accepted_setting"):
+        ingest_hospital_file(source, tmp_path / "warehouse", publisher=PublisherRef("example"))

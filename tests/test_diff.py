@@ -22,6 +22,7 @@ import mrf_honest.cli as cli
 from mrf_honest.cohort import COMPARISON_VERSION, NOT_GRADED
 from mrf_honest.diff import (
     COMPARED,
+    DIFF_VERSION,
     EXIT_CANNOT_COMPARE,
     EXIT_NO_REGRESSION,
     EXIT_REGRESSED,
@@ -517,7 +518,7 @@ def test_the_cli_emits_a_canonical_json_document(capsys: pytest.CaptureFixture[s
     status = cli.main(["diff", str(JSON_2026_08_14), str(JSON_2026_08_19), "--format", "json"])
     assert status == EXIT_NO_REGRESSION
     document = json.loads(capsys.readouterr().out)
-    assert document["diff_version"] == 1
+    assert document["diff_version"] == DIFF_VERSION
     assert document["summary"]["subjects_in_both"] == 6
 
 
@@ -546,3 +547,57 @@ def test_the_cli_reports_a_refusal_as_the_third_state_and_never_as_a_crash(
     status = cli.main(["diff", str(JSON_2026_08_19), str(CSV_2026_08_19)])
     assert status == EXIT_CANNOT_COMPARE
     assert "differ in profile" in capsys.readouterr().err
+
+
+# --- a URL that changed inside the part this project redacts ---------------------------------
+
+
+def _rotated_signature() -> tuple[dict[str, object], dict[str, object]]:
+    """Two cohorts whose one subject moved to a URL that publishes as the same string.
+
+    This is not hypothetical. Three subjects of the committed 2026-09-12 JSON cohort sit behind
+    an Azure storage account that rotates a shared access signature; the signature is in the
+    query string, `scorecard`'s url_publication rule redacts the query string, and the digest
+    covers the whole URL. So the published strings match and the digests do not.
+    """
+    before = _one_subject()
+    after = _later(before)
+    _row(after)["requested_url_sha256"] = "f" * 64
+    return before, after
+
+
+def test_a_url_change_hidden_by_redaction_is_stated_with_the_digests_that_carry_it() -> None:
+    """The report used to print one string twice under a sentence saying they differed.
+
+    The comparison itself has always read the digests and has always been right. What was
+    missing was any way for a reader -- or a machine consumer of the document -- to see what the
+    tool had seen, which left a real change looking like a contradiction.
+    """
+    before, after = _rotated_signature()
+    result = compare_cohorts(before, after)
+    url = cast(dict[str, object], _subject(result)["subject_url"])
+    assert url["changed"] is True
+    assert url["before"] == url["after"], "the fixture is only a control if the strings match"
+    assert url["redacted_difference"] is True
+    assert url["before_sha256"] != url["after_sha256"]
+    report = human_report(result)
+    assert "differing only inside the redacted userinfo/query/fragment" in report
+    assert str(url["before_sha256"])[:16] in report
+    assert str(url["after_sha256"])[:16] in report
+    assert f"{url['before']} -> {url['after']}" not in report, (
+        "the report shows the same string on both sides of an arrow and calls it a difference"
+    )
+
+
+def test_a_visibly_different_url_is_still_reported_as_the_two_strings() -> None:
+    """The other direction: when the published strings do differ, show them."""
+    before = _one_subject()
+    after = _later(before)
+    _row(after)["requested_url"] = "https://files.example.test/moved/standardcharges.json"
+    _row(after)["requested_url_sha256"] = "a" * 64
+    result = compare_cohorts(before, after)
+    url = cast(dict[str, object], _subject(result)["subject_url"])
+    assert url["redacted_difference"] is False
+    report = human_report(result)
+    assert "differing only inside the redacted" not in report
+    assert "https://files.example.test/moved/standardcharges.json" in report

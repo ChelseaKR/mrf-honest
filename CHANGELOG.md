@@ -7,7 +7,93 @@ no version tags yet; until the first dated release (phase 5 of
 
 ## [Unreleased]
 
+### Changed
+
+- **Both cohorts re-collected on 2026-09-12; the published grades were twenty-four days old.**
+  The same 17 JSON and 25 CSV subjects, the same retrieval, assessment and grade policy
+  fingerprints, one serial operator-invoked run per profile. Nothing was re-drawn: the frame is
+  the committed 2026-08-19 draw, named rather than re-run, so the two collections describe the
+  same hospitals and `mrf-honest diff` can relate them row for row. Every target's URL was
+  resolved again from its own origin's `cms-hpt.txt`, retrieved the same day, rather than
+  replayed from the earlier cohort -- a re-collection that reuses last time's URL cannot see a
+  hospital move its file.
+
+  Two of 42 grades moved, and neither moved because of anything this project did. **Rio Grande
+  Regional Hospital F -> A**: the URL its `cms-hpt.txt` published on 2026-08-19 answered
+  HTTP 409, *"Public access is not permitted on this storage account"*; its document now
+  publishes a working URL for the same file, and the 631 MB v3.0.0 document behind it grades A.
+  **Minden Medical Center D -> A**: it republished under the current CSV template, taking
+  81,961 payer-without-charge instances, 4,785 invalid methodology values and a `2.0.0`
+  version declaration with it -- which is the whole reason the CSV cohort's headline figure
+  fell from 118,411 to 36,450. Three JSON subjects moved to a URL that publishes as the same
+  string (a rotated Azure shared access signature inside the redacted query), and one origin,
+  `msh.ms.gov`, stopped being retrievable at all while the file it used to declare is still
+  served. [docs/findings/what-moved-between-two-collections-2026-09-12.md](docs/findings/what-moved-between-two-collections-2026-09-12.md)
+  is the write-up.
+
 ### Fixed
+
+- **A grade carried its date and never its age, and the page never stated a "today" to subtract
+  it from.** Every published row has always carried `as_of`. A date on a static page is not an
+  answer to "is this still true?": the reader has to know what day it is and do the arithmetic,
+  and the one number that would have made the 2026-08-19 cohorts' staleness obvious -- twenty-four
+  days -- appeared nowhere. Each cohort section, each index card and each file page now states how
+  old its measurement is, computed from the row's own `as_of` and the date the page was built,
+  with **both dates named** so the subtraction is checkable rather than asserted. Past
+  `STALE_AFTER_DAYS` (30) a cohort says in words that it may no longer describe the files at
+  those URLs. The footer used to say "Generated <date>" for the comparison's date, which reads as
+  when the grades were taken; it now separates the build date from the comparison's.
+
+  Deliberately a published threshold and not a build gate: a calendar-driven check turns `main`
+  red on a day nobody committed anything, and trains a reader to ignore it. What *is* gated is
+  the mechanism -- `tests/test_site.py` requires every rendered grade to carry its own age, and
+  requires the age to move when the build date moves, which a hard-coded sentence would not.
+  An `as_of` that cannot be parsed renders the stated absence and **never** zero: "measured
+  today" is the most flattering possible reading of a date nobody could read. A cohort dated
+  *after* the build is reported as that rather than clamped, because a future date otherwise
+  satisfies a freshness check forever.
+
+- **A read that stopped published its running totals under "What the file contains".** When a
+  document cannot be streamed to the end -- a truncated transfer, a parse error, a web page
+  served where a file was asked for -- the inspector keeps the counts it had reached and records
+  `inspection_scan_completed: false` beside them. The grade is `F` for it and the grade's own
+  sentence names the failure; the counts table next to it rendered a partial reader's totals in
+  the same shape, the same table and the same confident commas as a file that was read to the
+  end. `dataset.csv` carried the completeness flag in the row beside those counts; the page
+  carried nothing. The heading is now "What the read reached before it stopped" and the block
+  says the figures are a floor, not a count of what the file holds.
+
+- **A data contract rejected a file and the page said nobody had tried to load it.**
+  `LakehouseScopeRefusal` already carried its own evidence document, for the stated reason that
+  "a refusal that only ever existed as a process exit code cannot be stated". A `ContractError`
+  -- the *other* way an ingest ends without a snapshot -- did exactly that: it reached the
+  operator as an exit code, `compare` had no record to attach, and the file page rendered "No
+  warehouse ingest was recorded for this file", which is the sentence it also shows for a file
+  nobody ever tried to load. Found on the 2026-09-12 re-collection: two republished UC Health
+  files violate `stg_modifier_payer.unique_canonical_payer_plan` on 40 rows each, and the only
+  published trace was that absence.
+
+  `LakehouseContractFailure` now carries the source file id and every violation, `ingest` emits
+  it as an evidence document in the same shape a refusal produces, and the file page states it
+  with the model, rule, row count and message. The two statuses stay distinct because they say
+  opposite things: a refusal is a limit of what this project implements and is never a finding
+  about the file; a contract failure says the verified body carries rows a declared invariant
+  forbids. Neither touches the grade -- warehouse evidence is not a grading input in either
+  direction. The exception subclasses `ContractError` as well, so every caller relying on "a
+  contract violation fails the build rather than warning" is unchanged. `COMPARISON_VERSION` is
+  4: a version-3 reader would take a present record whose status is not `refused` for a
+  completed load. Every committed comparison was regenerated at version 4 from its own
+  unchanged inputs; no grade, date or assessment moved.
+
+- **`mrf-honest diff` announced a URL change and then printed the same URL twice.** A published
+  `requested_url` has its userinfo, query and fragment redacted while the digest beside it covers
+  the exact URL, so two genuinely different URLs can publish as the same string -- which is what
+  a storage account does every time it rotates an access signature, and what three subjects of
+  the 2026-09-12 JSON cohort did. The comparison has always read the digests and has always been
+  right. The document carried only the strings, so neither a reader nor a machine consumer could
+  see what the tool had seen. `subject_url` now carries `before_sha256`, `after_sha256` and
+  `redacted_difference`, and the report names the digests and says the difference lies inside the
+  redacted part (`diff_version` 2).
 
 - **The sampling-frame gates checked one of three published cohorts, and told the other two
   they predated a frame they name (#95).** Both gates resolved their frame from the

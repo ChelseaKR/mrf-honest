@@ -34,7 +34,12 @@ from mrf_honest.inspect_csv import (
     explain_csv_finding,
     inspect_hospital_csv_file,
 )
-from mrf_honest.lakehouse import LakehouseScopeRefusal, ingest_hospital_file, query_file_profile
+from mrf_honest.lakehouse import (
+    LakehouseContractFailure,
+    LakehouseScopeRefusal,
+    ingest_hospital_file,
+    query_file_profile,
+)
 from mrf_honest.mcp import serve as serve_mcp
 from mrf_honest.politeness import Politeness
 from mrf_honest.receipt import verify_receipt
@@ -290,6 +295,18 @@ def _run_ingest(args: argparse.Namespace) -> int:
             threads=cast(int, args.threads),
             as_of=cast(date | None, args.as_of),
         )
+    except LakehouseContractFailure as failure:
+        # Same rule as the scope refusal below, for the other way an ingest can end without a
+        # snapshot: one attempt, one evidence document. A contract violation that existed only
+        # as an exit code left the file page saying "no warehouse ingest was recorded", which is
+        # what it says about a file nobody tried.
+        payload = failure.to_dict(publisher_id=publisher.identifier)
+        if args.output_format == "json":
+            _emit_json(payload)
+        else:
+            _emit_mapping_human(payload)
+            print(f"contract failed: {failure.reason}", file=sys.stderr)
+        return _FAILURE
     except LakehouseScopeRefusal as refusal:
         # A scope refusal is evidence with a reason, not a traceback. It goes to stdout in the
         # same document shape a successful load produces, so `compare --ingest-result` can

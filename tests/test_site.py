@@ -5,12 +5,14 @@ from __future__ import annotations
 import itertools
 import json
 import re
+from datetime import date, timedelta
 from pathlib import Path
 from typing import cast
 
 import pytest
 from test_cohort import (
     GENERATED_AT,
+    _document,
     _failure_record,
     _framed_manifest,
     _manifest,
@@ -29,8 +31,10 @@ from mrf_honest.site import (
     PALETTE,
     SHARES_HEADING,
     SHARES_REFUSAL,
+    STALE_AFTER_DAYS,
     TEXT_ON_BACKGROUND,
     contrast_ratio,
+    measurement_age_days,
     missing_shares,
     render_site,
 )
@@ -658,3 +662,178 @@ def test_every_page_carries_the_route_to_a_correction(tmp_path: Path) -> None:
         html = page.read_text(encoding="utf-8")
         assert CORRECTIONS_URL in html, f"{page} has no correction route"
         assert "you are not asked to prove anything" in html.lower()
+
+
+# --- how old is this grade, and can the reader see it? ---------------------------------------
+#
+# Every published row has always carried its own `as_of`. A date is not an age: a reader on a
+# static page has no "today" to subtract it from, and the site never stated one. These gates are
+# on the mechanism rather than on any particular date -- the age has to be computed from the
+# row's own date and the build date, both of them named on the page, and a date that cannot be
+# read has to say so rather than arrive as zero.
+
+COLLECTED = date.fromisoformat("2026-05-01")
+"""The `as_of` of the cohort `tests.test_cohort._manifest` attests."""
+
+
+def _rendered_pages(tmp_path: Path, built_on: date) -> dict[str, str]:
+    comparison = _comparison(tmp_path)
+    out = tmp_path / f"site-{built_on.isoformat()}"
+    render_site(comparison, out, built_on=built_on)
+    return {
+        path.relative_to(out).as_posix(): path.read_text(encoding="utf-8")
+        for path in sorted(out.rglob("*.html"))
+    }
+
+
+def test_every_rendered_file_page_states_how_old_its_own_grade_is(tmp_path: Path) -> None:
+    """A grade whose age a reader cannot see is a stale number stated as current.
+
+    Both dates have to reach the page: the measurement's, and the build's. An age with only one
+    date beside it is a number nobody can check.
+    """
+    built_on = COLLECTED + timedelta(days=9)
+    pages = _rendered_pages(tmp_path, built_on)
+    file_pages = {name: html for name, html in pages.items() if name.startswith("hospital/")}
+    assert file_pages, "the render produced no file pages to check"
+    for name, html in file_pages.items():
+        assert f"measured {COLLECTED.isoformat()}, 9 days before this page was built" in html, (
+            f"{name} publishes a grade without saying how old it is"
+        )
+        assert built_on.isoformat() in html, f"{name} states an age with no build date beside it"
+        assert "Age of this measurement" in html, f"{name} has no age row in its provenance block"
+    index = pages["index.html"]
+    assert index.count(f"measured {COLLECTED.isoformat()}, 9 days before") >= len(file_pages), (
+        "the index lists grades whose age it does not state"
+    )
+
+
+def test_the_published_age_is_computed_from_the_build_date_and_not_written_down(
+    tmp_path: Path,
+) -> None:
+    """The negative control for the gate above.
+
+    A hard-coded sentence would satisfy every assertion there and be wrong the following day.
+    Rendering the same comparison on two different days must move the age by exactly the
+    difference between them.
+    """
+    early = _rendered_pages(tmp_path, COLLECTED + timedelta(days=3))
+    late = _rendered_pages(tmp_path, COLLECTED + timedelta(days=40))
+    page = "hospital/beta-health/north/index.html"
+    assert "3 days before this page was built" in early[page]
+    assert "40 days before this page was built" in late[page]
+    assert "3 days before this page was built" not in late[page]
+
+
+def test_a_measurement_date_that_cannot_be_read_is_stated_not_counted_as_zero(
+    tmp_path: Path,
+) -> None:
+    """An unreadable date must never render as "measured today".
+
+    Zero is the most flattering reading of an absence, and publishing it would be the exact
+    defect the rest of this project exists to catch.
+    """
+    for unreadable in (None, "", "not-a-date", "2026-13-01", 20260501, {"as_of": "2026-05-01"}):
+        assert measurement_age_days(unreadable, COLLECTED) is None, unreadable
+    assert measurement_age_days("2026-05-01", COLLECTED) == 0
+
+
+def test_a_cohort_past_the_published_threshold_says_so_in_words(tmp_path: Path) -> None:
+    """Both directions, because a banner that is always there says nothing.
+
+    One day under the threshold the page must not warn; one day over it must, and the sentence
+    has to name the age rather than only the threshold.
+    """
+    fresh = _rendered_pages(tmp_path, COLLECTED + timedelta(days=STALE_AFTER_DAYS))
+    stale = _rendered_pages(tmp_path, COLLECTED + timedelta(days=STALE_AFTER_DAYS + 1))
+    assert f"more than {STALE_AFTER_DAYS} days old" not in fresh["index.html"]
+    assert f"more than {STALE_AFTER_DAYS} days old" in stale["index.html"]
+    assert f"collected {STALE_AFTER_DAYS + 1:,} days ago" in stale["index.html"]
+    assert (
+        f"Nothing here has been re-collected since {COLLECTED.isoformat()}" in stale["index.html"]
+    )
+
+
+def test_a_cohort_dated_after_the_build_is_reported_rather_than_clamped(tmp_path: Path) -> None:
+    """A negative age is a real defect -- a mis-stamped cohort, or a clock that ran backwards.
+
+    Clamping it to zero would publish "measured today" for a date that has not happened, which
+    is how a future date satisfies a freshness check forever.
+    """
+    pages = _rendered_pages(tmp_path, COLLECTED - timedelta(days=2))
+    assert measurement_age_days("2026-05-01", COLLECTED - timedelta(days=2)) == -2
+    assert "AFTER this page was built" in pages["index.html"]
+    assert "one of the two dates is wrong" in pages["index.html"]
+
+
+def test_the_footer_separates_the_build_date_from_the_collection_date(tmp_path: Path) -> None:
+    """The footer used to state one date and call it "Generated", which a reader reasonably
+    reads as when the grades were taken. Those are three different days and the page says so."""
+    built_on = COLLECTED + timedelta(days=5)
+    pages = _rendered_pages(tmp_path, built_on)
+    for name, html in pages.items():
+        assert f"Built {built_on.isoformat()} from the comparison document generated" in html, (
+            f"{name} does not separate its build date from its comparison's"
+        )
+
+
+# --- a partial read's totals are not the file's contents -------------------------------------
+
+
+def _truncated_comparison(tmp_path: Path) -> dict[str, object]:
+    """One row whose read stopped mid-array, with counts already on the clock.
+
+    The grade for it is `F` and says so. The counts beside it are a lower bound on a document
+    nobody finished reading, and this is the fixture that makes the difference visible.
+    """
+    document = _document()
+    document["standard_charge_information"] = (
+        cast(list[object], document["standard_charge_information"]) * 3
+    )
+    raw = json.dumps(document).encode()
+    truncated = raw[: raw.rindex(b'{"description"')]
+    stopped = _success_record(tmp_path / "bodies", raw=truncated)
+    # A comparison needs two rows; the second is a clean read, which is also the control for
+    # `test_a_completed_read_still_states_its_counts_plainly`.
+    whole = _success_record(tmp_path / "bodies", subject=_subject("beta-health", "north"))
+    return build_comparison([stopped, whole], _manifest(), generated_at=GENERATED_AT)
+
+
+def test_a_read_that_stopped_does_not_publish_its_totals_as_the_file_contents(
+    tmp_path: Path,
+) -> None:
+    """The project's own defect class, one surface out from where it was last fixed.
+
+    `inspection_scan_completed: false` reached `dataset.csv` and never reached the page. The
+    file page rendered a stopped reader's running totals under "What the file contains", in the
+    same table and the same shape as a document that was read to the end -- the grade's sentence
+    carried the failure and the numbers next to it carried none of it.
+    """
+    comparison = _truncated_comparison(tmp_path)
+    row = next(
+        entry
+        for entry in cast(list[dict[str, object]], comparison["files"])
+        if entry["slug"] == "example-health/main"
+    )
+    assert cast(dict[str, object], row["coverage"])["inspection_scan_completed"] is False
+    assert cast(dict[str, int], row["counts"])["item_count"] > 0, (
+        "the fixture is only a control if the stopped read left counts behind"
+    )
+    out = tmp_path / "site"
+    render_site(comparison, out, built_on=COLLECTED)
+    page = (out / "hospital" / "example-health" / "main" / "index.html").read_text(encoding="utf-8")
+    assert "What the file contains" not in page, (
+        "a document nobody finished reading is published as though its contents were counted"
+    )
+    assert "What the read reached before it stopped" in page
+    assert "how far the read got before it failed" in page
+    assert "a floor, not a" in page
+
+
+def test_a_completed_read_still_states_its_counts_plainly(tmp_path: Path) -> None:
+    """The other direction. A caveat that is always on the page says nothing."""
+    out = _render(tmp_path, _comparison(tmp_path))
+    page = (out / "hospital" / "alpha-health" / "main" / "index.html").read_text(encoding="utf-8")
+    assert "What the file contains" in page
+    assert "how far the read got before it failed" not in page
+    assert "What the read reached before it stopped" not in page
