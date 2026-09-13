@@ -114,6 +114,46 @@ class TestTheKeyStaysWithTheMaintainer:
             )
 
 
+class TestNoInputReachesAShell:
+    """`${{ }}` inside a `run:` block is substitution into the script before bash sees a token.
+
+    Demonstrated rather than asserted, on a copy of the old and new shapes with the dispatched
+    value `v1"; touch <path>; echo "`: the old form created the file, the new form printed the
+    whole string as `tag`. The exposure here was bounded -- `workflow_dispatch` on a public
+    repository requires write access, and the tag's signature is checked two steps later -- but
+    this is the one workflow that exists to be trusted, and the repair is an `env:` entry.
+
+    The taint does not stop at the input: `steps.resolve.outputs.tag` is that same dispatched
+    value one hop later, so all three sites were the same defect and are checked together here.
+    A rule that covered only the literal `github.event.inputs.tag` would have passed a workflow
+    that still pasted the same string into bash twice.
+    """
+
+    def test_no_expression_is_interpolated_into_any_run_block(self) -> None:
+        offenders = [
+            (job, str(step.get("name")), expression.strip())
+            for job in JOBS
+            for step in _steps(job)
+            if step.get("run")
+            for expression in re.findall(r"\$\{\{([^}]*)\}\}", str(step["run"]))
+        ]
+        assert offenders == [], (
+            f"these reach bash by substitution into the script rather than through env: {offenders}"
+        )
+
+    def test_the_dispatched_tag_reaches_the_script_as_an_environment_variable(self) -> None:
+        """The other direction: the value still has to get there, or the step does nothing."""
+        resolve = next(
+            step for step in _steps("verify-tag") if str(step.get("id", "")) == "resolve"
+        )
+        env = cast(dict[str, str], resolve["env"])
+        assert "github.event.inputs.tag" in env["DISPATCHED_TAG"]
+        assert "github.ref_name" in env["REF_NAME"]
+        # The bash fallback has to mean what GitHub's `||` meant: dispatched value if non-empty,
+        # otherwise the ref name.
+        assert "${DISPATCHED_TAG:-${REF_NAME}}" in str(resolve["run"])
+
+
 class TestTheReleaseIsAClaimAboutOneCommit:
     def test_the_gate_runs_again_at_the_tagged_commit(self) -> None:
         assert "make verify" in _run_text("build")
