@@ -7,6 +7,28 @@ no version tags yet; until the first dated release (phase 5 of
 
 ## [Unreleased]
 
+### Security
+
+- **A `workflow_dispatch` input reached a bash script by substitution, in the one workflow that
+  exists to be trusted.** `.github/workflows/release.yml` assigned the dispatched tag with
+  `tag="${{ github.event.inputs.tag || github.ref_name }}"` inside a `run:` block. An expression
+  inside `run:` is textual substitution **into the script** before bash sees a token, which is the
+  documented command-injection shape; an `env:` entry makes the value a variable the shell can
+  only read. All three interpolations in that workflow now go through `env:` — the input itself
+  and, one hop later, the two uses of `steps.resolve.outputs.tag`, which is the same dispatched
+  value and would have left the defect standing twice.
+
+  The exposure was bounded and is stated rather than dramatised: `workflow_dispatch` on a public
+  repository requires write access, and the tag's signature is verified against
+  `.github/allowed_signers` two steps further down. Bounded is not absent, and this is the
+  workflow that mints releases.
+
+  Demonstrated rather than asserted, on copies of the old and new shapes with the dispatched value
+  `v1"; touch <path>; echo "`: the old form **executed the `touch`**; the new form printed the
+  whole string as `tag` and created nothing. `tests/test_release_workflow.py` now fails if any
+  expression is interpolated into any `run:` block of that workflow, and, in the other direction,
+  if the dispatched tag stops reaching the script through `env:` at all.
+
 ### Added
 
 - **What a refresh actually costs, measured rather than assumed.**
