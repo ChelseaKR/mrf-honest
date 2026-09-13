@@ -298,13 +298,22 @@ def _has_commit(sha: str) -> bool:
 def require_comparable(deployed_sha: str, head: str) -> None:
     """Refuse unless this clone can place the deployed commit on ``master``.
 
-    Both failures below report zero drift if they are not caught, and both are
-    ordinary. A shallow checkout does not contain a commit from a month ago, so
-    ``git log <deployed>..HEAD`` lists nothing and the site reads as up to date
-    -- which is why the sentinel workflow checks out with ``fetch-depth: 0`` and
-    why this refuses rather than trusting that it did. A force-push or a rebase
-    leaves the deployed commit off ``master`` entirely, where "commits since" is
-    not a question with an answer.
+    Both cases are ordinary, and both would report zero drift if the walk below
+    ran unguarded: a shallow checkout does not contain a commit from a month
+    ago, so ``git log <deployed>..HEAD`` lists nothing and the site reads as up
+    to date. That is why the sentinel workflow checks out with ``fetch-depth:
+    0`` and why this refuses rather than trusting that it did. A force-push or a
+    rebase leaves the deployed commit off ``master`` entirely, where "commits
+    since" is not a question with an answer.
+
+    Measured rather than assumed: the absent-commit check is **not** the only
+    thing standing between here and a false zero. With it removed, the
+    ``merge-base`` call below fails on the same input and `_git` raises anyway,
+    so the refusal still happens. What is lost is the diagnosis -- it then reads
+    ``git merge-base aaaa... failed: fatal: Not a valid commit name`` and names
+    git rather than the shallow checkout that caused it -- and the guarantee
+    stops being this function's and becomes an accident of what a neighbouring
+    command happens to do on bad input. Worth keeping, not worth overclaiming.
     """
     if not _SHA.match(deployed_sha):
         raise StalenessUnknown(f"deployed commit {deployed_sha!r} is not a commit id")

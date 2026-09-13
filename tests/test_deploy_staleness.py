@@ -351,6 +351,14 @@ def test_a_commit_this_clone_does_not_have_is_a_refusal(clone: Path) -> None:
     `git log <absent>..HEAD` on a shallow clone lists nothing, so the site reads
     as current. This is why the sentinel checks out with `fetch-depth: 0`, and
     why the refusal exists rather than trusting that it did.
+
+    What this pins is the *message*, and deliberately so. Deleting the
+    absent-commit check does not produce a zero -- `git merge-base` fails on the
+    same input and the module refuses anyway -- so the property under test is
+    that the refusal names the shallow checkout instead of quoting git at a
+    reader who then has to work out what a bad commit name has to do with
+    deployment. Reported as what it is rather than as a claim that the guard is
+    all that stands between here and a wrong number.
     """
     _commit(clone, "README.md")
 
