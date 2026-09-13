@@ -273,10 +273,13 @@ These are recorded here so that no future phase quietly reports them as done:
   allowed-signers file, requires the tag and `pyproject.toml` to agree, refuses a pre-release
   version, requires a changelog entry, re-runs `make verify` at the tagged commit, and builds and
   hashes the distributions. It holds no signing key and no registry credential, and it creates no
-  tag. **Two things the maintainer must do, which no automation here should:** commit the public
-  half of the signing key to `.github/allowed_signers`, which this repository deliberately does
-  not ship a placeholder for, and sign the tag. Until the first, the workflow stops at its second
-  step with the reason stated; until the second, there is nothing for it to verify.
+  tag. The public half of the signing key is now committed at `.github/allowed_signers`
+  (`ssh-ed25519`, `SHA256:Kz1JPRtDNVmRa1tD/buR0/iOGDSwEa4P4iu3DN+bElk`, principal
+  `3114598+ChelseaKR@users.noreply.github.com`) — a public key, and the same trust root
+  `tods-validate` already publishes. **One thing the maintainer must still do, which no
+  automation here should: sign the tag.** Until then there is nothing for the workflow to
+  verify. `tests/test_release_workflow.py` parses that file and decodes its key material, so a
+  placeholder or a plausible-looking non-key fails there rather than at a release.
 - **A scheduled refresh.** The ROADMAP states the precondition: "any future scheduled job must
   take a real service/job tier declaration before shipping." That declaration is an owner
   decision about what this project promises to keep running, not a file an agent should author.

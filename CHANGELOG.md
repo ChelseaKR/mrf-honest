@@ -61,6 +61,23 @@ no version tags yet; until the first dated release (phase 5 of
   `scorecard.public_url` and `scorecard.text_digest` are exported under public names so that
   anything publishing a URL uses the project's one rule for it.
 
+- **The release trust root is committed, so a signed tag can be verified at all.**
+  `.github/allowed_signers` now carries the public half of the maintainer's release signing key
+  (`ssh-ed25519`, `SHA256:Kz1JPRtDNVmRa1tD/buR0/iOGDSwEa4P4iu3DN+bElk`) — the same trust root
+  `tods-validate` already publishes. `.github/workflows/release.yml` refuses to verify a tag
+  without it and stops at its second step, so until now no release could be cut and no tag could
+  be checked, which is the literal content of "Pre-release". Nothing private is committed and no
+  workflow gains a credential: the key that signs stays with the maintainer, and signing the tag
+  remains the one act `docs/EXPANSION-PLAN.md` phase 14 names as hers alone.
+
+  `tests/test_release_workflow.py` used to assert that this file **did not exist**, which was
+  true while no release had been prepared and became the thing standing between this repository
+  and its first one. It now parses every line as OpenSSH's `allowed_signers` format and decodes
+  the key material — the SSH wire format begins with a length-prefixed copy of the algorithm
+  name, so a plausible base64 blob that is not a key fails in the test suite rather than at a
+  release. Shown to bite on a placeholder principal, a placeholder key, a valid-base64 blob
+  declaring the wrong algorithm, and on the file being removed.
+
 ### Changed
 
 - **Both cohorts re-collected on 2026-09-12; the published grades were twenty-four days old.**

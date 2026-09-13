@@ -163,7 +163,10 @@ YAML rather than grepping text for the load-bearing assertions, and
 `test_an_absent_allowed_signers_file_stops_the_job` scopes itself to the single named step
 after the author found that a job-wide `"exit 1" in run` passed against a warning-downgrade
 mutant. Verified: `.github/allowed_signers` is genuinely absent from the tree, so
-`test_the_repository_ships_no_placeholder_trust_root` holds.
+`test_the_repository_ships_no_placeholder_trust_root` holds. *(True when this triage was
+written. The trust root was committed on 2026-09-12 so that a first release could be verified
+at all, and that test was rewritten to parse and decode the committed key instead of asserting
+the file's absence.)*
 
 **Defect — the release job would fail at its own gate.** Verified by reading, with direct
 corroborating evidence from inside the same stack:
