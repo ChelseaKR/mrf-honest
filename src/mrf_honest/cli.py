@@ -6,11 +6,13 @@ import argparse
 import json
 import shutil
 import sys
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import cast
 
+from mrf_honest.census import build_census
+from mrf_honest.census import human_report as census_human_report
 from mrf_honest.cohort import build_comparison
 from mrf_honest.container import ArchiveRefused, looks_like_archive, open_member, select_member
 from mrf_honest.diff import EXIT_CANNOT_COMPARE as DIFF_EXIT_CANNOT_COMPARE
@@ -525,6 +527,36 @@ def _run_systems(args: argparse.Namespace) -> int:
     return _SUCCESS
 
 
+def _run_census(args: argparse.Namespace) -> int:
+    """Count the files discovery has already located, beside the files the cohorts graded.
+
+    Reads the local discovery registry and any number of persisted assessment registries, opens
+    no socket and derives no grade. The inventory it counts is the expensive half of answering a
+    request about a named hospital: resolving the facility to the website hosting its file is
+    manual and was wrong ten times in the first forty-eight, and one retrieved cms-hpt.txt
+    resolves it for every location that document names.
+    """
+    discovery = Registry(cast(Path, args.discovery))
+    assessments: list[Mapping[str, object]] = []
+    for path in cast(list[Path], args.assessments or []):
+        assessments.extend(AssessmentRegistry(path).records())
+    frame: Mapping[str, object] | None = None
+    frame_path = cast("Path | None", args.frame)
+    if frame_path is not None:
+        frame = cast(Mapping[str, object], json.loads(frame_path.read_text(encoding="utf-8")))
+    document = build_census(
+        [record.to_dict() for record in discovery.records()],
+        assessments,
+        as_of=cast(str, args.as_of),
+        frame=frame,
+    )
+    if cast(str, args.output_format) == "json":
+        _emit_json(document)
+    else:
+        print(census_human_report(document))
+    return _SUCCESS
+
+
 def _run_mcp(args: argparse.Namespace) -> int:
     """Serve the published dataset over stdio. Reads committed files; never reaches a network."""
 
@@ -779,6 +811,33 @@ def _build_parser() -> argparse.ArgumentParser:
         "--format", dest="output_format", choices=("human", "json"), default="human"
     )
     systems_parser.set_defaults(handler=_run_systems)
+
+    census_parser = commands.add_parser(
+        "census",
+        help="count the files discovery has located, beside the files the cohorts graded",
+    )
+    census_parser.add_argument(
+        "--discovery",
+        type=Path,
+        required=True,
+        help="a discovery registry written by `mrf-honest discover`",
+    )
+    census_parser.add_argument(
+        "--assessments",
+        type=Path,
+        action="append",
+        help="JSON Lines assessment records; repeat for each committed cohort",
+    )
+    census_parser.add_argument(
+        "--frame",
+        type=Path,
+        help="a committed sampling frame, carried beside the census and never divided into it",
+    )
+    census_parser.add_argument("--as-of", required=True, help="ISO date this census describes")
+    census_parser.add_argument(
+        "--format", dest="output_format", choices=("human", "json"), default="human"
+    )
+    census_parser.set_defaults(handler=_run_census)
 
     site_parser = commands.add_parser(
         "site", help="render the static site from one or more published comparison documents"

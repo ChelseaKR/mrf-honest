@@ -1005,6 +1005,16 @@ def _text_digest(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8", errors="surrogatepass")).hexdigest()
 
 
+#: The two URL rules this project publishes under, exported so that anything else publishing a
+#: URL uses them rather than reimplementing them. `public_url` strips userinfo, query and
+#: fragment; `text_digest` covers the exact bytes. Keeping them together matters: `systems.py`
+#: measured two unrelated publishers serving files from one vendor endpoint that differ only in a
+#: query parameter, so a join on the published string reports each as listing the other's file,
+#: and only the digest tells them apart.
+public_url = _public_url
+text_digest = _text_digest
+
+
 def _validate_identifier(value: str, name: str) -> None:
     if not value.strip():
         raise ValueError(f"{name} cannot be empty")
