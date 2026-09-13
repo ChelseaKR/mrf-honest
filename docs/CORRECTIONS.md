@@ -116,6 +116,20 @@ inspected as though it were the whole document
 ([docs/findings/truncated-transfer-attribution-2026-08-18.md](findings/truncated-transfer-attribution-2026-08-18.md),
 commit `435270e`).
 
+### Five hospitals were graded F on a download this project had attempted once
+
+`MRF_AUTOMATION_BARRIER_OBSERVED` and `MRF_DIRECT_DOWNLOAD_FAILED` became an **F** the moment
+they were recorded, and the statuses that produce them — 401, 403, 404, 409 — are deliberately
+not retried, so the letter rested on a single request from a single client on a single date.
+Across the five committed comparison documents that was **five letters, none of them observed
+more than once**. The same module had already refused that inference for a certificate that
+would not verify, in almost the same words. A retrieval failure now carries a letter only from
+two or more recorded attempts; below that the finding is published unchanged and the grade is
+`NOT_GRADED` with the reason. Every published letter states how many identified requests stand
+behind it
+([docs/findings/what-stands-behind-a-published-letter-2026-09-13.md](findings/what-stands-behind-a-published-letter-2026-09-13.md),
+issue #99).
+
 ### A TLS certificate that would not verify was counted against the publisher
 
 A certificate this project could not verify says something about a chain, not about a hospital's

@@ -508,6 +508,26 @@ def _lakehouse_section(row: Mapping[str, object]) -> str:
     )
 
 
+def _attempts_html(row: Mapping[str, object]) -> str:
+    """How many recorded retrieval attempts stand behind this row's letter.
+
+    Published beside the letter rather than buried in the assessment record, because the
+    strongest sentence on this page -- a grade under a named hospital -- rests on it, and #99
+    was filed precisely because a reader could not see that a published ``F`` had asked once.
+
+    An unrecorded count says so. It is never rendered as ``1``: "we did not record how many
+    times we asked" and "we asked once" are different facts, and this project does not publish
+    the second when it only holds the first.
+    """
+    attempts = _grade_of(row).get("retrieval_attempts")
+    if not isinstance(attempts, int) or isinstance(attempts, bool):
+        return "not recorded for this row"
+    if attempts == 0:
+        return "none — the target was never requested (see the reason above)"
+    noun = "request" if attempts == 1 else "requests"
+    return f"{attempts} identified {noun}"
+
+
 def _provenance_section(row: Mapping[str, object], built_on: date) -> str:
     sha = row.get("content_sha256")
     size = row.get("size_bytes")
@@ -528,7 +548,9 @@ def _provenance_section(row: Mapping[str, object], built_on: date) -> str:
         f"<dd>{_e(row.get('template_version') or 'not stated')}</dd></div>"
         f"<div><dt>Assessment record digest</dt>"
         f"<dd><code>{_e(row.get('assessment_body_sha256'))}</code></dd></div>"
-        "</dl><p>The retrieval was one identified, bounded request; the SHA-256 covers the exact "
+        f"<div><dt>Retrieval attempts behind this grade</dt>"
+        f"<dd>{_attempts_html(row)}</dd></div>"
+        "</dl><p>The retrieval was identified and bounded; the SHA-256 covers the exact "
         "decoded bytes that were inspected, and the record digest covers the complete persisted "
         "assessment.</p>"
         f"{_receipt_paragraph(row)}</section>"

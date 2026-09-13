@@ -83,7 +83,16 @@ quietly mixing observation dates.
 
 HTTP 401 and 403 produce `MRF_AUTOMATION_BARRIER_OBSERVED`; other observed direct-download
 failures produce `MRF_DIRECT_DOWNLOAD_FAILED`. These are dated technical observations, not legal
-conclusions. CMS currently requires the MRF to be accessible without an account, password, or
+conclusions — and since #99 they are not letters either unless the observation was made more than
+once. A retrieval failure carries a presentation grade of `F` only from
+`cohort.RETRIEVAL_FAILURE_MINIMUM_ATTEMPTS` (2) or more recorded attempts; below that the finding
+is published exactly as it is observed and the grade is `NOT_GRADED` with the reason. A
+successful retrieval is not held to the same floor, because the bytes that arrived are hashed in
+the same row and one observation carries that claim completely; a failure is a statement about a
+server, and one request from one client on one date is not distinguishable from trouble at this
+end. 401, 403, 404 and 409 are absent from `fetch._RETRYABLE_HTTP_STATUSES`, so in practice they
+are observed once and published as observations. See
+[docs/findings/what-stands-behind-a-published-letter-2026-09-13.md](findings/what-stands-behind-a-published-letter-2026-09-13.md). CMS currently requires the MRF to be accessible without an account, password, or
 personally identifying information and to permit automated search and direct download; CMS also
 names CAPTCHA, terms acceptance, blocking code, and required information submission as barriers.
 See [45 CFR § 180.50] and the [CMS policy FAQ].

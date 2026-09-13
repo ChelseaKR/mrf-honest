@@ -432,8 +432,10 @@ def test_a_file_naming_more_locations_than_are_listed_against_it_is_reported() -
 def test_a_file_that_was_never_inspected_has_no_location_names_to_compare() -> None:
     """An unretrieved file's agreement is stated as unknown, never as agreement.
 
-    The fixture is a real committed row -- ``northside-hospital-duluth``, graded ``F``, whose
-    document never streamed -- rather than an edited one. It has to be: the persisted verifier
+    The fixture is a real committed row -- ``northside-hospital-duluth``, whose document never
+    streamed -- rather than an edited one. It carried ``F`` until #99; it now carries
+    ``NOT_GRADED`` with the reason, because one non-retryable 403 is below the attempt floor.
+    It has to be a real row: the persisted verifier
     refuses a record whose retrievability dimension no longer matches its retrieval evidence, so
     "delete the inspection" is not a state a record can be doctored into, which is the right
     answer and is why this reads a row that genuinely is in that state.
@@ -448,7 +450,9 @@ def test_a_file_that_was_never_inspected_has_no_location_names_to_compare() -> N
     system = _system(reconcile([record], [discovery]))
     assessed = cast(list[dict[str, object]], system["locations_assessed_in_this_cohort"])
     agreement = cast(dict[str, object], assessed[0]["location_name_agreement"])
-    assert assessed[0]["grade"] == "F"
+    # Withheld, not F: one non-retryable 403 is below the attempt floor (#99). The point of
+    # this test is the agreement field, which reads the same either way.
+    assert assessed[0]["grade"] == "NOT_GRADED"
     assert agreement["state"] == NOT_INSPECTED
     assert agreement["named_by_this_file"] == []
     assert agreement["listed_against_this_file"] == ["Northside Hospital Duluth"]

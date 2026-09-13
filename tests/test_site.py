@@ -155,6 +155,60 @@ def test_not_graded_target_stays_visible_with_its_reason(tmp_path: Path) -> None
     assert "no item, charge, or rate counts exist" in page
 
 
+def test_every_file_page_states_the_requests_behind_its_grade(tmp_path: Path) -> None:
+    """#99: the evidence behind a letter is on the page, and a withheld letter reads as withheld.
+
+    Three rows that differ in what their letter rests on: a body that arrived after one request,
+    a 403 seen once, and a 500 the fetcher retried to exhaustion. Only the last may carry an
+    ``F`` for a retrieval, and every one of them has to say how many requests stand behind it.
+    """
+    records = [
+        _success_record(tmp_path / "bodies", subject=_subject("alpha-health", "main")),
+        _failure_record(
+            FetchStatus.HTTP_ERROR,
+            http_status=403,
+            attempts=1,
+            subject=_subject("gamma-health", "main"),
+        ),
+        _failure_record(
+            FetchStatus.HTTP_ERROR,
+            http_status=500,
+            attempts=3,
+            subject=_subject("delta-health", "main"),
+        ),
+    ]
+    comparison = build_comparison(records, _manifest(), generated_at=GENERATED_AT)
+    out = _render(tmp_path, comparison)
+
+    def page(publisher: str) -> str:
+        return (out / "hospital" / publisher / "main" / "index.html").read_text(encoding="utf-8")
+
+    label = "Retrieval attempts behind this grade</dt><dd>"
+    alpha = page("alpha-health")
+    assert f"{label}1 identified request</dd>" in alpha
+
+    once = page("gamma-health")
+    assert f"{label}1 identified request</dd>" in once
+    assert ">F<" not in once
+    assert "is a fact about this request rather than about the publisher" in once
+
+    confirmed = page("delta-health")
+    assert f"{label}3 identified requests</dd>" in confirmed
+    assert ">F<" in confirmed
+
+
+def test_an_unrecorded_attempt_count_is_never_rendered_as_one(tmp_path: Path) -> None:
+    """ "We did not record how many times we asked" must not print as "we asked once"."""
+    comparison = _comparison(tmp_path)
+    rows = cast(list[dict[str, object]], comparison["files"])
+    del cast(dict[str, object], rows[0]["grade"])["retrieval_attempts"]
+    out = _render(tmp_path, comparison)
+    slug = str(rows[0]["slug"])
+    page = (out / "hospital" / slug / "index.html").read_text(encoding="utf-8")
+    assert "Retrieval attempts behind this grade</dt><dd>not recorded for this row</dd>" in page
+    assert "1 identified request" not in page
+
+
 def test_methods_page_documents_the_policy_and_emitted_codes(tmp_path: Path) -> None:
     out = _render(tmp_path, _comparison(tmp_path))
     methods = (out / "how-we-grade" / "index.html").read_text(encoding="utf-8")
