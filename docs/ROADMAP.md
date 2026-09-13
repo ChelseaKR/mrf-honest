@@ -14,7 +14,7 @@ publisher type and URL provenance are explicit, missing bodies leave four dimens
 Both halves of the sentence that stood here -- "no real multi-publisher grade distribution or
 hosted scorecard surface is claimed yet" -- have been false since the committed cohorts landed.
 Five comparison documents now publish **90 graded files across 39 distinct real publishers**
-(A 53, B 6, C 13, D 5, F 5, and 8 recorded not graded with the reason stated), the four dated
+(A 53, B 6, C 13, D 5, F 0, and 13 recorded not graded with the reason stated), the four dated
 cohorts carry a stated sampling frame and Wilson intervals over their probability stratum, and the
 site is published at <https://chelseakr.github.io/mrf-honest/>. The figures in this paragraph are
 not hand-maintained: `test_the_roadmap_does_not_deny_the_distribution_it_publishes` derives every
@@ -117,7 +117,7 @@ README quotes a ledger figure, this table is the source and the README follows i
 
 | Metric | Target | Measured by | Gate | Last measured |
 |---|---|---|---|---|
-| Branch coverage | >= 85% | `pytest --cov` (branch mode, `fail_under = 85`) | AUTO (`make verify`) | 93.15%, 1036 tests passing and 4 skipped, 2026-09-13 || Lint findings (ruff `E,F,I,B,S,C90,UP,RUF`, `max-complexity=10`) | 0 | `ruff check src tests perf tools` | AUTO (`make verify`) | 0, 2026-08-16 |
+| Branch coverage | >= 85% | `pytest --cov` (branch mode, `fail_under = 85`) | AUTO (`make verify`) | 93.16%, 1052 tests passing and 4 skipped, 2026-09-13 || Lint findings (ruff `E,F,I,B,S,C90,UP,RUF`, `max-complexity=10`) | 0 | `ruff check src tests perf tools` | AUTO (`make verify`) | 0, 2026-08-16 |
 | Formatting findings | 0 | `ruff format --check src tests perf tools` | AUTO (`make verify`) | 0, 2026-08-16 |
 | `mypy --strict` errors | 0 | `mypy` over `src`, `perf` and `tools` | AUTO (`make verify`) | 0, 2026-08-16 |
 | Lockfile drift | none | `uv lock --check` (**not** `uv sync --frozen`, which cannot see drift) | AUTO (`make verify`, CI `uv sync --locked`) | in sync, 2026-08-16 |

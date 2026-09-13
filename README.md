@@ -7,7 +7,9 @@ Two graded cohorts are live, one per CMS file format, side by side and never poo
 collected 2026-09-12**. The JSON cohort covers 17 machine-readable files across 15 publishers,
 discovered from CMS-conventional `cms-hpt.txt` documents, retrieved in one identified run,
 streamed without loading into memory, and graded fail-closed. The distribution is 13 **A**,
-1 **B**, 2 **C**, 1 **F**, and 0 not graded. Every grade, count, and finding on the
+1 **B**, 2 **C**, 0 **F**, and 1 not graded — the seventeenth answered HTTP 403 to one
+identified request, which this project publishes as a dated observation and no longer converts
+into a letter under a hospital's name. Every grade, count, and finding on the
 [site](https://chelseakr.github.io/mrf-honest/) is generated from the committed comparison
 documents ([JSON cohort](data/cohorts/2026-09-12.comparison.json),
 [CSV cohort](data/cohorts/2026-09-12-csv.comparison.json)), never typed in, and each finding
@@ -33,8 +35,9 @@ answers `text/csv` rather than JSON; until 2026-08-19 every one was a recorded e
 the letter distribution above described hospitals that chose JSON, not hospitals. A second
 assessment profile now implements CMS's CSV v3.0.0 templates, Tall and Wide, and a sibling
 cohort grades all 25 CSV targets of the same draw. The CSV distribution is 12 **A**, 2 **B**,
-4 **C**, 2 **D**, 1 **F**, and 4 not graded — two hosts whose `robots.txt` says no, honored;
-two files over this project's own 1 GiB ceiling, stated rather than blamed on the publisher.
+4 **C**, 2 **D**, 0 **F**, and 5 not graded — two hosts whose `robots.txt` says no, honored;
+two files over this project's own 1 GiB ceiling, stated rather than blamed on the publisher; and
+one HTTP 404 observed once, recorded rather than attributed.
 What remains outside both profiles stays recorded: 7 ZIP archives, 4 origins whose
 `cms-hpt.txt` could not be retrieved, and 1 whose location entry did not resolve.
 
@@ -244,7 +247,11 @@ limits prevented assessing is **not graded** — stated, never silently dropped,
 conflated with a publisher failure. That boundary is enforced by a status matrix rather than by
 care: a certificate that will not verify, a `robots.txt` that says no, and this project's own
 size ceiling are all **not graded**, because from one attempt none of them is distinguishable
-from a problem on this end. An **A** means the implemented checks emitted nothing; it is
+from a problem on this end. **An HTTP barrier is now held to the same standard**: a download
+failure carries a letter only from two or more recorded attempts, so a 401, 403, 404 or 409 seen
+once — statuses this project's fetcher deliberately does not retry — is published as the dated
+observation it is, with its status and its attempt count, and not as an **F**. Every published
+letter states how many identified requests stand behind it. An **A** means the implemented checks emitted nothing; it is
 not the official CMS validator and not a certificate of validity.
 
 ## Why this shape
@@ -378,7 +385,7 @@ ADR in [docs/adr/](docs/adr/). No blank rows, no silent skips.
 
 | Standard | State |
 |---|---|
-| Code Quality | Applies: `make verify` runs six gates — `ruff check` (security `S` rules, `max-complexity=10`), `ruff format --check`, `mypy --strict`, pytest with a branch-coverage floor of 85, `uv lock --check`, and `pip-audit --strict` over the exported lockfile. Current: 1036 tests passing and 4 skipped, 93.15% branch coverage, zero lint/format/type findings, lockfile in sync, zero known vulnerabilities (2026-09-13). Floors: Python >= 3.12 (`.python-version` pins 3.14), ruff >= 0.15, mypy >= 1.18, locked in `uv.lock`. Dev tooling is a PEP 735 `[dependency-groups]` group, so `uv sync` installs it and a published wheel never carries it. || Security & Supply-Chain | Applies: the streaming, inspection, discovery, fetch, registry, comparison, and site path is standard-library-only; DuckDB is an optional lakehouse dependency ([ADRs 0002-0003](docs/adr/)) and the `anthropic` SDK an optional `ai` extra that only the narration layer imports ([ADR 0006](docs/adr/0006-ai-narration-outside-the-graded-path.md)). The lockfile, ruff `S` gate, HTTPS/redirect validation, bounded downloads, and SHA-pinned CI actions reduce the current surface. Hosted CodeQL (Python and Actions) and a checksum-pinned full-history gitleaks scan run on push, PR, and weekly schedule (`.github/workflows/security.yml`). `make verify` runs `pip-audit --strict` against the whole exported lockfile — every extra and the dev group — with no ignore list, so the audit runs on a laptop and in CI rather than only in CI. The lockfile-drift gate is `uv lock --check`, not `uv sync --frozen`: measured on a deliberately drifted project under uv 0.12.1, `uv lock --check` and `uv sync --locked` exit 1 and `uv sync --frozen` exits 0, because `--frozen` installs from the lockfile without reading `pyproject.toml` and so cannot see the two disagree. |
+| Code Quality | Applies: `make verify` runs six gates — `ruff check` (security `S` rules, `max-complexity=10`), `ruff format --check`, `mypy --strict`, pytest with a branch-coverage floor of 85, `uv lock --check`, and `pip-audit --strict` over the exported lockfile. Current: 1052 tests passing and 4 skipped, 93.16% branch coverage, zero lint/format/type findings, lockfile in sync, zero known vulnerabilities (2026-09-13). Floors: Python >= 3.12 (`.python-version` pins 3.14), ruff >= 0.15, mypy >= 1.18, locked in `uv.lock`. Dev tooling is a PEP 735 `[dependency-groups]` group, so `uv sync` installs it and a published wheel never carries it. || Security & Supply-Chain | Applies: the streaming, inspection, discovery, fetch, registry, comparison, and site path is standard-library-only; DuckDB is an optional lakehouse dependency ([ADRs 0002-0003](docs/adr/)) and the `anthropic` SDK an optional `ai` extra that only the narration layer imports ([ADR 0006](docs/adr/0006-ai-narration-outside-the-graded-path.md)). The lockfile, ruff `S` gate, HTTPS/redirect validation, bounded downloads, and SHA-pinned CI actions reduce the current surface. Hosted CodeQL (Python and Actions) and a checksum-pinned full-history gitleaks scan run on push, PR, and weekly schedule (`.github/workflows/security.yml`). `make verify` runs `pip-audit --strict` against the whole exported lockfile — every extra and the dev group — with no ignore list, so the audit runs on a laptop and in CI rather than only in CI. The lockfile-drift gate is `uv lock --check`, not `uv sync --frozen`: measured on a deliberately drifted project under uv 0.12.1, `uv lock --check` and `uv sync --locked` exit 1 and `uv sync --frozen` exits 0, because `--frozen` installs from the lockfile without reading `pyproject.toml` and so cannot see the two disagree. |
 | CI/CD | Applies: SHA-pinned workflows mirror `make verify` on Python 3.12 and 3.14, build distributions, and publish the site from committed data only. The publish job first re-derives the newest comparison from its committed assessments, manifest, and ingest evidence and requires a byte-for-byte match, then requires one rendered page per row in it; a generator that no longer reproduces its own published artifact cannot deploy. `make verify` runs the same derivation, but that is a separate workflow whose failure would not by itself stop a deploy, which is why the check is on both paths. |
 | Observability | Applies to the local batch shape plus a static published artifact: finalized run manifests and DuckDB `model_metric` rows retain counts, bytes, and wall time; the site is rebuilt from committed data with no availability objective declared. See [docs/ROADMAP.md](docs/ROADMAP.md). |
 | Accessibility | Applies as of the site, and now gated. `.github/workflows/accessibility.yml` runs Lighthouse over **every** page the render produced — enumerated from the build, not typed into the workflow — and requires 1.0 on accessibility, best-practices and SEO, a declared floor above the standard's 0.90. `make verify` runs the parts that need no browser: a contrast assertion over every declared text/background pair in the design tokens, and a heading-order check on every generated page. Two real defects were found and fixed when the gate was first pointed at the live site (`heading-order` on the index; a 4.28:1 finding chip on every file page with a warning). The remaining open obligation is the manual screen-reader pass, stated in [docs/RESPONSIBLE-TECH-AUDITS.md](docs/RESPONSIBLE-TECH-AUDITS.md). |
