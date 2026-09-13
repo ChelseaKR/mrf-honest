@@ -103,6 +103,13 @@ decision about what this project promises to keep running rather than a file an 
 author. What a refresh would actually cost, measured on the two committed collections rather
 than assumed, is in
 [docs/findings/what-a-re-collection-actually-cost-2026-09-12.md](findings/what-a-re-collection-actually-cost-2026-09-12.md).
+What one *origin-scoped* collection cost end to end — 17 locations, 15 files, 96,766,261 wire
+bytes and 7 minutes 10 seconds on a laptop, with the measured answer to that document's open
+question about `-gzip` entity tags — is in
+[docs/findings/what-one-origin-cost-2026-09-13.md](findings/what-one-origin-cost-2026-09-13.md).
+That run is committed under `data/origins/`, deliberately outside the sampled cohorts the site
+renders: it is a complete enumeration of one origin chosen on cost, so it estimates nothing about
+the sampling frame and must not change what the published cohorts' intervals are estimates of.
 
 ## Metrics ledger
 
@@ -117,7 +124,7 @@ README quotes a ledger figure, this table is the source and the README follows i
 
 | Metric | Target | Measured by | Gate | Last measured |
 |---|---|---|---|---|
-| Branch coverage | >= 85% | `pytest --cov` (branch mode, `fail_under = 85`) | AUTO (`make verify`) | 93.15%, 983 tests passing and 4 skipped, 2026-09-12 || Lint findings (ruff `E,F,I,B,S,C90,UP,RUF`, `max-complexity=10`) | 0 | `ruff check src tests perf tools` | AUTO (`make verify`) | 0, 2026-08-16 |
+| Branch coverage | >= 85% | `pytest --cov` (branch mode, `fail_under = 85`) | AUTO (`make verify`) | 93.15%, 997 tests passing and 4 skipped, 2026-09-13 || Lint findings (ruff `E,F,I,B,S,C90,UP,RUF`, `max-complexity=10`) | 0 | `ruff check src tests perf tools` | AUTO (`make verify`) | 0, 2026-08-16 |
 | Formatting findings | 0 | `ruff format --check src tests perf tools` | AUTO (`make verify`) | 0, 2026-08-16 |
 | `mypy --strict` errors | 0 | `mypy` over `src`, `perf` and `tools` | AUTO (`make verify`) | 0, 2026-08-16 |
 | Lockfile drift | none | `uv lock --check` (**not** `uv sync --frozen`, which cannot see drift) | AUTO (`make verify`, CI `uv sync --locked`) | in sync, 2026-08-16 |
