@@ -51,7 +51,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: ChelseaKR/mrf-honest@<a tag or commit sha>
+      - uses: ChelseaKR/mrf-honest@v0.1.0
         with:
           path: standard-charges.json
           # Fail the build on anything CMS's dictionary makes a requirement.
@@ -76,7 +76,7 @@ names any dimension that could not be assessed.
 ```yaml
 repos:
   - repo: https://github.com/ChelseaKR/mrf-honest
-    rev: <a tag or commit sha>
+    rev: v0.1.0
     hooks:
       - id: mrf-honest
         args: [--fail-on, error, --min-grade, B]
