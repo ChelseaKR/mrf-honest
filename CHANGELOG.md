@@ -7,6 +7,19 @@ they are left as they were written rather than retrofitted into versions that ne
 
 ## [Unreleased]
 
+### Fixed
+
+- **`v0.1.0` is now an actual GitHub Release, and the README's "there is no release yet" line
+  was left behind when it was cut.** `release.yml` verifies the signed tag, re-runs `make verify`
+  at the tagged commit, builds the distributions and uploads them as a run artifact for the
+  maintainer to inspect — by design it stops there and does not call the Releases API, so the tag
+  existing and being signed was not the same claim as a release existing
+  (`gh api repos/.../releases` returned zero after the tag push). The two wheel/sdist files
+  attached to the release are byte-identical to the ones that artifact held, verified against the
+  sha256 digests the workflow itself printed. Nothing here is published to PyPI or to any MCP
+  registry, which is a different, still-true claim the README now states separately from the
+  release one.
+
 ## [0.1.0] - 2026-09-13
 
 ### Security
