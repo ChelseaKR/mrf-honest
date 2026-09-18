@@ -225,8 +225,11 @@ Asking for a grade filter without naming a cohort returns a stated refusal rathe
 count, because a letter counted across cohorts pools rows produced under different profiles and
 policies. `grading_method` reads the rule table from the policy the published grades were minted
 under, not from a summary that could drift from it. There is no tool that retrieves a hospital's
-file. The server is not registered with any MCP registry: that would name a released package, and
-there is no release yet.
+file. The server is not registered with any MCP registry: `v0.1.0` is
+[a signed, released tag](https://github.com/ChelseaKR/mrf-honest/releases/tag/v0.1.0), but
+[ADR 0008](docs/adr/0008-release-versioning-applies.md) is explicit that a GitHub Release is not
+an index listing — nothing here is published to PyPI or to any MCP registry, so there is nothing
+yet to name in a registry entry.
 
 Re-running that command over the committed inputs reproduces
 [the committed comparison](data/cohorts/2026-08-19.comparison.json) byte for byte, and both
