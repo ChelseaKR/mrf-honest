@@ -18,6 +18,7 @@ from mrf_honest.cohort import (
     COMPARISON_VERSION,
     GRADE_POLICY_FINGERPRINT,
     NOT_GRADED,
+    RETRIEVAL_FAILURE_MINIMUM_ATTEMPTS,
     CohortError,
     FileGrade,
     build_comparison,
@@ -141,13 +142,25 @@ def _failure_record(
     http_status: int | None = None,
     subject: AssessmentSubject | None = None,
     error: str | None = None,
+    attempts: int | None = None,
 ) -> dict[str, object]:
+    """One failed retrieval, with the attempt count the real fetcher would have recorded.
+
+    ``attempts`` is explicit because it is now a grading input: a retrieval failure carries a
+    letter only from ``RETRIEVAL_FAILURE_MINIMUM_ATTEMPTS`` or more observations (#99). The
+    default reproduces the non-retryable path -- one request, then stop -- which is what 401,
+    403, 404 and 409 actually produce, because they are absent from
+    ``fetch._RETRYABLE_HTTP_STATUSES``. A network error or a 500 is retried, so a test that
+    means one of those must say so rather than inherit a count its own fetcher would not write.
+    """
     subject = subject or _subject()
+    if attempts is None:
+        attempts = 0 if status is FetchStatus.INVALID_URL else 1
     fetch = FetchOutcome(
         url=subject.requested_url,
         status=status,
         attempted_at=OBSERVED_AT,
-        attempts=0 if status is FetchStatus.INVALID_URL else 1,
+        attempts=attempts,
         http_status=http_status,
         final_url=subject.requested_url,
         error=error or f"fixture {status.value}",
@@ -250,6 +263,10 @@ def test_a_download_that_stopped_early_and_a_malformed_file_read_differently(
             http_status=200,
             error="the response body ended after 41 of the 883973507 bytes the server declared "
             "in Content-Length",
+            # NETWORK_ERROR is retryable, so the real fetcher exhausts `retries` before it
+            # records this outcome. The count is what makes it an F rather than a withheld
+            # letter, and stating it here is the difference between a fixture and a wish.
+            attempts=3,
         )
     )
     assert malformed.grade == stopped_early.grade == "F"
@@ -340,6 +357,7 @@ def test_a_stopped_download_and_a_served_web_page_do_not_read_alike(tmp_path: Pa
             http_status=200,
             error="the response body ended after 41 of the 883973507 bytes the server declared "
             "in Content-Length",
+            attempts=3,
         )
     )
     assert web_page.grade == stopped_early.grade == "F"
@@ -349,9 +367,122 @@ def test_a_stopped_download_and_a_served_web_page_do_not_read_alike(tmp_path: Pa
 
 
 def test_failed_download_is_a_stated_f() -> None:
-    grade = grade_assessment(_failure_record(FetchStatus.HTTP_ERROR, http_status=500))
+    """A 500 is retryable, so the fetcher asks three times and the letter is attributed."""
+    grade = grade_assessment(_failure_record(FetchStatus.HTTP_ERROR, http_status=500, attempts=3))
     assert grade.grade == "F"
     assert "did not produce a verified file" in grade.reason
+    assert grade.retrieval_attempts == 3
+
+
+# --- what stands behind a letter (#99) -----------------------------------------------------
+
+
+def test_a_single_attempt_access_barrier_does_not_publish_a_letter() -> None:
+    """The defect #99 was filed for, pinned as a rule rather than as a sentence.
+
+    HTTP 403 is absent from ``fetch._RETRYABLE_HTTP_STATUSES``, so the fetcher asks once and
+    stops. That is correct fetcher behavior and it is not an evidential standard: one refusal,
+    from one client, on one date, is not distinguishable from a WAF that declines this address
+    range. The finding is still published; the letter is not.
+    """
+    grade = grade_assessment(_failure_record(FetchStatus.HTTP_ERROR, http_status=403, attempts=1))
+    assert grade.grade == NOT_GRADED
+    assert grade.retrieval_attempts == 1
+    assert "1 attempt from one client on one date" in grade.reason
+    assert f"{RETRIEVAL_FAILURE_MINIMUM_ATTEMPTS} or more recorded attempts" in grade.reason
+    # The original observation survives the withholding, or this would be a cover-up rather
+    # than a refusal to over-claim.
+    assert "fixture http_error" in grade.reason
+
+
+def test_the_same_barrier_confirmed_is_an_f() -> None:
+    """The other side of the same rule, from a record differing only in its attempt count.
+
+    Without this the floor would be a refusal whose failing state nothing can reach, which is
+    the shape of gate #95 was filed for.
+    """
+    grade = grade_assessment(
+        _failure_record(
+            FetchStatus.HTTP_ERROR,
+            http_status=403,
+            attempts=RETRIEVAL_FAILURE_MINIMUM_ATTEMPTS,
+        )
+    )
+    assert grade.grade == "F"
+    assert grade.retrieval_attempts == RETRIEVAL_FAILURE_MINIMUM_ATTEMPTS
+    assert "did not produce a verified file over 2 attempts" in grade.reason
+
+
+def test_an_unrecorded_attempt_count_is_never_read_as_one() -> None:
+    """ "We did not record how many times we asked" is not "we asked once"."""
+    record = _failure_record(FetchStatus.HTTP_ERROR, http_status=404, attempts=1)
+    retrieval = dict(cast(dict[str, object], record["retrieval"]))
+    del retrieval["attempts"]
+    record["retrieval"] = retrieval
+
+    grade = grade_assessment(record)
+    assert grade.grade == NOT_GRADED
+    assert grade.retrieval_attempts is None
+    assert "an unrecorded number of attempts" in grade.reason
+
+
+def test_a_verified_body_needs_only_one_retrieval(tmp_path: Path) -> None:
+    """The asymmetry, stated as a test: the floor governs failures and nothing else.
+
+    When the bytes arrive the claim is *these bytes*, and the digest published beside the letter
+    carries it completely. Applying an attempt floor there would withhold letters this project
+    can fully evidence.
+    """
+    grade = grade_assessment(_success_record(tmp_path))
+    assert grade.grade == "A"
+    assert grade.retrieval_attempts == 1
+
+
+def test_a_body_that_arrived_and_would_not_parse_is_still_an_f(tmp_path: Path) -> None:
+    """A document this project read and could not parse is not a retrieval failure.
+
+    One observation is complete evidence for it -- the bytes are hashed in the same row -- so
+    the floor must not reach it. If it did, every malformed file would stop being gradeable.
+    """
+    grade = grade_assessment(
+        _success_record(tmp_path, raw=b'{"standard_charge_information": [ {"description": "x"')
+    )
+    assert grade.grade == "F"
+    assert grade.retrieval_attempts == 1
+
+
+def test_the_attempt_floor_decides_exactly_one_thing(tmp_path: Path) -> None:
+    """A one-way valve: it withholds a letter, or it does nothing at all.
+
+    Every committed cohort was published under a floor of 1, where a retrievability ``FINDINGS``
+    row was always ``F``. So for those rows the only honest outcomes now are ``F`` (the evidence
+    met the floor) and ``NOT_GRADED`` (it did not) -- never some third letter, and never a
+    letter where there had been none. Stated as an equivalence so neither direction can drift.
+    """
+    records = [
+        _failure_record(FetchStatus.HTTP_ERROR, http_status=403, attempts=1),
+        _failure_record(FetchStatus.HTTP_ERROR, http_status=404, attempts=1),
+        _failure_record(FetchStatus.HTTP_ERROR, http_status=500, attempts=3),
+        _failure_record(FetchStatus.NETWORK_ERROR, attempts=3),
+    ]
+    seen: set[str] = set()
+    for record in records:
+        retrievability = cast(
+            dict[str, object],
+            cast(dict[str, object], record["scorecard"])["retrievability"],
+        )
+        assert retrievability["status"] == "FINDINGS"
+        attempts = cast(int, cast(dict[str, object], record["retrieval"])["attempts"])
+        grade = grade_assessment(record)
+        assert grade.grade in {"F", NOT_GRADED}
+        assert (grade.grade == "F") is (attempts >= RETRIEVAL_FAILURE_MINIMUM_ATTEMPTS)
+        seen.add(grade.grade)
+    assert seen == {"F", NOT_GRADED}, "this fixture no longer exercises both sides of the floor"
+
+    # And the paths the floor must not touch, whatever their attempt count.
+    assert grade_assessment(_success_record(tmp_path)).grade == "A"
+    assert grade_assessment(_failure_record(FetchStatus.TOO_LARGE)).grade == NOT_GRADED
+    assert grade_assessment(_failure_record(FetchStatus.ROBOTS_DISALLOWED)).grade == NOT_GRADED
 
 
 def test_project_size_ceiling_is_not_graded_not_f() -> None:
@@ -459,7 +590,9 @@ def test_failed_target_stays_a_row_in_the_comparison(tmp_path: Path) -> None:
     graded = {
         cast(str, row["slug"]): cast(dict[str, object], row["grade"])["grade"] for row in files
     }
-    assert graded["gamma-health/main"] == "F"
+    # A 403 is not retryable, so this row records one attempt and the letter is withheld --
+    # the row is still here, which is what this test is about.
+    assert graded["gamma-health/main"] == NOT_GRADED
     summary = cast(dict[str, object], comparison["summary"])
     assert summary["verified_body_available"] == 1
     assert summary["targeted"] == 2
@@ -592,14 +725,19 @@ def test_refusal_evidence_obeys_the_same_cohort_binding(tmp_path: Path) -> None:
 
 
 def test_comparison_version_announces_the_document_shape(tmp_path: Path) -> None:
-    """Version 2 changed what ``files[].lakehouse`` can be; version 3 added ``statistics``.
+    """Version 2 changed what ``files[].lakehouse`` can be; version 3 added ``statistics``;
+    version 4 added its ``contract_failed`` branch, which a version-3 reader would mistake for a
+    completed load because it is a present record whose status is not ``refused``; version 5
+    added ``files[].grade.retrieval_attempts``.
 
-    The grade policy moved for neither: the rule table is untouched and every grade is
-    unchanged, so the fingerprint must stay put rather than announce a regrade that did not
-    happen (ADR 0005).
+    The grade policy moved for none of 2, 3 and 4: the rule table was untouched and every grade
+    was unchanged, so the fingerprint stayed put rather than announce a regrade that did not
+    happen (ADR 0005). Version 5 is the first one where it **did** move, and for the opposite
+    reason -- the rule table gained an attempt floor and some published letters changed -- so
+    the fingerprint moving is the announcement working, not a defect.
     """
     comparison = build_comparison(_two_records(tmp_path), _manifest(), generated_at=GENERATED_AT)
-    assert comparison["comparison_version"] == COMPARISON_VERSION == 3
+    assert comparison["comparison_version"] == COMPARISON_VERSION == 5
     assert "statistics" in comparison
     cohort = cast(dict[str, object], comparison["cohort"])
     policy = cast(dict[str, object], cohort["grade_policy"])
@@ -806,3 +944,65 @@ def test_the_shares_partition_the_stratum_exactly(tmp_path: Path) -> None:
     estimates = cast(list[dict[str, object]], statistics["estimates"])
     assert sum(cast(int, estimate["numerator"]) for estimate in estimates) == 22
     assert abs(sum(cast(float, estimate["point"]) for estimate in estimates) - 1.0) < 1e-9
+
+
+# --- contract-failure evidence, published rather than absent ---------------------------------
+
+
+def _contract_failed_evidence(content: str) -> dict[str, object]:
+    return {
+        "status": "contract_failed",
+        "source_file_id": content,
+        "publisher_id": "example-health",
+        "reason": "data contract failed: stg_modifier_payer.unique_canonical_payer_plan: 40 row(s)",
+        "violations": [
+            {
+                "model": "stg_modifier_payer",
+                "rule": "unique_canonical_payer_plan",
+                "violating_rows": 40,
+                "message": "a modifier must have at most one mapping per canonical payer-plan pair",
+            }
+        ],
+    }
+
+
+def test_a_contract_failure_is_carried_into_the_comparison_with_its_violations(
+    tmp_path: Path,
+) -> None:
+    """A rejected load must reach the row it applies to, not vanish into an exit code.
+
+    ``refused`` and ``contract_failed`` are separate statuses because they say opposite things:
+    a refusal is a limit of what this project implements and is never a finding about the file,
+    while a contract failure says the verified body carries rows a declared invariant forbids.
+    Neither touches the grade.
+    """
+    records = _two_records(tmp_path / "bodies")
+    content = cast(str, cast(dict[str, object], records[0]["retrieval"])["content_sha256"])
+    comparison = build_comparison(
+        records,
+        _manifest(),
+        ingest_results=[_contract_failed_evidence(content)],
+        generated_at=GENERATED_AT,
+    )
+    row = next(
+        entry
+        for entry in cast(list[dict[str, object]], comparison["files"])
+        if entry["content_sha256"] == content
+    )
+    lakehouse = cast(dict[str, object], row["lakehouse"])
+    assert lakehouse["status"] == "contract_failed"
+    assert lakehouse["violations"] == _contract_failed_evidence(content)["violations"]
+    assert cast(dict[str, object], row["grade"])["grade"] == "A", (
+        "warehouse evidence is not a grading input and must not move a letter in either direction"
+    )
+
+
+def test_contract_failure_evidence_without_its_violations_is_refused(tmp_path: Path) -> None:
+    """Same rule the refusal branch holds to: an incomplete record publishes the same
+    unexplained absence it exists to replace, so half of one is worse than none."""
+    records = _two_records(tmp_path / "bodies")
+    content = cast(str, cast(dict[str, object], records[0]["retrieval"])["content_sha256"])
+    evidence = _contract_failed_evidence(content)
+    del evidence["violations"]
+    with pytest.raises(CohortError, match="violations"):
+        build_comparison(records, _manifest(), ingest_results=[evidence], generated_at=GENERATED_AT)

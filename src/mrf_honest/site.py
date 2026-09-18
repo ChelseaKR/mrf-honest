@@ -17,13 +17,22 @@ import json
 import shutil
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import cast
 
-from mrf_honest.cohort import INGEST_REFUSED, LOCAL_DIMENSIONS, NOT_GRADED
+from mrf_honest import analytics
+from mrf_honest.cohort import (
+    INGEST_CONTRACT_FAILED,
+    INGEST_REFUSED,
+    LOCAL_DIMENSIONS,
+    NOT_GRADED,
+)
 from mrf_honest.dataset import api_documents, dataset_csv, encode, table_schema
 from mrf_honest.inspect import FINDING_CATALOG
 from mrf_honest.inspect_csv import CSV_FINDING_CATALOG
+from mrf_honest.receipt import encode as encode_receipt
+from mrf_honest.receipt import receipts_for
 from mrf_honest.scorecard import RETRIEVAL_FINDING_CATALOG
 
 DEFAULT_ORIGIN = "https://chelseakr.github.io/mrf-honest"
@@ -46,7 +55,7 @@ SOCIAL_CARD_ALT = (
     "'graded per file, not per hospital'."
 )
 
-# Every colour the stylesheet uses, in one place, so the contrast of each text-on-background
+# Every color the stylesheet uses, in one place, so the contrast of each text-on-background
 # combination is asserted by a test instead of hoped for. `--c-ink` exists because the amber
 # that reads well as a badge background does not clear 4.5:1 as small bold text on the amber
 # wash: axe measured 4.28:1, and that is what shipped on every file page carrying a warning
@@ -71,7 +80,7 @@ PALETTE: dict[str, str] = {
 }
 
 # Border-only tokens carry no text and so have no contrast pair to declare. Naming them is
-# what lets the test insist every *other* token is accounted for: a colour added to PALETTE
+# what lets the test insist every *other* token is accounted for: a color added to PALETTE
 # and used nowhere in the table below fails the suite rather than shipping unchecked.
 NON_TEXT_TOKENS: frozenset[str] = frozenset({"line"})
 
@@ -109,14 +118,14 @@ def _channel(value: int) -> float:
 
 
 def relative_luminance(color: str) -> float:
-    """WCAG 2.x relative luminance of a ``#rrggbb`` colour."""
+    """WCAG 2.x relative luminance of a ``#rrggbb`` color."""
     digits = color.lstrip("#")
     red, green, blue = (int(digits[index : index + 2], 16) for index in (0, 2, 4))
     return 0.2126 * _channel(red) + 0.7152 * _channel(green) + 0.0722 * _channel(blue)
 
 
 def contrast_ratio(foreground: str, background: str) -> float:
-    """WCAG 2.x contrast ratio between two ``#rrggbb`` colours."""
+    """WCAG 2.x contrast ratio between two ``#rrggbb`` colors."""
     first, second = relative_luminance(foreground), relative_luminance(background)
     lighter, darker = max(first, second), min(first, second)
     return (lighter + 0.05) / (darker + 0.05)
@@ -163,6 +172,28 @@ _CAVEAT = (
     "official CMS validator."
 )
 
+#: How old a measurement may be before every page carrying it says so in words.
+#:
+#: A grade is a statement about bytes a server returned on one day. Its date has always been
+#: published -- and a date alone is a number a reader has to do arithmetic on, against a "today"
+#: the page never states. The age below is therefore rendered next to every grade, computed from
+#: the row's own ``as_of`` and the date the page was built, with both dates named so the
+#: subtraction is checkable rather than asserted.
+#:
+#: Deliberately a published threshold and not a build gate. A calendar-driven check turns `main`
+#: red on a day nobody committed anything, which trains a reader to ignore it; the same number
+#: spent on the page tells the person who is actually deciding whether to trust the grade. What
+#: *is* gated is the mechanism: ``tests/test_site.py`` requires every rendered grade to carry its
+#: own age, and requires this sentence to appear once a cohort passes the threshold.
+STALE_AFTER_DAYS = 30
+
+#: What a page says when a row's measurement date cannot be read.
+#:
+#: An unparseable ``as_of`` must never render as an age of zero -- "measured today" is the most
+#: flattering possible reading of a date nobody could read, and it is the exact defect this
+#: project exists to catch. The absence is stated instead.
+UNDATED_MEASUREMENT = "its measurement date could not be read, so its age is not stated"
+
 
 @dataclass(frozen=True)
 class Page:
@@ -176,6 +207,69 @@ class Page:
 
 def _e(value: object) -> str:
     return html.escape(str(value))
+
+
+def measurement_age_days(as_of: object, built_on: date) -> int | None:
+    """How many days old one measurement is on the day the page is built, or ``None``.
+
+    ``None`` is returned for anything that is not an ISO date -- a missing ``as_of``, a
+    malformed one, a number. It is never zero: a date that could not be read is not a
+    measurement taken today, and the two must not render alike. Callers pass the result to
+    ``_freshness_phrase``, which states the absence.
+
+    A negative result is possible and is returned as-is rather than clamped. A cohort dated
+    after the build is a real defect (a mis-stamped ``as_of``, a clock that ran backwards), and
+    the page saying "measured -3 days before this build" is how a reader finds out; clamping it
+    to zero would present that as a fresh measurement, which is the whole failure mode this
+    function exists to avoid.
+    """
+    if not isinstance(as_of, str):
+        return None
+    try:
+        measured = date.fromisoformat(as_of)
+    except ValueError:
+        return None
+    return (built_on - measured).days
+
+
+def _days(count: int) -> str:
+    return "1 day" if abs(count) == 1 else f"{count:,} days"
+
+
+def _freshness_phrase(as_of: object, built_on: date) -> str:
+    """The age of one measurement in words, with both dates named.
+
+    Both dates, always: an age with only one date in sight is a number a reader cannot check.
+    """
+    age = measurement_age_days(as_of, built_on)
+    if age is None:
+        return UNDATED_MEASUREMENT
+    if age == 0:
+        return f"measured {_e(as_of)}, the day this page was built"
+    if age < 0:
+        return (
+            f"measured {_e(as_of)}, which is {_days(-age)} AFTER this page was built "
+            f"({built_on.isoformat()}); one of the two dates is wrong"
+        )
+    return f"measured {_e(as_of)}, {_days(age)} before this page was built ({built_on.isoformat()})"
+
+
+def _staleness_note(as_of: object, built_on: date) -> str:
+    """The plain sentence a cohort older than the published threshold carries, or nothing."""
+    age = measurement_age_days(as_of, built_on)
+    if age is None:
+        return (
+            " This cohort's collection date could not be read, so its age is unknown; treat "
+            "it as out of date until it is re-collected."
+        )
+    if age <= STALE_AFTER_DAYS:
+        return ""
+    return (
+        f" <strong>This measurement is more than {STALE_AFTER_DAYS} days old.</strong> Hospitals "
+        f"republish these files on their own schedules, so a grade collected {_days(age)} ago "
+        f"may no longer describe the file at that URL today. Nothing here has been re-collected "
+        f"since {_e(as_of)}."
+    )
 
 
 def _json_ld(payload: Mapping[str, object]) -> str:
@@ -305,7 +399,47 @@ def _counts_list(row: Mapping[str, object]) -> str:
         for key, label in fields
         if isinstance(counts.get(key), int)
     )
-    return f'<dl class="facts">{items}</dl>'
+    return f'{_partial_scan_note(row)}<dl class="facts">{items}</dl>'
+
+
+def _counts_heading(row: Mapping[str, object]) -> str:
+    """ "What the file contains" is a claim, and an incomplete read cannot make it."""
+    coverage = row.get("coverage")
+    completed = coverage.get("inspection_scan_completed") if isinstance(coverage, Mapping) else None
+    if completed is True:
+        return "What the file contains"
+    return "What the read reached before it stopped"
+
+
+def _partial_scan_note(row: Mapping[str, object]) -> str:
+    """Say when these counts are how far the read got, not what the file holds.
+
+    When a document stops mid-stream -- a truncated transfer, a parse error, a web page served
+    where a file was asked for -- the inspector keeps the counts it had reached and records
+    ``inspection_scan_completed: false`` beside them. The grade is already ``F`` for it and the
+    grade's own sentence names the failure. This block did not: it rendered a partial reader's
+    running totals under the heading "What the file contains", in the same table, the same
+    shape and the same confident commas as a file that was read to the end.
+
+    That is the project's own defect class, one surface further out. A number produced by a read
+    that stopped is not a measurement of the document; it is a lower bound on it, and the page
+    has to say which of the two a reader is looking at. ``dataset.csv`` already carries
+    ``inspection_scan_completed`` in the row beside these counts; the page carried nothing.
+    """
+    coverage = row.get("coverage")
+    completed = coverage.get("inspection_scan_completed") if isinstance(coverage, Mapping) else None
+    if completed is True:
+        return ""
+    if completed is False:
+        return (
+            '<p class="dim-note">The read of this document did not reach the end, so the figures '
+            "below are <strong>how far the read got before it failed</strong> — a floor, not a "
+            "count of what the file holds. The grade above states what stopped it.</p>"
+        )
+    return (
+        '<p class="dim-note">This record does not state whether the read reached the end of the '
+        "document, so the figures below cannot be read as counts of what the file holds.</p>"
+    )
 
 
 def _lakehouse_section(row: Mapping[str, object]) -> str:
@@ -315,6 +449,27 @@ def _lakehouse_section(row: Mapping[str, object]) -> str:
             "<h2>Warehouse contracts</h2><p>No warehouse ingest was recorded for this file in "
             "this cohort, so no contract evidence exists for it. Absence of that check is "
             "stated here rather than implied as a pass.</p>"
+        )
+    if lakehouse.get("status") == INGEST_CONTRACT_FAILED:
+        # A contract failure is evidence *about the file*, unlike the refusal below, and the
+        # page has to say which of the two it is looking at. It still does not touch the grade:
+        # warehouse evidence is never a grading input, in either direction.
+        rows = "".join(
+            f'<li class="finding"><span class="finding-copy"><code>'
+            f"{_e(item.get('model'))}.{_e(item.get('rule'))}</code>: "
+            f"{_e(item.get('violating_rows'))} row(s) — {_e(item.get('message'))}</span></li>"
+            for item in cast(Sequence[Mapping[str, object]], lakehouse.get("violations") or ())
+        )
+        return (
+            "<h2>Warehouse contracts</h2>"
+            "<p>This project's local warehouse read the verified body and a data contract "
+            "rejected it, so no snapshot was produced. A contract violation fails the build "
+            "rather than warning, and the rows it rejected are named below. This is a statement "
+            "about rows in the file, not a limit of this project's scope — and it does not "
+            "affect the grade above, because warehouse evidence is never a grading input. It is "
+            "stated here rather than left as an absence a reader could not tell from a file "
+            "nobody tried to load.</p>"
+            f'<ul class="findings">{rows}</ul>'
         )
     if lakehouse.get("status") == INGEST_REFUSED:
         # The reason is the whole point of this branch. A refusal rendered as a bare absence
@@ -354,7 +509,27 @@ def _lakehouse_section(row: Mapping[str, object]) -> str:
     )
 
 
-def _provenance_section(row: Mapping[str, object]) -> str:
+def _attempts_html(row: Mapping[str, object]) -> str:
+    """How many recorded retrieval attempts stand behind this row's letter.
+
+    Published beside the letter rather than buried in the assessment record, because the
+    strongest sentence on this page -- a grade under a named hospital -- rests on it, and #99
+    was filed precisely because a reader could not see that a published ``F`` had asked once.
+
+    An unrecorded count says so. It is never rendered as ``1``: "we did not record how many
+    times we asked" and "we asked once" are different facts, and this project does not publish
+    the second when it only holds the first.
+    """
+    attempts = _grade_of(row).get("retrieval_attempts")
+    if not isinstance(attempts, int) or isinstance(attempts, bool):
+        return "not recorded for this row"
+    if attempts == 0:
+        return "none — the target was never requested (see the reason above)"
+    noun = "request" if attempts == 1 else "requests"
+    return f"{attempts} identified {noun}"
+
+
+def _provenance_section(row: Mapping[str, object], built_on: date) -> str:
     sha = row.get("content_sha256")
     size = row.get("size_bytes")
     size_html = f"{size:,} bytes" if isinstance(size, int) else "no verified body"
@@ -364,6 +539,8 @@ def _provenance_section(row: Mapping[str, object]) -> str:
         f"<div><dt>Requested URL</dt><dd><code>{_e(row.get('requested_url'))}</code></dd></div>"
         f"<div><dt>Observed at</dt><dd>{_e(row.get('observed_at'))} (UTC)</dd></div>"
         f"<div><dt>Assessment date</dt><dd>{_e(row.get('as_of'))}</dd></div>"
+        f"<div><dt>Age of this measurement</dt>"
+        f"<dd>{_freshness_phrase(row.get('as_of'), built_on)}</dd></div>"
         f"<div><dt>Decoded size</dt><dd>{size_html}</dd></div>"
         f"<div><dt>Content SHA-256</dt><dd>{sha_html}</dd></div>"
         f"<div><dt>File last_updated_on</dt><dd>{_e(row.get('last_updated_on') or 'not stated')}"
@@ -372,13 +549,45 @@ def _provenance_section(row: Mapping[str, object]) -> str:
         f"<dd>{_e(row.get('template_version') or 'not stated')}</dd></div>"
         f"<div><dt>Assessment record digest</dt>"
         f"<dd><code>{_e(row.get('assessment_body_sha256'))}</code></dd></div>"
-        "</dl><p>The retrieval was one identified, bounded request; the SHA-256 covers the exact "
+        f"<div><dt>Retrieval attempts behind this grade</dt>"
+        f"<dd>{_attempts_html(row)}</dd></div>"
+        "</dl><p>The retrieval was identified and bounded; the SHA-256 covers the exact "
         "decoded bytes that were inspected, and the record digest covers the complete persisted "
-        "assessment.</p></section>"
+        "assessment.</p>"
+        f"{_receipt_paragraph(row)}</section>"
     )
 
 
-def file_page(row: Mapping[str, object], comparison: Mapping[str, object], origin: str) -> Page:
+def _receipt_paragraph(row: Mapping[str, object]) -> str:
+    """The link that turns "every grade can be re-derived" into something a reader can run.
+
+    A row with no verified body says so instead of offering a procedure that cannot be
+    carried out. That is the whole distinction the receipt exists to keep: a grade nobody can
+    reproduce must not be published beside an invitation to reproduce it.
+    """
+    slug = str(row["slug"])
+    depth = "../" * (slug.count("/") + 2)
+    receipt = f'<a href="{depth}api/receipt/{_e(slug)}.json">machine-readable receipt</a>'
+    badge = f'<a href="{depth}badge/{_e(slug)}.svg">badge</a>'
+    if not row.get("content_sha256"):
+        return (
+            f"<p>This row has no verified body, so its grade cannot be re-derived from bytes. "
+            f"The {receipt} records that, with the reason. A {badge} is published too.</p>"
+        )
+    return (
+        f"<p>Check this yourself: download the file at the URL above, then run "
+        f"<code>mrf-honest verify receipt.json thatfile</code> against the {receipt}. It "
+        f"re-hashes the bytes and re-runs the same policy offline. A {badge} is published "
+        f"too; it states the grade, the date and the policy, and certifies nothing.</p>"
+    )
+
+
+def file_page(
+    row: Mapping[str, object],
+    comparison: Mapping[str, object],
+    origin: str,
+    built_on: date,
+) -> Page:
     grade = _grade_of(row)
     name = _display_name(row)
     location = str(row["location_id"])
@@ -406,13 +615,14 @@ def file_page(row: Mapping[str, object], comparison: Mapping[str, object], origi
     body = (
         f'<nav class="crumbs"><a href="../../../">All graded files</a></nav>'
         f'<header class="hero"><p class="eyebrow">Hospital price-transparency file</p>'
-        f'<h1>{_e(name)}</h1><p class="lede">Location <code>{_e(location)}</code>, assessed '
-        f"{_e(row.get('as_of'))}.</p>{_grade_badge(grade_value)}"
+        f'<h1>{_e(name)}</h1><p class="lede">Location <code>{_e(location)}</code>. '
+        f"This grade was {_freshness_phrase(row.get('as_of'), built_on)}."
+        f"</p>{_grade_badge(grade_value)}"
         f'<p class="grade-reason">{_e(grade["reason"])}.</p></header>'
         f"<h2>Dimensions and findings</h2>{sections}"
-        f"<h2>What the file contains</h2>{_counts_list(row)}"
+        f"<h2>{_counts_heading(row)}</h2>{_counts_list(row)}"
         f"{_lakehouse_section(row)}"
-        f"{_provenance_section(row)}"
+        f"{_provenance_section(row, built_on)}"
         f'<p class="caveat">{_CAVEAT}</p>{jsonld}'
     )
     word = _GRADE_WORDS.get(grade_value, "")
@@ -426,7 +636,7 @@ def file_page(row: Mapping[str, object], comparison: Mapping[str, object], origi
     )
 
 
-def _index_row(row: Mapping[str, object]) -> str:
+def _index_row(row: Mapping[str, object], built_on: date) -> str:
     grade = _grade_of(row)
     slug = str(row["slug"])
     reason = str(grade["reason"])
@@ -434,7 +644,7 @@ def _index_row(row: Mapping[str, object]) -> str:
         f'<li class="card">{_grade_badge(str(grade["grade"]))}'
         f'<div><h3><a href="hospital/{_e(slug)}/">{_e(_display_name(row))}</a></h3>'
         f'<p class="meta">Location <code>{_e(row["location_id"])}</code> · '
-        f"assessed {_e(row.get('as_of'))}</p>"
+        f"{_freshness_phrase(row.get('as_of'), built_on)}</p>"
         f'<p class="meta">{_e(reason)}.</p></div></li>'
     )
 
@@ -527,6 +737,32 @@ def _coverage_sentence(comparison: Mapping[str, object]) -> str:
     )
 
 
+def _freshness_sentence(comparison: Mapping[str, object], built_on: date) -> str:
+    """When this cohort was collected, how old that is today, and whether it is still current.
+
+    The coverage sentence above already names the collection date. This one does the subtraction
+    the reader would otherwise have to do against a "today" no static page states, and names both
+    dates so the arithmetic is checkable. Past ``STALE_AFTER_DAYS`` it says plainly that the
+    cohort may no longer describe the files at those URLs -- the sentence a stale dataset is
+    least likely to volunteer about itself.
+    """
+    cohort = cast(Mapping[str, object], comparison["cohort"])
+    as_of = cohort.get("as_of")
+    age = measurement_age_days(as_of, built_on)
+    if age is None:
+        opening = (
+            "This cohort states no readable collection date, so how old it is cannot be computed."
+        )
+    elif age == 0:
+        opening = f"Collected {_e(as_of)}, the day this page was built."
+    else:
+        opening = (
+            f"Collected {_e(as_of)}. This page was built {built_on.isoformat()}, "
+            f"{_days(age)} later."
+        )
+    return f"{opening}{_staleness_note(as_of, built_on)}"
+
+
 def missing_shares(comparison: Mapping[str, object], html: str) -> list[str]:
     """Report every published share that did not reach the rendered page.
 
@@ -555,6 +791,43 @@ def missing_shares(comparison: Mapping[str, object], html: str) -> list[str]:
         needle = f"{entry.get('numerator')} of {entry.get('denominator')}"
         if needle not in html:
             problems.append(f"{needle} is in the document but not on the page")
+        problems.extend(_missing_qualifiers(entry, html, needle))
+    return problems
+
+
+def _missing_qualifiers(entry: Mapping[str, object], html: str, needle: str) -> list[str]:
+    """Require the share and its interval on the page, not just the denominator.
+
+    ADR 0007's whole thesis is that a point estimate must never be published without the
+    interval that qualifies it, and until this existed the deploy gate could not see the
+    difference: it looked only for ``"{numerator} of {denominator}"``, so deleting the Share
+    and Interval cells from ``_estimate_row`` left the check silent and shipped a bare count
+    where a qualified proportion was promised.
+
+    A missing or non-numeric bound is reported as its own problem rather than rendered. That
+    is the point: ``_share`` turns anything it cannot read into ``"?"``, and a ``"?"`` that
+    reached the page would otherwise satisfy a naive presence check while telling a reader
+    nothing -- an absence published in the shape of a measurement.
+    """
+
+    problems: list[str] = []
+    point = entry.get("point")
+    low, high = entry.get("interval_low"), entry.get("interval_high")
+
+    if not isinstance(point, int | float):
+        problems.append(f"{needle} carries no point estimate to publish")
+    elif _share(point) not in html:
+        problems.append(f"the share {_share(point)} for {needle} did not reach the page")
+
+    if not (isinstance(low, int | float) and isinstance(high, int | float)):
+        problems.append(
+            f"{needle} carries no interval, and ADR 0007 forbids publishing a point "
+            "estimate without one"
+        )
+    elif f"{_share(low)} to {_share(high)}" not in html:
+        problems.append(
+            f"the interval {_share(low)} to {_share(high)} for {needle} did not reach the page"
+        )
     return problems
 
 
@@ -632,10 +905,11 @@ def _estimate_row(estimate: Mapping[str, object]) -> str:
 def _cohort_section(
     comparison: Mapping[str, object],
     references: Mapping[str, tuple[str, str]],
+    built_on: date,
 ) -> str:
     cohort = cast(Mapping[str, object], comparison["cohort"])
     summary = _summary(comparison)
-    cards = "".join(_index_row(row) for row in _rows(comparison))
+    cards = "".join(_index_row(row, built_on) for row in _rows(comparison))
     exclusions = _exclusion_rows(comparison, references)
     exclusion_block = (
         "<h3>Checked and recorded, not graded</h3>"
@@ -652,6 +926,7 @@ def _cohort_section(
         f"<h2>Files graded under the {_e(_cohort_title(comparison))} profile "
         f"({_e(cohort.get('as_of'))})</h2>"
         f'<p class="coverage">{_coverage_sentence(comparison)}</p>'
+        f'<p class="freshness">{_freshness_sentence(comparison, built_on)}</p>'
         f'<div class="dist-row">{_distribution_html(summary)}</div>'
         f"{_statistics_section(comparison)}"
         f'<ul class="cards">{cards}</ul>'
@@ -659,10 +934,12 @@ def _cohort_section(
     )
 
 
-def index_page(comparisons: Sequence[Mapping[str, object]], origin: str) -> Page:
+def index_page(comparisons: Sequence[Mapping[str, object]], origin: str, built_on: date) -> Page:
     references = _cross_references(comparisons)
     first_cohort = cast(Mapping[str, object], comparisons[0]["cohort"])
-    sections = "".join(_cohort_section(comparison, references) for comparison in comparisons)
+    sections = "".join(
+        _cohort_section(comparison, references, built_on) for comparison in comparisons
+    )
     data_links = " · ".join(
         f'<a href="data/{_e(_cohort_data_name(comparison))}">machine-readable comparison '
         f"({_e(_cohort_title(comparison))})</a>"
@@ -860,6 +1137,80 @@ def methods_page(comparisons: Sequence[Mapping[str, object]], origin: str) -> Pa
     )
 
 
+PRIVACY_PATH = "privacy"
+"""Where the privacy page is written, when the render has a GA4 measurement ID (ADR 0009)."""
+
+
+def privacy_page(measurement_id: str) -> Page:
+    """What a visit sends to Google Analytics, and when it sends nothing (ADR 0009).
+
+    Written only when the render has a measurement ID, so a site without one carries no page
+    describing analytics it does not run. The cookie name and the opt-out key are read off the
+    same constants the script uses, so the page cannot name a cookie or a key the script does not.
+    """
+    cookie = "_ga_" + measurement_id.removeprefix("G-")
+    body = (
+        '<nav class="crumbs"><a href="../">All graded files</a></nav>'
+        "<h1>Privacy</h1>"
+        '<p class="lede">mrf-honest has no accounts and asks you for nothing. It counts visits '
+        "with Google Analytics 4 (GA4), which Google runs for the site's author. This page says "
+        "what that sends, and when it sends nothing.</p>"
+        "<h2>What Google Analytics receives</h2>"
+        "<p>For each page you open, GA4 receives:</p>"
+        "<ul>"
+        "<li>the page's address, without anything after a <code>#</code> or <code>?</code>. On "
+        "this site the address names the hospital file you are reading, so Google learns which "
+        "hospitals' pages were looked at</li>"
+        "<li>the address of the page that linked you here, if your browser sends it</li>"
+        "<li>your browser, operating system, screen size and language, and a rough location that "
+        "Google works out from your IP address (GA4 does not store the IP address itself)</li>"
+        "<li>when you scroll to the bottom of a page, follow a link to another site, or download "
+        "a file such as the dataset</li>"
+        "<li>a random ID kept in two first-party cookies, <code>_ga</code> and "
+        f"<code>{_e(cookie)}</code>, for up to two years, so that a return visit can be told "
+        "apart from a new one. <code>_ga</code> is shared by every site under "
+        "chelseakr.github.io</li>"
+        "</ul>"
+        "<p>Google signals and ad personalization are off, and the advertising consent signals "
+        "are denied, so nothing here is used for advertising. No name, email address or account "
+        "is involved, and nothing about your own health or care is asked for or sent.</p>"
+        "<p>In the European Economic Area, the UK and Switzerland, analytics cookies are off by "
+        "default, so GA4 does not set its cookies there. Google still receives a cookieless ping "
+        "for each page view, with no ID that links one visit to another.</p>"
+        "<p>Google keeps this data for 14 months and then deletes it. Google processes it in the "
+        'United States, as described in <a href="https://policies.google.com/technologies/'
+        'partner-sites">How Google uses information from sites that use its services</a>.</p>'
+        "<h2>When nothing is sent</h2>"
+        "<p>No request goes to Google, and no Google cookie is set, when your browser sends Global "
+        "Privacy Control or Do Not Track, when you have opted out on this device, or when "
+        "JavaScript is off.</p>"
+        "<h2>Opting out on this device</h2>"
+        "<p>The \u201cOpt out of analytics\u201d button at the foot of every page stores "
+        f"<code>{_e(analytics.OPT_OUT_KEY)}</code> in this browser's local storage. That is not a "
+        "cookie, and it is never sent anywhere. \u201cOpt back in\u201d removes it, and so does "
+        "clearing this site's data. Opting out does not delete <code>_ga</code> cookies you "
+        "already have, because other chelseakr.github.io sites share them. They expire on their "
+        "own, and this site sends nothing to Google while you are opted out. Google also offers a "
+        '<a href="https://tools.google.com/dlpage/gaoptout">browser add-on</a> that turns Google '
+        "Analytics off everywhere.</p>"
+        "<h2>Hosting</h2>"
+        "<p>GitHub Pages hosts this site, and GitHub may log visitors' IP addresses; see the "
+        '<a href="https://docs.github.com/en/site-policy/privacy-policies/'
+        'github-general-privacy-statement">GitHub General Privacy Statement</a>.</p>'
+    )
+    return Page(
+        path=PRIVACY_PATH,
+        title="Privacy: what mrf-honest sends to Google Analytics",
+        description=(
+            "What mrf-honest sends to Google Analytics 4 when you read it, what it does not send, "
+            "when nothing is sent at all, and how to opt out on your device."
+        ),
+        changefreq="monthly",
+        priority="0.3",
+        body=body,
+    )
+
+
 def not_found_page() -> Page:
     return Page(
         path="404",
@@ -896,7 +1247,7 @@ def _discovery_tags(page: Page, origin: str) -> str:
 
     The error page is written to `404.html` but its `Page.path` is `"404"`, so the canonical
     this function used to build for it was `{origin}/404/` — an address that does not exist
-    and itself returns 404. An error page should not canonicalise anywhere, and should not
+    and itself returns 404. An error page should not canonicalize anywhere, and should not
     be indexed at all; it now says so instead of pointing at nothing.
 
     For every real page the canonical is ABSOLUTE and carries the `/mrf-honest/` path
@@ -911,8 +1262,10 @@ def _discovery_tags(page: Page, origin: str) -> str:
     actually requests while loading. No page requests this card: it is named in a `<meta>`
     tag, fetched only by whatever unfurls a pasted link, and never by a browser rendering
     the site. The budget's own reason ("adding one is a failed build rather than a change
-    nobody noticed") is about page weight, and page weight is unchanged: still no script, no
-    stylesheet, no font, no image request, one request per page.
+    nobody noticed") is about page weight, and page weight is unchanged: no script file, no
+    stylesheet, no font, no image request, one request per page. (The Google Analytics loader of
+    ADR 0009 is inline, so it is not a request, and off the published address -- including the
+    127.0.0.1 the budget is measured on -- it fetches nothing.)
 
     What the card does change is the promise. `twitter:card` is `summary_large_image`, which
     promises an image, so the image has to exist: `test_site.py` requires `og:image` on any
@@ -944,17 +1297,52 @@ def _discovery_tags(page: Page, origin: str) -> str:
     )
 
 
-def _shell(page: Page, origin: str, generated_at: str) -> str:
+#: The footer's analytics opt-out, added to the stylesheet only on a render with a GA4 ID, so a
+#: render without one is byte-for-byte what it was. It changes a setting rather than going
+#: anywhere, so it is a button, drawn like the footer's links; min-height keeps the target at
+#: 24px (WCAG 2.2 SC 2.5.8).
+_ANALYTICS_RULES = (
+    ".link-button{font:inherit;color:var(--accent);background:none;border:0;padding:0;"
+    "min-height:24px;text-decoration:underline;cursor:pointer}\n"
+)
+
+
+def _footer_analytics(page: Page) -> str:
+    """The footer's analytics sentence, the privacy link and the opt-out control (ADR 0009).
+
+    The link is relative to the page, like every other in-site link, except on the error page,
+    which is served at whatever address was not found and so links absolutely, as its body does.
+    """
+    if page.path == "404":
+        privacy = f"{analytics.PUBLISHED_PATH}{PRIVACY_PATH}/"
+    else:
+        privacy = "../" * (page.path.count("/") + 1 if page.path else 0) + f"{PRIVACY_PATH}/"
+    return (
+        '<p>This site counts visits with Google Analytics 4. <a href="'
+        f'{privacy}">What it records, and how to opt out</a>.'
+        '<span id="analytics-choice" hidden> \u00b7 '
+        '<button type="button" id="analytics-opt-out" class="link-button" hidden>'
+        f"{_e(analytics.MESSAGES['opt_out'])}</button> "
+        '<span id="analytics-status" role="status"></span></span></p>\n'
+    )
+
+
+def _shell(
+    page: Page, origin: str, generated_at: str, built_on: date, ga4_id: str | None = None
+) -> str:
+    head_analytics = "" if ga4_id is None else analytics.loader(ga4_id)
+    style = _STYLE if ga4_id is None else _STYLE + _ANALYTICS_RULES
+    footer_analytics = "" if ga4_id is None else _footer_analytics(page)
     return f"""<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{_e(page.title)}</title>
+{head_analytics}<title>{_e(page.title)}</title>
 <meta name="description" content="{_e(page.description)}">
 {_discovery_tags(page, origin)}
 <link rel="icon" href="data:,">
-<style>{_STYLE}</style>
+<style>{style}</style>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to main content</a>
@@ -962,26 +1350,101 @@ def _shell(page: Page, origin: str, generated_at: str) -> str:
 {page.body}
 </main>
 <footer>
-<p>Generated {_e(generated_at)} from the committed comparison document. Only public,
+<p>Built {built_on.isoformat()} from the comparison document generated {_e(generated_at)}; the
+grades themselves were collected on the dates each cohort and each file page state. Only public,
 CMS-mandated machine-readable files are read; retrieval is identified, bounded, and respects
 robots.txt. <a href="https://github.com/ChelseaKR/mrf-honest">Source and methodology</a>.</p>
 <p>Something here wrong about your file? <a href="{CORRECTIONS_URL}">Corrections, disputes and
-removal</a>. A removal request is honoured on request: you are not asked to prove anything.</p>
-</footer>
+removal</a>. A removal request is honored on request: you are not asked to prove anything.</p>
+{footer_analytics}</footer>
 </body>
 </html>
 """
 
 
-def write_page(out_dir: Path, page: Page, origin: str, generated_at: str) -> Path:
+def write_page(
+    out_dir: Path,
+    page: Page,
+    origin: str,
+    generated_at: str,
+    built_on: date,
+    ga4_id: str | None = None,
+) -> Path:
     directory = out_dir / page.path if page.path else out_dir
     directory.mkdir(parents=True, exist_ok=True)
     if page.path == "404":
         target = out_dir / "404.html"
     else:
         target = directory / "index.html"
-    target.write_text(_shell(page, origin, generated_at), encoding="utf-8")
+    target.write_text(_shell(page, origin, generated_at, built_on, ga4_id), encoding="utf-8")
     return target
+
+
+# --------------------------------------------------------------------------------------------
+# The badge. A published grade in a form a publisher can embed, saying what it is in its own
+# text -- not a shield that means whatever the reader assumes.
+# --------------------------------------------------------------------------------------------
+
+#: Badge fill per grade, taken from the site's own palette so the badge and the page cannot
+#: disagree about what a C looks like. Every one of these is already asserted against
+#: ``paper`` at 4.5:1 by ``tests/test_site.py``; the badge test asserts it again for the exact
+#: pairs the SVG uses, because a palette entry changing for the page must not silently take the
+#: badge's text below the threshold.
+BADGE_FILL: Mapping[str, str] = {
+    "A": PALETTE["a"],
+    "B": PALETTE["b"],
+    "C": PALETTE["c"],
+    "D": PALETTE["d"],
+    "F": PALETTE["f"],
+    "NOT_GRADED": PALETTE["ng"],
+}
+
+BADGE_LABEL_FILL = PALETTE["ink"]
+BADGE_TEXT_FILL = PALETTE["paper"]
+
+_BADGE_HEIGHT = 20
+_LABEL_WIDTH = 76
+_CHAR_WIDTH = 7
+
+
+def badge_svg(receipt: Mapping[str, object]) -> str:
+    """An accessible SVG badge for one receipt.
+
+    ``role="img"`` plus a ``<title>`` is what makes this readable to a screen reader; an SVG
+    with neither is an unlabeled graphic. The title carries the whole claim -- the grade, the
+    policy version, the date, and that it certifies nothing -- because a badge is the artifact
+    most likely to be seen with no page around it.
+    """
+    grade = str(receipt.get("grade"))
+    label = "not graded" if grade == "NOT_GRADED" else grade
+    fill = BADGE_FILL.get(grade, PALETTE["ng"])
+    value_width = max(24, len(label) * _CHAR_WIDTH + 14)
+    total = _LABEL_WIDTH + value_width
+    title = (
+        f"mrf-honest grade {label} for {receipt.get('publisher_name')} "
+        f"({receipt.get('location_id')}), one file as of {receipt.get('as_of')} under policy "
+        f"{receipt.get('grade_policy_version')}. Not a certificate of compliance."
+    )
+    return (
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{total}" height="{_BADGE_HEIGHT}" '
+        f'viewBox="0 0 {total} {_BADGE_HEIGHT}" role="img" '
+        f'aria-label="{_e(title)}">'
+        f"<title>{_e(title)}</title>"
+        f'<rect width="{_LABEL_WIDTH}" height="{_BADGE_HEIGHT}" fill="{BADGE_LABEL_FILL}"/>'
+        f'<rect x="{_LABEL_WIDTH}" width="{value_width}" height="{_BADGE_HEIGHT}" '
+        f'fill="{fill}"/>'
+        f'<g fill="{BADGE_TEXT_FILL}" font-family="-apple-system, Segoe UI, Roboto, '
+        f'Helvetica, Arial, sans-serif" font-size="11">'
+        f'<text x="8" y="14">mrf-honest</text>'
+        f'<text x="{_LABEL_WIDTH + 7}" y="14" font-weight="bold">{_e(label)}</text>'
+        f"</g></svg>"
+    )
+
+
+def badge_contrast(receipt: Mapping[str, object]) -> float:
+    """The contrast ratio of the badge's grade text against its own fill."""
+    fill = BADGE_FILL.get(str(receipt.get("grade")), PALETTE["ng"])
+    return contrast_ratio(BADGE_TEXT_FILL, fill)
 
 
 def write_dataset(
@@ -1006,6 +1469,33 @@ def write_dataset(
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(encode(document), encoding="utf-8")
         written.append(path)
+    written.extend(write_receipts(out_dir, comparisons))
+    return written
+
+
+def write_receipts(out_dir: Path, comparisons: Sequence[Mapping[str, object]]) -> list[Path]:
+    """Write one receipt and one badge per published row.
+
+    Every row gets both, including the seven that were never retrieved or never streamed to
+    completion. A row with no receipt would read as an oversight; a receipt that looked like
+    the others while describing bytes nobody holds would be worse. Those carry
+    ``re_derivable: false`` with the reason, and ``mrf-honest verify`` refuses them by name.
+
+    The badges are ``.svg`` documents no page embeds, so the site's zero-image request budget
+    is unchanged and the Lighthouse job -- which enumerates ``*.html`` -- audits the same set
+    of pages it did before.
+    """
+    written: list[Path] = []
+    for slug, receipt in sorted(receipts_for(comparisons).items()):
+        document = receipt.to_dict()
+        receipt_path = out_dir / "api" / "receipt" / f"{slug}.json"
+        receipt_path.parent.mkdir(parents=True, exist_ok=True)
+        receipt_path.write_text(encode_receipt(document), encoding="utf-8")
+        written.append(receipt_path)
+        badge_path = out_dir / "badge" / f"{slug}.svg"
+        badge_path.parent.mkdir(parents=True, exist_ok=True)
+        badge_path.write_text(badge_svg(document), encoding="utf-8")
+        written.append(badge_path)
     return written
 
 
@@ -1014,12 +1504,22 @@ def render_site(
     out_dir: Path,
     *,
     origin: str = DEFAULT_ORIGIN,
+    built_on: date | None = None,
+    ga4_id: str | None = None,
 ) -> list[Path]:
     """Render the complete static site for one or more cohort comparison documents.
 
     Each comparison stays its own clearly scoped section; nothing is pooled across profiles.
     A single mapping is accepted for compatibility with single-cohort callers.
+
+    ``ga4_id`` is a Google Analytics 4 measurement ID, or ``None`` (ADR 0009). With one, every
+    page carries the guarded loader in its head and the opt-out control in its footer, and a
+    privacy page is written; the loader sends nothing anywhere but the published address.
+    Without one the render is byte-for-byte what it was. ``mrf-honest site`` passes
+    :data:`mrf_honest.analytics.GA4_MEASUREMENT_ID` unless told otherwise. A malformed ID raises
+    ``ValueError`` before anything is written.
     """
+    ga4_id = analytics.measurement_id_or_none(ga4_id)
     comparisons: list[Mapping[str, object]] = (
         [comparison] if isinstance(comparison, Mapping) else list(comparison)
     )
@@ -1037,13 +1537,17 @@ def render_site(
                 )
             slugs[slug] = cohort_id
     generated_at = str(comparisons[0].get("generated_at"))
+    # The build date, not the collection date. Every page states both, and the difference
+    # between them is the age this render publishes beside each grade.
+    when = built_on if built_on is not None else datetime.now(UTC).date()
     pages = [
-        index_page(comparisons, origin),
+        index_page(comparisons, origin, when),
         methods_page(comparisons, origin),
-        *(file_page(row, entry, origin) for entry in comparisons for row in _rows(entry)),
+        *(file_page(row, entry, origin, when) for entry in comparisons for row in _rows(entry)),
+        *([privacy_page(ga4_id)] if ga4_id is not None else []),
         not_found_page(),
     ]
-    written = [write_page(out_dir, page, origin, generated_at) for page in pages]
+    written = [write_page(out_dir, page, origin, generated_at, when, ga4_id) for page in pages]
     data_dir = out_dir / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
     for index, entry in enumerate(comparisons):
@@ -1107,6 +1611,7 @@ code { background: var(--wash); padding: .1em .3em; border-radius: 3px;
   padding: .2rem .8rem; margin-right: .5rem; }
 .coverage { background: var(--wash); border-left: 3px solid var(--accent);
   padding: .8rem 1rem; }
+.freshness { color: var(--muted); font-size: .9rem; margin: .4rem 0 1rem; }
 .dimension { border: 1px solid var(--line); border-radius: 8px;
   padding: .8rem 1rem; margin: .8rem 0; }
 .status { font-size: .7rem; font-weight: 700; letter-spacing: .05em;

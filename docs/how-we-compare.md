@@ -70,7 +70,7 @@ One JSON document per cohort, fully derived from persisted inputs:
 - a statistics block, always present: the disposition of the cohort's probability stratum, each
   share carrying its own numerator, denominator and 95 percent Wilson interval, or one stated
   refusal in place of every share. See [ADR 0007](adr/0007-suppression-uncertainty-and-refusal.md)
-  for the interval method, the suppression floor, and the five refusals.
+  for the interval method, the suppression floor, and the six refusals.
 
 The same render writes `dataset.csv`, `dataset.schema.json` (a Frictionless Table Schema) and a
 static JSON API under `api/`, all derived from these same documents in the same run, so there is
@@ -113,6 +113,91 @@ hospital's file. A project limit is stated with its reason, wherever it appears.
 Evidence for a refusal is bound to the cohort exactly like evidence for a load: it must match a
 cohort file by content SHA-256, only one document per file is accepted, and a refusal record
 missing its reason or its scopes is refused rather than published half-stated.
+
+## Comparing two cohorts over time (`mrf-honest diff`)
+
+A cohort is a dated snapshot. `mrf-honest diff <before> <after>` relates two of them, subject by
+subject, over the file slugs they share. The rule it exists to enforce is the one this document
+states everywhere else: **a change this repository made to itself is never published as a change
+a hospital made to its file.**
+
+That is not one yes/no, because a cohort's identity carries three fingerprints that can move
+independently. Each governs a different layer, and each layer is compared only when its own
+fingerprint held:
+
+| Layer | Compared when | Fields |
+|---|---|---|
+| `retrieval` | `retrieval_policy_fingerprint` matches | `content_sha256`, `size_bytes`, retrieval coverage |
+| `document` | `inspection_fingerprint` matches | `template_version`, `last_updated_on` |
+| `judgement` | `assessment_policy_fingerprint` **and** the grade's `policy_fingerprint` both match | the grade letter and the finding list |
+
+A layer whose fingerprint moved is reported as `policy_changed`, carrying both fingerprints, and
+its fields are not compared. It is never reported as an unchanged layer: "compared and equal" and
+"not compared" are different statements, and only one of them is true.
+
+Two cohorts of different profiles, publisher types or URL provenance are refused outright rather
+than diffed under a policy heading. A JSON grade and a CSV grade are measurements of different
+file formats whose finding catalogs do not share codes.
+
+Three absences are stated rather than scored:
+
+- **A subject in one cohort only** is reported as that, with no comparison. These cohorts are
+  drawn samples ([SAMPLING-FRAME.md](SAMPLING-FRAME.md)); a facility drawn once has said nothing
+  about whether its file changed, and "added" or "removed" would turn this project's sampling
+  into a claim about a hospital.
+- **A move between a letter and `NOT_GRADED`** is stated, and the regression is left undetermined.
+  `NOT_GRADED` is not a position on the A-to-F scale — it records a limit of this tool — so
+  scoring it as a worse grade would publish this project's failure as the publisher's.
+- **A location graded at a different URL** closes every layer for that subject. Comparing the
+  bytes of two different files as though one had become the other is the same conflation in
+  smaller print.
+
+`--fail-on-regression` turns the diff into a gate: `1` when a subject's letter got worse or a new
+error-severity finding appeared, `0` when at least one subject's judgment layer was comparable
+and none of those regressed, and `2` when **no** subject's judgment layer was comparable. The
+third is the one that matters: returning `0` there would report a clean run over zero comparisons.
+
+## The publication set, beside the files (`mrf-honest systems`)
+
+A cohort grades files. CMS requires one machine-readable file per hospital location, and a system
+publishes one `cms-hpt.txt` naming every location with the file that serves it — so some facts are
+about a system's *publication set* and cannot be expressed by any file's letter, and must not be
+absorbed into one. `mrf-honest systems` reports them separately, from committed evidence, opening
+no socket and deriving no grade.
+
+**The join.** A graded row is matched to a listed location by `sha256(mrf-url)` against the row's
+`requested_url_sha256`. A row's published `requested_url` has its query string redacted while the
+digest is of the raw URL, so a join on the string is not file identity: in the committed CSV
+cohort two unrelated publishers use one vendor endpoint differing only in a query parameter, and
+a string join reports each as listing the other's file.
+
+**What is a fact about the publication set:**
+
+| Row | Means |
+|---|---|
+| `locations_listed_without_an_mrf_url` | a location this system's `cms-hpt.txt` names, with no file behind it |
+| `graded_without_a_listed_location` | a file this cohort graded that no retrieved `cms-hpt.txt` declares — a defect in the cohort's own discovery claim, not in the publisher |
+| `location_name_agreement` | whether a graded file's own `location_name` array covers the locations the discovery file pointed at it |
+| `disagreements` where `basis` is `must_agree_within_a_system` | the system's files disagree about `version` or `last_updated_on` |
+
+**What is not.** `locations_not_assessed_in_this_cohort` counts the locations a system lists that
+this cohort did not grade. A cohort draws a sample ([SAMPLING-FRAME.md](SAMPLING-FRAME.md)), so
+that number is this project's scope and never a publisher's defect; it is published in its own
+field, with a sentence saying so, and it is never added to any defect count. A parsed block
+carrying neither a location name nor an `mrf-url` is not counted as a location at all — one
+system's file opens with an ASCII-art banner, and counting the parser's record of it would invent
+four locations that system never claimed to list.
+
+**Elements.** Where a system's files differ on any CMS general data element, the difference is
+published with every file named. Only `version` and `last_updated_on` are counted as a
+disagreement: they describe the template a file was written to and the date it was last updated.
+`hospital_name`, `location_name`, `hospital_address` and `license_information` are defined per
+location by the dictionary, so a system's files differing on them is those files doing their job.
+
+**When there is no evidence.** If no discovery record on or before the cohort's date declares any
+URL it graded, the reconciliation is refused with the reason and every count that would read as a
+finding is absent rather than zero. "No listed location declares this file" is a claim nobody
+holding no discovery file is in a position to make.
 
 ## What this comparison refuses to do
 

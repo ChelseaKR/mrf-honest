@@ -9,7 +9,7 @@ true. Each test here reads a published claim and re-derives it:
   it was generated from. The publish workflow renders that file and checks the HTML agrees with
   it, which is the right shape -- but nothing checked the *comparison* itself, so a change to
   ``build_comparison``, the grade policy, or the finding catalog could ship green while the
-  artifact on disk, and therefore every number on the site, described the old behaviour. The
+  artifact on disk, and therefore every number on the site, described the old behavior. The
   generator was gated; its output was not. The evidence files under
   ``data/cohorts/<date>.ingest/`` exist for this: before them, the only copy of each ingest
   result lived inside the derived artifact, so the derivation had no inputs to be re-run
@@ -29,14 +29,16 @@ import random
 import re
 import subprocess
 import sys
+from collections.abc import Mapping
 from pathlib import Path
 from typing import cast
 
+import frame_coverage
 import pytest
 
 from mrf_honest.ai.corpus import CorpusIndex
 from mrf_honest.ai.eval import summarize
-from mrf_honest.cohort import build_comparison
+from mrf_honest.cohort import RETRIEVAL_FAILURE_MINIMUM_ATTEMPTS, build_comparison
 from mrf_honest.scorecard import AssessmentRegistry
 from mrf_honest.site import render_site
 
@@ -83,7 +85,7 @@ def test_committed_comparison_is_reproducible_from_committed_inputs(
     assert _canonical(rebuilt) == _canonical(committed), (
         f"{comparison_path.name} is not what the current code derives from "
         f"{prefix}.assessments.jsonl, {prefix}.json and {prefix}.ingest/. The published site "
-        "renders the committed file, so it is now describing behaviour the code no longer has. "
+        "renders the committed file, so it is now describing behavior the code no longer has. "
         "Regenerate it with `mrf-honest compare`."
     )
 
@@ -196,6 +198,19 @@ def test_every_published_page_explains_missing_contract_evidence(
             reason = str(lakehouse["reason"]).replace("'", "&#x27;")
             assert reason in page, f"{row['slug']} hides why the warehouse refused it"
             assert "not a finding about the file" in page
+        elif isinstance(lakehouse, dict) and lakehouse.get("status") == "contract_failed":
+            # The other way an ingest ends without a snapshot. Until it had a status of its own
+            # it reached the page as no record at all, which the branch below renders as "No
+            # warehouse ingest was recorded" -- the same sentence a file nobody tried to load
+            # gets. The reason and every violation have to be on the page.
+            assert "a data contract rejected it" in page
+            assert "not a limit of this project's scope" in page
+            violations = cast(list[dict[str, object]], lakehouse["violations"])
+            assert violations, f"{row['slug']} claims a contract failure with no violation"
+            for violation in violations:
+                assert f"{violation['model']}.{violation['rule']}" in page
+                assert f"{violation['violating_rows']} row(s)" in page
+                assert str(violation["message"]) in page
         elif lakehouse is None:
             assert "No warehouse ingest was recorded" in page
         else:
@@ -268,6 +283,65 @@ def test_the_published_suite_size_is_the_suite_that_actually_collects() -> None:
         )
 
 
+def test_the_two_documents_state_one_measurement() -> None:
+    """The README's Code Quality row and the ledger row are one measurement, twice.
+
+    The check above holds each document's ``passing + skipped`` to what pytest
+    collects, which makes the suite's *size* underivable-by-hand and therefore
+    safe. It does not hold the two documents to each other on anything else:
+    "736 passing and 4 skipped" and "740 passing and 0 skipped" both satisfy it,
+    in either document independently, and so do two different coverage
+    percentages and two different dates.
+
+    That is not a hypothetical failure mode here. ``docs/CORRECTIONS.md`` records
+    it happening: "A ledger row said 262 tests when the merged stack had 324; the
+    number came from one branch and the other branches were never counted." The
+    ledger is the source and the README follows it -- ``docs/ROADMAP.md`` says so
+    in the paragraph above the table -- so the two agreeing is the whole premise,
+    and nothing was checking it.
+
+    The figures themselves are not re-derived here: the split depends on which
+    runtime skips fired and the percentage is a measurement of a run, which is
+    the reason the check above deliberately does not touch either.
+    ``tools/publish_metrics.py`` produces them from one complete run and writes
+    both documents together, so the pair cannot drift by hand. This holds that
+    they did not.
+    """
+
+    readme = " ".join((ROOT / "README.md").read_text(encoding="utf-8").split())
+    ledger = " ".join((ROOT / "docs" / "ROADMAP.md").read_text(encoding="utf-8").split())
+
+    published = re.search(
+        r"Current: ([\d,]+) tests passing and ([\d,]+) skipped, ([\d.]+)% branch coverage"
+        r".*?zero known vulnerabilities \((\d{4}-\d{2}-\d{2})\)",
+        readme,
+    )
+    assert published is not None, "README.md no longer states the Code Quality measurement"
+    measured = re.search(
+        r"\| ([\d.]+)%, ([\d,]+) tests passing and ([\d,]+) skipped, (\d{4}-\d{2}-\d{2}) \|",
+        ledger,
+    )
+    assert measured is not None, "docs/ROADMAP.md no longer states the metrics-ledger row"
+
+    from_readme = (
+        published.group(1).replace(",", ""),
+        published.group(2).replace(",", ""),
+        published.group(3),
+        published.group(4),
+    )
+    from_ledger = (
+        measured.group(2).replace(",", ""),
+        measured.group(3).replace(",", ""),
+        measured.group(1),
+        measured.group(4),
+    )
+    assert from_readme == from_ledger, (
+        f"README.md publishes {from_readme} (passing, skipped, coverage, date) and "
+        f"docs/ROADMAP.md publishes {from_ledger}. They are one measurement; run "
+        "`make metrics`, which writes both from a single run."
+    )
+
+
 # --- the sampling frame -------------------------------------------------------------------
 #
 # A cohort with a stated frame makes two new claims that a reader cannot check by hand: that the
@@ -280,10 +354,19 @@ def test_the_published_suite_size_is_the_suite_that_actually_collects() -> None:
 FRAMES = ROOT / "data" / "frames"
 
 
-def _frame_for(comparison_path: Path) -> Path | None:
-    prefix = comparison_path.name.removesuffix(".comparison.json")
-    candidate = FRAMES / f"{prefix}.frame.json"
-    return candidate if candidate.exists() else None
+def _examined_frame(scope: frame_coverage.FrameScope, verdict: str) -> Path:
+    """The frame this comparison names, or the gate's own reason for not reading it.
+
+    A named record that does not resolve **fails**. It is the one case where a skip and a
+    pass are byte-identical to a reader: the document says it was drawn from a frame, and
+    the frame is not there to check it against.
+    """
+    if verdict == frame_coverage.UNRESOLVABLE:
+        raise AssertionError(scope.reason(verdict))
+    if verdict != frame_coverage.EXAMINED:
+        pytest.skip(scope.reason(verdict))
+    assert scope.frame_path is not None
+    return scope.frame_path
 
 
 @pytest.mark.parametrize("comparison_path", PUBLISHED, ids=lambda path: path.name)
@@ -292,14 +375,17 @@ def test_the_random_stratum_is_the_seeded_draw_it_claims_to_be(comparison_path: 
 
     ``docs/SAMPLING-FRAME.md`` states a universe, a filter, a seed, and a sample size, and the
     honesty of every proportion computed over the random stratum rests on the recorded sample
-    being that draw rather than a list someone assembled and labelled one. The eligible identifier
+    being that draw rather than a list someone assembled and labeled one. The eligible identifier
     list is committed because CMS refreshes the dataset: a frame that cannot be reconstructed is
-    not a frame. Cohorts predating the frame carry no frame file and are skipped rather than
-    failed -- they were convenience samples and say so.
+    not a frame.
+
+    The frame is the one the comparison **names**, not one built from its filename. Resolving it
+    from the filename skipped the CSV cohort -- which names a frame, was drawn from it, and
+    records the draw -- with the reason "predates the sampling frame". See
+    ``tests/frame_coverage.py``.
     """
-    frame_path = _frame_for(comparison_path)
-    if frame_path is None:
-        pytest.skip(f"{comparison_path.name} predates the sampling frame")
+    scope = frame_coverage.scope_of(comparison_path)
+    frame_path = _examined_frame(scope, scope.draw_verdict)
     frame = json.loads(frame_path.read_text(encoding="utf-8"))
     ids_path = ROOT / str(frame["eligible_facility_ids"])
     lines = ids_path.read_text(encoding="utf-8").splitlines()
@@ -329,6 +415,27 @@ def test_the_random_stratum_is_the_seeded_draw_it_claims_to_be(comparison_path: 
         "in both cases the random stratum is no longer a random sample."
     )
 
+    # The document says which frame it was drawn from; this is where that sentence stops being
+    # taken on trust. Without it a comparison could name any committed frame and the gate above
+    # would happily re-derive that frame's own draw and report a pass about the wrong cohort.
+    comparison = json.loads(comparison_path.read_text(encoding="utf-8"))
+    stated = cast(
+        dict[str, object],
+        cast(
+            dict[str, object], cast(dict[str, object], comparison["collection"])["sampling_frame"]
+        )["stratum_b_random_draw"],
+    )
+    for key, in_frame in (
+        ("seed", draw["seed"]),
+        ("sample_size", draw["sample_size"]),
+        ("eligible_facility_id_sha256", frame["eligible_facility_id_sha256"]),
+    ):
+        assert stated[key] == in_frame, (
+            f"{comparison_path.name} states {key}={stated[key]!r} for the draw it publishes, "
+            f"while {frame_path.name} -- the record it names -- states {in_frame!r}. A cohort "
+            "that names a frame it was not drawn from is not covered by this gate."
+        )
+
 
 @pytest.mark.parametrize("comparison_path", PUBLISHED, ids=lambda path: path.name)
 def test_no_drawn_facility_is_missing_from_the_published_cohort(comparison_path: Path) -> None:
@@ -338,10 +445,16 @@ def test_no_drawn_facility_is_missing_from_the_published_cohort(comparison_path:
     retrieved, or whose publication is in a format this profile does not read, stays visible with
     its reason. A cohort quietly pruned of its failures would grade better and describe less, and
     docs/SAMPLING-FRAME.md promises the opposite in as many words.
+
+    Scoped to the cohort the frame's ``attempts`` describe. A sibling cohort of the same draw
+    grades a different subset under a different profile, so a facility recorded ``graded`` in the
+    frame is graded *as JSON* and its slug is correctly absent from the CSV cohort's rows -- the
+    unscoped gate fails 48 of 48. The sibling's own accounting against the shared draw is
+    ``test_every_drawn_facility_is_accounted_for_across_both_profile_cohorts``, which
+    ``test_a_deferred_cohort_is_covered_by_the_gate_that_defers_to_it`` requires to exist.
     """
-    frame_path = _frame_for(comparison_path)
-    if frame_path is None:
-        pytest.skip(f"{comparison_path.name} predates the sampling frame")
+    scope = frame_coverage.scope_of(comparison_path)
+    frame_path = _examined_frame(scope, scope.accounting_verdict)
     frame = json.loads(frame_path.read_text(encoding="utf-8"))
     comparison = json.loads(comparison_path.read_text(encoding="utf-8"))
     slugs = {str(row["slug"]) for row in cast(list[dict[str, object]], comparison["files"])}
@@ -365,6 +478,207 @@ def test_no_drawn_facility_is_missing_from_the_published_cohort(comparison_path:
                 f"facility {ccn} was drawn and not graded, but no exclusion explains why. A "
                 "drawn target may be excluded with a stated reason; it may never simply vanish."
             )
+
+
+# --- what the two frame gates above can and cannot see -------------------------------------
+#
+# The gates are parametrized over every published comparison, so a narrowing shows up as a
+# `skip` in a list of thirty and nowhere else. These are the census and its refusals: every
+# comparison is classified, the classification cannot include "the frame moved", a deferral
+# has to name a gate that really covers it, and a gate that examines nothing fails rather
+# than passing over an empty set.
+#
+# Two of the four states cannot occur in the committed data -- no comparison names a missing
+# record, and none omits `record` while claiming a frame -- so the refusals over them are, on
+# this data, gates that cannot fail. `test_the_frame_classifier_reads_each_state_it_declares`
+# is where they are actually exercised, over synthetic documents, with the accepted case in
+# the same function as the refused ones: a classifier that returned `unresolvable` for
+# everything would satisfy a refusal test on its own.
+
+
+def _comparison_document(sampling_frame: object, *, omit_frame: bool = False) -> dict[str, object]:
+    """The smallest document `scope_of` reads: a cohort id and a collection block."""
+    collection: dict[str, object] = {"utc_date": "2026-08-19"}
+    if not omit_frame:
+        collection["sampling_frame"] = sampling_frame
+    return {"cohort": {"cohort_id": "synthetic-cohort"}, "collection": collection}
+
+
+def test_the_frame_classifier_reads_each_state_it_declares(tmp_path: Path) -> None:
+    """Every verdict in the vocabulary, produced from a document that really has that shape.
+
+    The committed cohorts exercise two of the four states. Without this, the two refusals
+    below are assertions that a set is empty over data that cannot populate it -- which is a
+    statement about the fixture, not a guard on the classifier.
+    """
+    committed = frame_coverage.FRAMES / "2026-08-19.frame.json"
+    assert committed.is_file(), "the resolvable case needs a frame that really exists"
+    cases: tuple[tuple[str, dict[str, object], str], ...] = (
+        (
+            "resolvable, no sibling",
+            _comparison_document({"record": "data/frames/2026-08-19.frame.json"}),
+            frame_coverage.EXAMINED,
+        ),
+        (
+            "resolvable, sibling named",
+            _comparison_document(
+                {
+                    "record": "data/frames/2026-08-19.frame.json",
+                    "sibling_cohort": "hospital-json-v3-2026-08-19",
+                }
+            ),
+            frame_coverage.DEFERRED,
+        ),
+        (
+            "names a record that is not committed",
+            _comparison_document({"record": "data/frames/2026-01-01.frame.json"}),
+            frame_coverage.UNRESOLVABLE,
+        ),
+        (
+            "claims a frame and names no record",
+            _comparison_document({"document": "docs/SAMPLING-FRAME.md"}),
+            frame_coverage.UNRESOLVABLE,
+        ),
+        (
+            "no sampling_frame at all",
+            _comparison_document(None, omit_frame=True),
+            frame_coverage.NO_FRAME,
+        ),
+    )
+    for label, document, expected in cases:
+        path = tmp_path / f"{label.replace(' ', '-').replace(',', '')}.comparison.json"
+        path.write_text(json.dumps(document), encoding="utf-8")
+        scope = frame_coverage.scope_of(path)
+        assert scope.accounting_verdict == expected, (
+            f"{label}: the accounting gate's verdict is {scope.accounting_verdict!r}, "
+            f"expected {expected!r}"
+        )
+        # The draw gate has no sibling rule, so a deferred cohort is examined by it. Asserting
+        # both here is what stops one verdict function being wired to the other.
+        expected_draw = frame_coverage.EXAMINED if expected == frame_coverage.DEFERRED else expected
+        assert scope.draw_verdict == expected_draw, (
+            f"{label}: the draw gate's verdict is {scope.draw_verdict!r}, "
+            f"expected {expected_draw!r}"
+        )
+        # A gate reaching an unresolvable record must raise, not skip: this is where a skip
+        # and a pass stop being distinguishable to anyone reading the output.
+        if expected == frame_coverage.UNRESOLVABLE:
+            with pytest.raises(AssertionError, match="skip cannot be told from a pass"):
+                _examined_frame(scope, scope.draw_verdict)
+
+
+def test_every_published_comparison_is_classified_by_the_sampling_frame_gates() -> None:
+    """No comparison falls outside the vocabulary, and the census is a real denominator."""
+    scoped = frame_coverage.scopes()
+    assert len(scoped) == len(PUBLISHED), (
+        "the frame census reads a different set of comparisons from the gates it describes"
+    )
+    for scope in scoped:
+        for gate, verdict in (
+            (frame_coverage.DRAW_GATE, scope.draw_verdict),
+            (frame_coverage.ACCOUNTING_GATE, scope.accounting_verdict),
+        ):
+            assert verdict in frame_coverage.VERDICTS, (
+                f"{gate} has no stated verdict for {scope.comparison}: {verdict!r}"
+            )
+            assert scope.reason(verdict), f"{gate}'s verdict on {scope.comparison} has no reason"
+
+
+def test_no_published_comparison_names_a_frame_record_that_is_not_committed() -> None:
+    """An unresolvable named frame is a failure, never a skip.
+
+    This is the one state where a skip and a pass are the same output: the document asserts it
+    was drawn from a frame, and the record is not there for anything to check it against.
+    """
+    unresolvable = [
+        scope
+        for scope in frame_coverage.scopes()
+        if scope.draw_verdict == frame_coverage.UNRESOLVABLE
+    ]
+    assert not unresolvable, "\n".join(
+        scope.reason(frame_coverage.UNRESOLVABLE) for scope in unresolvable
+    )
+
+
+def test_a_deferred_cohort_is_covered_by_the_gate_that_defers_to_it() -> None:
+    """A deferral is only defensible while the gate it defers to exists and covers the cohort.
+
+    ``test_no_drawn_facility_is_missing_from_the_published_cohort`` skips a cohort that is the
+    sibling of the one the frame's ``attempts`` describe. That skip names another gate. If the
+    named gate is deleted or renamed, the deferral silently becomes a hole, so the name is
+    resolved here rather than trusted.
+    """
+    scoped = frame_coverage.scopes()
+    deferred = [scope for scope in scoped if scope.accounting_verdict == frame_coverage.DEFERRED]
+    covering = globals().get(frame_coverage.SEAM_GATE)
+    assert callable(covering), (
+        f"{frame_coverage.SEAM_GATE} is named as the cover for a deferred cohort and does not "
+        "exist in this module"
+    )
+    published_cohorts = {scope.cohort_id for scope in scoped}
+    for scope in deferred:
+        assert scope.sibling_cohort in published_cohorts, (
+            f"{scope.comparison} defers its per-facility accounting to sibling cohort "
+            f"{scope.sibling_cohort}, which is not published here. A deferral to a document "
+            "nobody holds is not a deferral."
+        )
+        sibling = next(one for one in scoped if one.cohort_id == scope.sibling_cohort)
+        assert sibling.accounting_verdict == frame_coverage.EXAMINED, (
+            f"{scope.comparison} defers to {scope.sibling_cohort}, which is itself "
+            f"{sibling.accounting_verdict}. Two cohorts cannot defer to each other."
+        )
+
+
+def test_each_sampling_frame_gate_examines_at_least_one_cohort() -> None:
+    """A floor, not a count. A gate over an empty set returns no failures and reads as a pass.
+
+    ``MINIMUM_EXAMINED`` is 1 and stays 1: the number of published cohorts is data, and a gate
+    whose denominator a human maintains is the counter that jams a merge queue.
+    """
+    scoped = frame_coverage.scopes()
+    for gate, verdicts in (
+        (frame_coverage.DRAW_GATE, [scope.draw_verdict for scope in scoped]),
+        (frame_coverage.ACCOUNTING_GATE, [scope.accounting_verdict for scope in scoped]),
+    ):
+        examined = verdicts.count(frame_coverage.EXAMINED)
+        assert examined >= frame_coverage.MINIMUM_EXAMINED, (
+            f"{gate} examines {examined} of {len(scoped)} published comparisons; it is a "
+            "statement about nothing"
+        )
+
+
+def test_this_document_states_the_coverage_the_frame_gates_actually_have() -> None:
+    """``docs/SAMPLING-FRAME.md`` publishes both gates' coverage; re-derive both.
+
+    A coverage figure written into prose is a hand-maintained counter the moment nothing
+    recomputes it, and this repository has the shape already: a sentence that was true the day
+    it was written, decaying into a justification for a number nobody can check.
+    """
+    scoped = frame_coverage.scopes()
+    # Wrapped prose puts line breaks inside the sentence this pattern reads.
+    document = " ".join((ROOT / "docs" / "SAMPLING-FRAME.md").read_text(encoding="utf-8").split())
+    for label, pattern, verdicts in (
+        (
+            "seeded-draw",
+            r"The seeded-draw gate examines \*\*(\d+) of (\d+)\*\* published comparisons",
+            [scope.draw_verdict for scope in scoped],
+        ),
+        (
+            "drawn-facility accounting",
+            r"accounting gate examines \*\*(\d+) of (\d+)\*\*",
+            [scope.accounting_verdict for scope in scoped],
+        ),
+    ):
+        stated = re.search(pattern, document)
+        assert stated is not None, (
+            f"docs/SAMPLING-FRAME.md no longer states the {label} gate's coverage"
+        )
+        examined, available = (int(group) for group in stated.groups())
+        assert (examined, available) == (verdicts.count(frame_coverage.EXAMINED), len(scoped)), (
+            f"docs/SAMPLING-FRAME.md says the {label} gate examines {examined} of {available} "
+            f"published comparisons; it examines "
+            f"{verdicts.count(frame_coverage.EXAMINED)} of {len(scoped)}"
+        )
 
 
 def test_the_readme_lead_states_the_cohort_the_comparison_actually_contains() -> None:
@@ -789,4 +1103,510 @@ def test_the_changelog_states_the_evaluations_that_are_actually_recorded() -> No
         assert abs(float(percent) - recorded) < 0.1, (
             f"the CHANGELOG says {percent}% of the claims in {path.name} were shown; the file "
             f"records {recorded}%."
+        )
+
+
+# --- the refusal vocabulary, and the two documents that enumerate it ------------------------
+#
+# ADR 0007 and docs/how-we-compare.md both state how many refusals exist and the ADR lists
+# them one per table row. Phase 7 added a sixth code, `incomplete_accounting` -- the one
+# `_population_statistics` calls the most common in practice, and the refusal actually
+# rendered on the published CSV cohort page -- and left both documents saying "five". Nothing
+# compared the prose to the enum, so the documents that a reader consults to learn what a
+# refusal can be were describing a vocabulary this code no longer has.
+
+_NUMBER_WORDS = {
+    1: "One",
+    2: "Two",
+    3: "Three",
+    4: "Four",
+    5: "Five",
+    6: "Six",
+    7: "Seven",
+    8: "Eight",
+    9: "Nine",
+    10: "Ten",
+}
+
+ADR_0007 = ROOT / "docs" / "adr" / "0007-suppression-uncertainty-and-refusal.md"
+HOW_WE_COMPARE = ROOT / "docs" / "how-we-compare.md"
+
+
+def test_adr_0007_lists_exactly_the_refusal_codes_this_build_can_emit() -> None:
+    """The ADR's table is the published catalog of refusals; the enum is the real one."""
+    from mrf_honest.statistics import RefusalCode
+
+    text = ADR_0007.read_text(encoding="utf-8")
+    documented = set(re.findall(r"^\| `([a-z_]+)` \|", text, flags=re.M))
+    implemented = {code.value for code in RefusalCode}
+
+    assert documented == implemented, (
+        f"ADR 0007 documents {sorted(documented)}; the code emits {sorted(implemented)}. "
+        f"Undocumented: {sorted(implemented - documented)}; "
+        f"documented but unreachable: {sorted(documented - implemented)}."
+    )
+
+
+def test_both_documents_state_the_number_of_refusals_the_code_has() -> None:
+    """The count is written as a word in two places, and neither was derived from anything."""
+    from mrf_honest.statistics import RefusalCode
+
+    expected = _NUMBER_WORDS[len(RefusalCode)]
+
+    adr = ADR_0007.read_text(encoding="utf-8")
+    heading = re.search(r"^### (\w+) refusals, each a published outcome$", adr, flags=re.M)
+    assert heading, "ADR 0007 no longer carries the refusals heading this gate reads"
+    assert heading.group(1) == expected, (
+        f"ADR 0007 says '{heading.group(1)} refusals'; the code has {len(RefusalCode)}."
+    )
+
+    how = HOW_WE_COMPARE.read_text(encoding="utf-8")
+    phrase = re.search(r"and the (\w+) refusals\.", how)
+    assert phrase, "docs/how-we-compare.md no longer states the number of refusals"
+    assert phrase.group(1).lower() == expected.lower(), (
+        f"docs/how-we-compare.md says 'the {phrase.group(1)} refusals'; the code has "
+        f"{len(RefusalCode)}."
+    )
+
+
+# --- the roadmap's own current-position paragraph -------------------------------------------
+#
+# `docs/ROADMAP.md` said "No real multi-publisher grade distribution or hosted scorecard surface
+# is claimed yet" for as long as it took the cohorts to land and nobody to re-read it. By then
+# three committed comparison documents graded 48 files across 39 distinct publishers and the site
+# was live. It is the mirror image of every other defect this file guards: not a number inflated
+# past the evidence, but a published denial of evidence the repository already holds. Both
+# directions are the same failure -- prose that no longer describes the data it sits next to.
+
+ROADMAP = ROOT / "docs" / "ROADMAP.md"
+
+
+def _published_distribution() -> tuple[int, int, dict[str, int]]:
+    """Graded files, distinct publishers, and the grade histogram, from the documents."""
+    publishers: set[str] = set()
+    grades: dict[str, int] = {}
+    graded = 0
+    for path in PUBLISHED:
+        document = json.loads(path.read_text(encoding="utf-8"))
+        for entry in document["files"]:
+            graded += 1
+            publishers.add(str(entry["publisher_id"]))
+            letter = str(entry["grade"]["grade"])
+            grades[letter] = grades.get(letter, 0) + 1
+    return graded, len(publishers), grades
+
+
+def test_the_roadmap_does_not_deny_the_distribution_it_publishes() -> None:
+    """The stated position has to match the committed cohorts, in both directions."""
+    graded, publishers, grades = _published_distribution()
+    assert publishers > 1, "no multi-publisher distribution is committed; this gate is vacuous"
+
+    text = " ".join(ROADMAP.read_text(encoding="utf-8").split())
+    assert "No real multi-publisher grade distribution" not in text, (
+        f"docs/ROADMAP.md denies a multi-publisher grade distribution, but the committed "
+        f"comparison documents grade {graded} files across {publishers} distinct publishers."
+    )
+
+    for claim, value in (
+        (f"{graded} graded files across {publishers} distinct real publishers", None),
+        ("A", grades.get("A", 0)),
+        ("B", grades.get("B", 0)),
+        ("C", grades.get("C", 0)),
+        ("D", grades.get("D", 0)),
+        ("F", grades.get("F", 0)),
+    ):
+        if value is None:
+            assert claim in text, f"docs/ROADMAP.md no longer states the distribution: {claim!r}"
+        else:
+            assert f"{claim} {value}" in text, (
+                f"docs/ROADMAP.md does not state grade {claim} as {value}; the committed "
+                f"documents record {grades}."
+            )
+
+
+# --- what a re-collection cost, and the blocker that was retired a month before ---------------
+
+
+REFRESH_COST = ROOT / "docs" / "findings" / "what-a-re-collection-actually-cost-2026-09-12.md"
+
+#: The two dated collections the finding compares, as the pairs of registries that carry them.
+COLLECTIONS = {
+    "2026-08-19": ("2026-08-19.assessments.jsonl", "2026-08-19-csv.assessments.jsonl"),
+    "2026-09-12": ("2026-09-12.assessments.jsonl", "2026-09-12-csv.assessments.jsonl"),
+}
+
+
+def _subjects(*names: str) -> dict[str, dict[str, object]]:
+    """Every row of one dated collection, keyed by publisher/location."""
+    rows: dict[str, dict[str, object]] = {}
+    for name in names:
+        for record in AssessmentRegistry(COHORTS / name).records():
+            subject = cast(dict[str, object], record["subject"])
+            publisher = cast(dict[str, object], subject["publisher"])
+            rows[f"{publisher['identifier']}/{subject['location_id']}"] = dict(record)
+    return rows
+
+
+def _retrieval(record: dict[str, object]) -> dict[str, object]:
+    return cast(dict[str, object], record.get("retrieval") or {})
+
+
+def _wire(record: dict[str, object]) -> int:
+    return int(cast(int, _retrieval(record).get("wire_size_bytes") or 0))
+
+
+def refresh_cost_figures() -> dict[str, int]:
+    """Every number the finding publishes, re-derived from the registries it names."""
+    old = _subjects(*COLLECTIONS["2026-08-19"])
+    new = _subjects(*COLLECTIONS["2026-09-12"])
+    shared = sorted(set(old) & set(new))
+
+    buckets = {"changed": 0, "first_retrieval": 0, "identical_rotated_url": 0, "identical": 0}
+    changed_subjects = 0
+    for key in shared:
+        if _retrieval(new[key]).get("status") != "fetched":
+            continue
+        before, after = _retrieval(old[key]), _retrieval(new[key])
+        rotated = cast(dict[str, object], old[key]["subject"]).get("requested_url_sha256") != cast(
+            dict[str, object], new[key]["subject"]
+        ).get("requested_url_sha256")
+        body_before, body_after = before.get("content_sha256"), after.get("content_sha256")
+        if not (body_before and body_after):
+            buckets["first_retrieval"] += _wire(new[key])
+        elif body_before != body_after:
+            buckets["changed"] += _wire(new[key])
+            changed_subjects += 1
+        elif rotated:
+            buckets["identical_rotated_url"] += _wire(new[key])
+        else:
+            buckets["identical"] += _wire(new[key])
+
+    revalidated = [k for k in shared if _retrieval(new[k]).get("status") == "not_modified"]
+    return {
+        "subjects": len(shared),
+        "changed_subjects": changed_subjects,
+        "cold_wire": sum(_wire(row) for row in old.values()),
+        "refresh_wire": sum(_wire(row) for row in new.values()),
+        "revalidated": len(revalidated),
+        "revalidated_bytes_held": sum(
+            int(cast(int, _retrieval(new[k]).get("size_bytes") or 0)) for k in revalidated
+        ),
+        "revalidated_wire_avoided": sum(_wire(old[k]) for k in revalidated),
+        **buckets,
+    }
+
+
+FIGURES = refresh_cost_figures()
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        "cold_wire",
+        "refresh_wire",
+        "revalidated_bytes_held",
+        "revalidated_wire_avoided",
+        "changed",
+        "first_retrieval",
+        "identical_rotated_url",
+        "identical",
+    ],
+)
+def test_every_byte_count_in_the_refresh_finding_is_re_derived(key: str) -> None:
+    """A findings document is where a number is most likely to be typed and then never checked."""
+    text = REFRESH_COST.read_text(encoding="utf-8")
+    assert f"{FIGURES[key]:,}" in text, (
+        f"docs/findings/what-a-re-collection-actually-cost-2026-09-12.md does not state "
+        f"{key} as {FIGURES[key]:,}, which is what the committed registries hold."
+    )
+
+
+def test_the_refresh_finding_states_how_many_files_actually_changed() -> None:
+    assert FIGURES["changed_subjects"] == 4, FIGURES
+    assert FIGURES["subjects"] == 42, FIGURES
+    text = " ".join(REFRESH_COST.read_text(encoding="utf-8").split())
+    assert "Only 4 of the 42 files' bytes had changed." in text
+    assert f"**{FIGURES['revalidated']} of 42** subjects answered HTTP 304" in text
+
+
+def test_the_four_buckets_account_for_every_wire_byte_the_refresh_moved() -> None:
+    """A table whose rows do not sum to its total is the shape this project exists to refuse."""
+    assert (
+        FIGURES["changed"]
+        + FIGURES["first_retrieval"]
+        + FIGURES["identical_rotated_url"]
+        + FIGURES["identical"]
+    ) == FIGURES["refresh_wire"]
+
+
+#: The sentence five documents used to carry: that scheduled collection waits on the robots.txt,
+#: pacing and Retry-After work. That work shipped 2026-08-15 and the issue naming it is closed,
+#: so any document still saying it sends the next reader to re-solve a solved problem.
+#: The phrasings that make the politeness work the thing being waited on, rather than a
+#: capability being described.
+BLOCKER_PHRASES = ("blocked on", "out of scope until", "remain explicit prerequisites")
+
+#: How far either side of the mention to look. Wide enough to cross the clause that separates
+#: the phrase from the capability it names in all five documents; narrow enough that a document
+#: describing the capability in one paragraph and using the word "blocked" about something else
+#: two paragraphs later does not match.
+BLOCKER_WINDOW = 220
+
+
+def retired_blocker_finding(text: str) -> str | None:
+    """The passage that still makes the shipped politeness work the outstanding blocker."""
+    joined = " ".join(text.split())
+    for match in re.finditer("Retry-After", joined):
+        start = max(0, match.start() - BLOCKER_WINDOW)
+        window = joined[start : match.end() + BLOCKER_WINDOW]
+        if any(phrase in window.lower() for phrase in BLOCKER_PHRASES):
+            return window
+    return None
+
+
+#: Every tracked document that used to state it. Listed rather than globbed so that a document
+#: dropping out of the list is a visible edit and not a silent loss of coverage.
+DOCUMENTS_THAT_NAMED_THE_RETIRED_BLOCKER = (
+    ".github/workflows/pages.yml",
+    "docs/ROADMAP.md",
+    "docs/IMPLEMENTATION-PLAN.md",
+)
+
+#: Verbatim from `.github/workflows/pages.yml` before this was corrected. It is the control: a
+#: pattern that cannot match the text it was written for cannot fail on a regression either.
+THE_SENTENCE_AS_IT_STOOD = (
+    "There is deliberately no scheduled collection here — broad scheduled retrieval remains "
+    "blocked on the robots.txt/pacing/Retry-After work recorded in docs/ROADMAP.md, and a "
+    "publish workflow must not quietly become a crawler."
+)
+
+#: Verbatim from `docs/IMPLEMENTATION-PLAN.md` before this was corrected. The blocker phrase
+#: comes *after* the capability here, which is why the check looks both ways.
+THE_OTHER_SENTENCE_AS_IT_STOOD = (
+    "A broad scheduled collector is not yet authorized by this checkbox: `robots.txt` policy, "
+    "per-host pacing, and `Retry-After` handling remain\nexplicit prerequisites in the "
+    "responsible-tech audit."
+)
+
+
+def test_the_retired_blocker_pattern_matches_the_sentence_it_was_written_for() -> None:
+    """Run first, and deliberately: the gate below is vacuous if this does not hold.
+
+    Both historical phrasings are driven, because a pattern tuned to one of them would have let
+    the other stand. The second is `docs/IMPLEMENTATION-PLAN.md`'s, where the blocker phrase
+    follows the capability instead of preceding it.
+    """
+    assert retired_blocker_finding(THE_SENTENCE_AS_IT_STOOD) is not None
+    assert retired_blocker_finding(THE_OTHER_SENTENCE_AS_IT_STOOD) is not None
+
+
+def test_a_document_that_merely_mentions_the_capability_is_not_a_finding() -> None:
+    """The other direction: describing the shipped work must not trip the gate."""
+    assert (
+        retired_blocker_finding(
+            "politeness.py obeys robots.txt before the first request, holds a per-host interval, "
+            "and honors Retry-After on 429 and 503 ahead of this tool's own backoff."
+        )
+        is None
+    )
+
+
+@pytest.mark.parametrize("document", DOCUMENTS_THAT_NAMED_THE_RETIRED_BLOCKER)
+def test_no_live_document_still_blocks_scheduled_collection_on_work_that_shipped(
+    document: str,
+) -> None:
+    finding = retired_blocker_finding((ROOT / document).read_text(encoding="utf-8"))
+    assert finding is None, (
+        f"{document} still says scheduled collection waits on the robots.txt/pacing/Retry-After "
+        f"work: {finding!r}. That shipped on 2026-08-15 (src/mrf_honest/politeness.py). "
+        "The remaining gate is the service/job tier declaration in docs/EXPANSION-PLAN.md "
+        "phase 14."
+    )
+
+
+@pytest.mark.parametrize("document", DOCUMENTS_THAT_NAMED_THE_RETIRED_BLOCKER)
+def test_each_of_those_documents_names_the_gate_that_is_actually_left(document: str) -> None:
+    """Deleting the wrong reason without stating the right one leaves no reason at all."""
+    text = " ".join((ROOT / document).read_text(encoding="utf-8").split())
+    assert "service/job tier declaration" in text, document
+
+
+# --- what stands behind a published letter (#99) ---------------------------------------------
+
+LETTER_EVIDENCE_FINDING = (
+    ROOT / "docs" / "findings" / ("what-stands-behind-a-published-letter-2026-09-13.md")
+)
+
+
+def _cohort_of(path: Path) -> Mapping[str, object]:
+    return cast(Mapping[str, object], json.loads(path.read_text(encoding="utf-8"))["cohort"])
+
+
+def _letter_evidence(paths: list[Path]) -> dict[str, int]:
+    """Count what each published letter rests on, before and after the attempt floor.
+
+    The "before" column is re-derived rather than remembered. Every committed cohort was
+    published under a floor of 1, where a retrievability ``FINDINGS`` row was always ``F`` and
+    nothing else changed, so the prior letter of any row is recoverable from the row itself.
+    That keeps the finding document's comparison honest without asking a test to read git.
+    """
+    counts = dict.fromkeys(
+        (
+            "rows",
+            "letters_before",
+            "letters_after",
+            "from_a_verified_body",
+            "attributed_before",
+            "attributed_before_confirmed",
+            "attributed_after",
+            "attributed_after_confirmed",
+            "not_graded_before",
+            "not_graded_after",
+        ),
+        0,
+    )
+    for path in paths:
+        document = json.loads(path.read_text(encoding="utf-8"))
+        for row in cast(list[dict[str, object]], document["files"]):
+            grade = cast(dict[str, object], row["grade"])
+            dimensions = cast(dict[str, dict[str, object]], row["dimensions"])
+            findings_row = dimensions["retrievability"]["status"] == "FINDINGS"
+            after = str(grade["grade"])
+            before = "F" if findings_row else after
+            attempts = grade.get("retrieval_attempts")
+            confirmed = (
+                isinstance(attempts, int)
+                and not isinstance(attempts, bool)
+                and attempts >= RETRIEVAL_FAILURE_MINIMUM_ATTEMPTS
+            )
+            counts["rows"] += 1
+            for column, letter in (("before", before), ("after", after)):
+                if letter == "NOT_GRADED":
+                    counts[f"not_graded_{column}"] += 1
+                    continue
+                counts[f"letters_{column}"] += 1
+                if row.get("content_sha256"):
+                    if column == "after":
+                        counts["from_a_verified_body"] += 1
+                    continue
+                counts[f"attributed_{column}"] += 1
+                if confirmed:
+                    counts[f"attributed_{column}_confirmed"] += 1
+    return counts
+
+
+def _letters_resting_on_one_request(document: Mapping[str, object]) -> list[str]:
+    """Slugs whose letter is attributed to a retrieval this project observed once.
+
+    The check the whole of #99 reduces to. A letter is either backed by bytes that arrived --
+    whose digest is published beside it, so one observation carries it -- or it is a statement
+    about a server, which one request from one client on one date cannot establish.
+    """
+    offenders: list[str] = []
+    for row in cast(list[dict[str, object]], document["files"]):
+        grade = cast(dict[str, object], row["grade"])
+        if str(grade["grade"]) == "NOT_GRADED" or row.get("content_sha256"):
+            continue
+        attempts = grade.get("retrieval_attempts")
+        if (
+            not isinstance(attempts, int)
+            or isinstance(attempts, bool)
+            or attempts < RETRIEVAL_FAILURE_MINIMUM_ATTEMPTS
+        ):
+            offenders.append(str(row["slug"]))
+    return offenders
+
+
+def test_the_single_request_check_refuses_the_document_it_exists_to_refuse() -> None:
+    """Drive the gate from a document it must refuse and one it must accept.
+
+    Every committed document passes this check, which is the point of the change -- and a check
+    that only ever sees passing input is a check nobody has watched fail (#95). These two
+    synthetic rows differ in exactly the field under test.
+    """
+
+    def row(slug: str, *, attempts: int | None, body: str | None) -> dict[str, object]:
+        return {
+            "slug": slug,
+            "content_sha256": body,
+            "grade": {"grade": "F", "retrieval_attempts": attempts},
+        }
+
+    refused = {"files": [row("one/request", attempts=1, body=None)]}
+    assert _letters_resting_on_one_request(refused) == ["one/request"]
+
+    unrecorded = {"files": [row("no/count", attempts=None, body=None)]}
+    assert _letters_resting_on_one_request(unrecorded) == ["no/count"]
+
+    accepted = {
+        "files": [
+            row("confirmed/failure", attempts=RETRIEVAL_FAILURE_MINIMUM_ATTEMPTS, body=None),
+            row("body/arrived", attempts=1, body="a" * 64),
+            {"slug": "not/graded", "content_sha256": None, "grade": {"grade": "NOT_GRADED"}},
+        ]
+    }
+    assert _letters_resting_on_one_request(accepted) == []
+
+
+@pytest.mark.parametrize("comparison_path", PUBLISHED, ids=lambda path: path.name)
+def test_no_published_letter_rests_on_a_single_unconfirmed_request(comparison_path: Path) -> None:
+    """The invariant #99 asked for, over every letter this project has committed."""
+    document = json.loads(comparison_path.read_text(encoding="utf-8"))
+    offenders = _letters_resting_on_one_request(document)
+    assert offenders == [], (
+        f"{comparison_path.name} publishes a letter under a named hospital that rests on fewer "
+        f"than {RETRIEVAL_FAILURE_MINIMUM_ATTEMPTS} recorded requests and no verified body: "
+        f"{offenders}"
+    )
+
+
+def test_every_published_letter_states_how_many_requests_are_behind_it() -> None:
+    """A letter whose evidence is invisible is the condition #99 was filed in."""
+    for path in PUBLISHED:
+        document = json.loads(path.read_text(encoding="utf-8"))
+        for row in cast(list[dict[str, object]], document["files"]):
+            grade = cast(dict[str, object], row["grade"])
+            assert "retrieval_attempts" in grade, (
+                f"{path.name}: {row['slug']} publishes a grade with no attempt count; "
+                "regenerate it with `mrf-honest compare`"
+            )
+
+
+def test_the_letter_evidence_finding_states_the_numbers_the_documents_carry() -> None:
+    """Re-derive every figure in the #99 write-up from the committed comparison documents."""
+    counts = _letter_evidence(PUBLISHED)
+    rendered_ids = {
+        str(cast(dict[str, object], comparison["cohort"])["cohort_id"])
+        for comparison in _rendered_comparisons()
+    }
+    site_paths = [path for path in PUBLISHED if str(_cohort_of(path)["cohort_id"]) in rendered_ids]
+    assert site_paths, "no committed comparison matches what the site renders"
+    site = _letter_evidence(site_paths)
+
+    text = " ".join(LETTER_EVIDENCE_FINDING.read_text(encoding="utf-8").split())
+
+    for claim in (
+        f"| Rows published | {counts['rows']} | {counts['rows']} |",
+        f"| **Letters published** | **{counts['letters_before']}** "
+        f"| **{counts['letters_after']}** |",
+        f"| Letters derived from a verified body | {counts['from_a_verified_body']} "
+        f"| {counts['from_a_verified_body']} |",
+        f"| **Letters attributed to a failed retrieval** | **{counts['attributed_before']}** "
+        f"| **{counts['attributed_after']}** |",
+        f"| …of those, resting on {RETRIEVAL_FAILURE_MINIMUM_ATTEMPTS} or more recorded "
+        f"attempts | **{counts['attributed_before_confirmed']}** "
+        f"| **{counts['attributed_after_confirmed']}** |",
+        f"| `NOT_GRADED` with the reason stated | {counts['not_graded_before']} "
+        f"| {counts['not_graded_after']} |",
+        f"**{site['letters_before']} letters published, {site['attributed_before']} attributed "
+        f"to a failed retrieval, {site['attributed_before_confirmed']} of those "
+        f"{site['attributed_before']} resting on more than one attempt.**",
+        f"**{site['letters_after']} letters published, {site['attributed_after']} attributed to "
+        f"a failed retrieval.**",
+        f"the project now publishes {counts['letters_after']} letters where it published "
+        f"{counts['letters_before']}",
+    ):
+        assert claim in text, (
+            f"{LETTER_EVIDENCE_FINDING.name} no longer states a figure the committed documents "
+            f"carry: {claim!r}"
         )

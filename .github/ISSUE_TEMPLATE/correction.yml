@@ -1,5 +1,5 @@
 name: Correction or dispute
-description: Something published here is wrong about a file, a URL, or an organisation.
+description: Something published here is wrong about a file, a URL, or an organization.
 title: "Correction: "
 labels: ["correction"]
 body:
@@ -11,12 +11,12 @@ body:
         [docs/CORRECTIONS.md](https://github.com/ChelseaKR/mrf-honest/blob/master/docs/CORRECTIONS.md).
 
         If you want a row removed rather than corrected, use the removal form instead. That one
-        is honoured on request, with no reason asked for and no case to make.
+        is honored on request, with no reason asked for and no case to make.
   - type: input
     id: row
     attributes:
       label: Which row
-      description: A page URL, a slug, or the organisation and location names.
+      description: A page URL, a slug, or the organization and location names.
     validations:
       required: true
   - type: dropdown

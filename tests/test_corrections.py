@@ -26,7 +26,7 @@ CITED_COMMITS = sorted(set(re.findall(r"commit `([0-9a-f]{7,40})`", TEXT)))
 
 
 def test_the_page_cites_commits_at_all() -> None:
-    """An empty parametrisation below would make every case vacuous."""
+    """An empty parametrization below would make every case vacuous."""
 
     assert len(CITED_COMMITS) >= 6, CITED_COMMITS
 
@@ -83,7 +83,7 @@ def test_the_page_promises_a_removal_needs_no_proof() -> None:
     """This is the load-bearing sentence. If it goes, the page is a complaints form."""
 
     assert "You do not have to prove anything." in TEXT
-    assert "honoured on request" in TEXT
+    assert "honored on request" in TEXT
 
 
 def test_the_page_names_the_document_it_points_readers_at() -> None:

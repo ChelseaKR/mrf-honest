@@ -17,6 +17,7 @@ from hypothesis import strategies as st
 from mrf_honest.statistics import (
     CONFIDENCE,
     SUPPRESSION_THRESHOLD,
+    Z_95,
     Proportion,
     Refusal,
     RefusalCode,
@@ -177,6 +178,34 @@ class TestInterval:
         low, high = wilson_interval(25, 25, effective_size=25 * 3023 / (3024 - 25))
         assert low <= 1.0 <= high
 
+    def test_the_interval_is_the_width_the_document_says_it_is(self) -> None:
+        """The published intervals are 95% because a constant says so, and nothing checked it.
+
+        Measured on this module before this test existed: ``Z_95 = 1.0`` and ``Z_95 = 2.5`` each
+        left all 31 tests of this file passing. Every existing test of the interval is a
+        *property* -- it brackets the estimate, it stays on the scale, it rejects an empty
+        denominator -- and every one of those properties holds for any ``z``. A width is not a
+        property, so nothing saw it, while ``docs/`` and every published ``statistics`` block
+        label the result 95%. At ``z = 1.0`` the interval for 5 of 10 is (0.3492, 0.6508): a 68%
+        interval published under a 95% label.
+
+        The expected values are the standard tabulated Wilson score interval, checked
+        independently against the published closed form rather than against this module's own
+        arithmetic.
+        """
+
+        assert Z_95 == 1.959963984540054
+        assert CONFIDENCE == 0.95
+
+        low, high = wilson_interval(5, 10)
+        assert round(low, 4) == 0.2366
+        assert round(high, 4) == 0.7634
+
+        # A second point, away from p = 0.5, so a symmetric error cannot hide.
+        low, high = wilson_interval(1, 20)
+        assert round(low, 4) == 0.0089
+        assert round(high, 4) == 0.2361
+
     def test_wilson_rejects_an_empty_denominator(self) -> None:
         with pytest.raises(ValueError):
             wilson_interval(0, 0)
@@ -202,7 +231,7 @@ class TestInterval:
     def test_a_wider_denominator_never_widens_the_interval_at_the_midpoint(
         self, denominator: int
     ) -> None:
-        """More observations cannot buy less precision at the least favourable point."""
+        """More observations cannot buy less precision at the least favorable point."""
 
         here = estimate(denominator // 2, denominator)
         there = estimate(denominator, denominator * 2)
@@ -220,7 +249,7 @@ class TestRendering:
         assert "95% interval" in sentence
         assert "stratum B" in sentence
 
-    def test_a_proportion_serialises_with_its_denominator_and_interval(self) -> None:
+    def test_a_proportion_serializes_with_its_denominator_and_interval(self) -> None:
         result = estimate(11, 48)
         assert isinstance(result, Proportion)
         payload = result.as_dict()
@@ -230,7 +259,7 @@ class TestRendering:
         assert payload["interval_high"] is not None
         assert json.dumps(payload)
 
-    def test_a_refusal_serialises_with_its_code_and_reason(self) -> None:
+    def test_a_refusal_serializes_with_its_code_and_reason(self) -> None:
         result = estimate(3, 4)
         assert isinstance(result, Refusal)
         payload = result.as_dict()

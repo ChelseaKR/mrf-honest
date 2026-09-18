@@ -2,9 +2,15 @@ name: publish
 
 # The site is rebuilt only from data already committed to this repository: the newest
 # data/cohorts/*.comparison.json, which `mrf-honest compare` generated from persisted,
-# integrity-verified assessment rows. There is deliberately no scheduled collection here —
-# broad scheduled retrieval remains blocked on the robots.txt/pacing/Retry-After work recorded
-# in docs/ROADMAP.md, and a publish workflow must not quietly become a crawler.
+# integrity-verified assessment rows. There is deliberately no scheduled collection here, and a
+# publish workflow must not quietly become a crawler.
+#
+# This comment used to name the robots.txt/pacing/Retry-After work as what scheduled retrieval
+# was waiting on. That work shipped on 2026-08-15 (src/mrf_honest/politeness.py), and the issue
+# that named it is closed. What a scheduled job still needs is a service/job tier declaration —
+# see the Observability section of docs/ROADMAP.md — which docs/EXPANSION-PLAN.md phase 14
+# records as an owner decision about what this project promises to keep running. Naming a solved
+# problem as the blocker sends the next person to re-solve it.
 on:
   push:
     branches: [master]
@@ -112,6 +118,10 @@ jobs:
           test -f site/how-we-grade/index.html
           test -f site/sitemap.xml
           test -f site/404.html
+          # The privacy page every footer links to (docs/adr/0009). `mrf-honest site` publishes the
+          # committed Google Analytics 4 ID by default, which is what writes this page and the
+          # footer link to it; a footer link to a missing disclosure is the failure checked here.
+          test -f site/privacy/index.html
           grep -Fq 'Sitemap: https://chelseakr.github.io/mrf-honest/sitemap.xml' site/robots.txt
           # site/robots.txt is published for completeness and is INERT as deployed: a crawler
           # only reads /robots.txt at the ORIGIN root, and this project cannot publish
@@ -139,7 +149,7 @@ jobs:
                   continue
               url = canonical.group(1)
               if not url.startswith(origin + "/"):
-                  problems.append(f"{where} canonicalises to {url}")
+                  problems.append(f"{where} canonicalizes to {url}")
               og_url = re.search(r'<meta property="og:url" content="([^"]*)">', html)
               if not og_url or og_url.group(1) != url:
                   problems.append(f"{where} og:url disagrees with its canonical")

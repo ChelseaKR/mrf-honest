@@ -6,23 +6,46 @@ import argparse
 import json
 import shutil
 import sys
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import cast
 
+from mrf_honest.analytics import GA4_MEASUREMENT_ID, measurement_id_or_none
+from mrf_honest.census import build_census
+from mrf_honest.census import human_report as census_human_report
 from mrf_honest.cohort import build_comparison
 from mrf_honest.container import ArchiveRefused, looks_like_archive, open_member, select_member
+from mrf_honest.diff import EXIT_CANNOT_COMPARE as DIFF_EXIT_CANNOT_COMPARE
+from mrf_honest.diff import DiffError, compare_cohorts
+from mrf_honest.diff import exit_code as diff_exit_code
+from mrf_honest.diff import human_report as diff_human_report
 from mrf_honest.fetch import PROBE_SAMPLE_BYTES, FetchPolicy, default_open, fetch_url, probe_url
+from mrf_honest.gate import (
+    FAIL_ON_CHOICES,
+    MIN_GRADE_CHOICES,
+    PROFILE_CHOICES,
+    github_annotations,
+    human_report,
+    job_summary,
+    report_json,
+    run_gate,
+)
 from mrf_honest.inspect import FileInspection, explain_finding, inspect_hospital_file
 from mrf_honest.inspect_csv import (
     CsvFileInspection,
     explain_csv_finding,
     inspect_hospital_csv_file,
 )
-from mrf_honest.lakehouse import LakehouseScopeRefusal, ingest_hospital_file, query_file_profile
+from mrf_honest.lakehouse import (
+    LakehouseContractFailure,
+    LakehouseScopeRefusal,
+    ingest_hospital_file,
+    query_file_profile,
+)
 from mrf_honest.mcp import serve as serve_mcp
 from mrf_honest.politeness import Politeness
+from mrf_honest.receipt import verify_receipt
 from mrf_honest.registry import Registry, discover_domain
 from mrf_honest.scorecard import (
     CSV_PROFILE,
@@ -37,6 +60,9 @@ from mrf_honest.scorecard import (
     assess_hospital_url,
 )
 from mrf_honest.site import DEFAULT_ORIGIN, render_site
+from mrf_honest.systems import SystemsError
+from mrf_honest.systems import human_report as systems_human_report
+from mrf_honest.systems import reconcile as reconcile_systems
 from mrf_honest.types import PublisherRef
 
 #: CLI names for the implemented assessment profiles; the JSON profile stays the default so
@@ -199,6 +225,62 @@ def _run_inspect(args: argparse.Namespace) -> int:
     return _SUCCESS
 
 
+def _run_gate(args: argparse.Namespace) -> int:
+    """Check local files against the caller's thresholds and return the gate's own exit code.
+
+    The exit code is the product, so it is returned unmapped: 0 clear, 1 a threshold the caller
+    set was not met, 2 nothing could be graded. ``main`` turns an unexpected exception into 1,
+    which is why a not-gradeable file is a *verdict* here and never a raised error -- an
+    unreadable file must not arrive at the caller wearing the same code as a bad grade.
+    """
+    publisher_id = cast(str | None, args.publisher_id)
+    publisher = PublisherRef(publisher_id) if publisher_id is not None else None
+    report = run_gate(
+        cast(list[Path], args.files),
+        profile=cast(str, args.profile),
+        as_of=cast(date | None, args.as_of) or date.today(),
+        min_grade=cast(str, args.min_grade),
+        fail_on=cast(str, args.fail_on),
+        publisher=publisher,
+    )
+    if cast(bool, args.github):
+        for line in github_annotations(report):
+            print(line)
+    elif cast(str, args.output_format) == "json":
+        print(report_json(report))
+    else:
+        print(human_report(report))
+    summary_path = cast(Path | None, args.summary)
+    if summary_path is not None:
+        with summary_path.open("a", encoding="utf-8") as handle:
+            handle.write(job_summary(report))
+    report_path = cast(Path | None, args.report)
+    if report_path is not None:
+        report_path.write_text(report_json(report) + "\n", encoding="utf-8")
+    return report.exit_code
+
+
+def _run_verify(args: argparse.Namespace) -> int:
+    """Re-derive one published receipt from a local file. Opens no socket.
+
+    The exit code is the product, so it is returned unmapped: 0 reproduced, 1 the bytes match
+    and something differs, 2 the check could not be performed at all. The third is never
+    evidence about the file's quality, which is why it is not folded into the second.
+    """
+    receipt = json.loads(cast(Path, args.receipt).read_text(encoding="utf-8"))
+    if not isinstance(receipt, dict):
+        print("error: a receipt must be a JSON object", file=sys.stderr)
+        return 2
+    outcome = verify_receipt(receipt, cast(Path, args.file))
+    if cast(str, args.output_format) == "json":
+        _emit_json(outcome.to_dict())
+    else:
+        print(outcome.summary)
+        for difference in outcome.differences:
+            print(f"  {difference}")
+    return outcome.exit_code
+
+
 def _run_ingest(args: argparse.Namespace) -> int:
     publisher = PublisherRef(
         identifier=cast(str, args.publisher_id),
@@ -216,6 +298,18 @@ def _run_ingest(args: argparse.Namespace) -> int:
             threads=cast(int, args.threads),
             as_of=cast(date | None, args.as_of),
         )
+    except LakehouseContractFailure as failure:
+        # Same rule as the scope refusal below, for the other way an ingest can end without a
+        # snapshot: one attempt, one evidence document. A contract violation that existed only
+        # as an exit code left the file page saying "no warehouse ingest was recorded", which is
+        # what it says about a file nobody tried.
+        payload = failure.to_dict(publisher_id=publisher.identifier)
+        if args.output_format == "json":
+            _emit_json(payload)
+        else:
+            _emit_mapping_human(payload)
+            print(f"contract failed: {failure.reason}", file=sys.stderr)
+        return _FAILURE
     except LakehouseScopeRefusal as refusal:
         # A scope refusal is evidence with a reason, not a traceback. It goes to stdout in the
         # same document shape a successful load produces, so `compare --ingest-result` can
@@ -388,10 +482,98 @@ def _run_compare(args: argparse.Namespace) -> int:
     return _SUCCESS
 
 
+def _run_diff(args: argparse.Namespace) -> int:
+    """Diff two published cohorts. Reads committed documents and opens no socket.
+
+    The exit code is the product and is returned unmapped, so it keeps the meaning
+    ``mrf_honest.diff`` gave it: without ``--fail-on-regression`` a diff is a report and always
+    returns 0; with it, 2 means the question could not be answered and is never a pass.
+    """
+    before = _load_json_object(cast(Path, args.before), "comparison document")
+    after = _load_json_object(cast(Path, args.after), "comparison document")
+    try:
+        document = compare_cohorts(before, after, slug=cast(str | None, args.slug))
+    except DiffError as refusal:
+        # A refusal is the third state, not a crash: these two documents could not be compared,
+        # which is exactly what code 2 means everywhere else in this tool.
+        print(f"error: {refusal}", file=sys.stderr)
+        return DIFF_EXIT_CANNOT_COMPARE
+    if cast(str, args.output_format) == "json":
+        _emit_json(document)
+    else:
+        print(diff_human_report(document))
+    return diff_exit_code(document, fail_on_regression=cast(bool, args.fail_on_regression))
+
+
+def _run_systems(args: argparse.Namespace) -> int:
+    """Reconcile one cohort against the discovery evidence its URLs came from.
+
+    Reads committed evidence and opens no socket. A reconciliation that cannot be performed is a
+    clean operational failure rather than an empty document: an empty reconciliation would read
+    as "checked, nothing to report", which is the one thing it must never say.
+    """
+    registry = AssessmentRegistry(cast(Path, args.assessments))
+    discovery = Registry(cast(Path, args.discovery))
+    try:
+        document = reconcile_systems(
+            registry.records(), [record.to_dict() for record in discovery.records()]
+        )
+    except SystemsError as refusal:
+        print(f"error: {refusal}", file=sys.stderr)
+        return _FAILURE
+    if cast(str, args.output_format) == "json":
+        _emit_json(document)
+    else:
+        print(systems_human_report(document))
+    return _SUCCESS
+
+
+def _run_census(args: argparse.Namespace) -> int:
+    """Count the files discovery has already located, beside the files the cohorts graded.
+
+    Reads the local discovery registry and any number of persisted assessment registries, opens
+    no socket and derives no grade. The inventory it counts is the expensive half of answering a
+    request about a named hospital: resolving the facility to the website hosting its file is
+    manual and was wrong ten times in the first forty-eight, and one retrieved cms-hpt.txt
+    resolves it for every location that document names.
+    """
+    discovery = Registry(cast(Path, args.discovery))
+    assessments: list[Mapping[str, object]] = []
+    for path in cast(list[Path], args.assessments or []):
+        assessments.extend(AssessmentRegistry(path).records())
+    frame: Mapping[str, object] | None = None
+    frame_path = cast("Path | None", args.frame)
+    if frame_path is not None:
+        frame = cast(Mapping[str, object], json.loads(frame_path.read_text(encoding="utf-8")))
+    document = build_census(
+        [record.to_dict() for record in discovery.records()],
+        assessments,
+        as_of=cast(str, args.as_of),
+        frame=frame,
+    )
+    if cast(str, args.output_format) == "json":
+        _emit_json(document)
+    else:
+        print(census_human_report(document))
+    return _SUCCESS
+
+
 def _run_mcp(args: argparse.Namespace) -> int:
     """Serve the published dataset over stdio. Reads committed files; never reaches a network."""
 
     return serve_mcp(cast(Path, args.site))
+
+
+def _ga4_id(value: str) -> str | None:
+    """``--ga4-id``, refused at parse time when malformed and ``None`` when empty.
+
+    Refused before anything is read or written: a tag for an ID GA would not accept records
+    nothing, and a site carrying it would describe analytics that never happen.
+    """
+    try:
+        return measurement_id_or_none(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(str(exc)) from exc
 
 
 def _run_site(args: argparse.Namespace) -> int:
@@ -402,6 +584,7 @@ def _run_site(args: argparse.Namespace) -> int:
         comparisons,
         cast(Path, args.out),
         origin=cast(str, args.origin).rstrip("/"),
+        ga4_id=cast("str | None", args.ga4_id),
     )
     _emit_json({"files_written": len(written)})
     return _SUCCESS
@@ -606,6 +789,70 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     compare_parser.set_defaults(handler=_run_compare)
 
+    diff_parser = commands.add_parser(
+        "diff",
+        help="compare two published cohort comparison documents subject by subject",
+    )
+    diff_parser.add_argument("before", type=Path, metavar="BEFORE")
+    diff_parser.add_argument("after", type=Path, metavar="AFTER")
+    diff_parser.add_argument(
+        "--slug", help="restrict the diff to one file slug (publisher-id/location-id)"
+    )
+    diff_parser.add_argument(
+        "--fail-on-regression",
+        action="store_true",
+        help="exit 1 on a worse grade or a new error finding, 2 when no subject could be judged",
+    )
+    diff_parser.add_argument(
+        "--format", dest="output_format", choices=("human", "json"), default="human"
+    )
+    diff_parser.set_defaults(handler=_run_diff)
+
+    systems_parser = commands.add_parser(
+        "systems",
+        help="reconcile one cohort's graded files against the locations cms-hpt.txt lists",
+    )
+    systems_parser.add_argument(
+        "--assessments", type=Path, required=True, help="JSON Lines assessment records"
+    )
+    systems_parser.add_argument(
+        "--discovery",
+        type=Path,
+        required=True,
+        help="a discovery registry written by `mrf-honest discover`",
+    )
+    systems_parser.add_argument(
+        "--format", dest="output_format", choices=("human", "json"), default="human"
+    )
+    systems_parser.set_defaults(handler=_run_systems)
+
+    census_parser = commands.add_parser(
+        "census",
+        help="count the files discovery has located, beside the files the cohorts graded",
+    )
+    census_parser.add_argument(
+        "--discovery",
+        type=Path,
+        required=True,
+        help="a discovery registry written by `mrf-honest discover`",
+    )
+    census_parser.add_argument(
+        "--assessments",
+        type=Path,
+        action="append",
+        help="JSON Lines assessment records; repeat for each committed cohort",
+    )
+    census_parser.add_argument(
+        "--frame",
+        type=Path,
+        help="a committed sampling frame, carried beside the census and never divided into it",
+    )
+    census_parser.add_argument("--as-of", required=True, help="ISO date this census describes")
+    census_parser.add_argument(
+        "--format", dest="output_format", choices=("human", "json"), default="human"
+    )
+    census_parser.set_defaults(handler=_run_census)
+
     site_parser = commands.add_parser(
         "site", help="render the static site from one or more published comparison documents"
     )
@@ -619,6 +866,17 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     site_parser.add_argument("--out", type=Path, required=True)
     site_parser.add_argument("--origin", default=DEFAULT_ORIGIN)
+    site_parser.add_argument(
+        "--ga4-id",
+        type=_ga4_id,
+        default=GA4_MEASUREMENT_ID,
+        help=(
+            "Google Analytics 4 measurement ID (ADR 0009). Defaults to the committed one, which "
+            "is what pages.yml publishes; its loader sends nothing anywhere but the published "
+            "address. Pass an empty string for a site with no analytics, no script and no "
+            "privacy page"
+        ),
+    )
     site_parser.set_defaults(handler=_run_site)
 
     mcp_parser = commands.add_parser(
@@ -632,6 +890,60 @@ def _build_parser() -> argparse.ArgumentParser:
         help="a directory written by `mrf-honest site`; its api/ documents are the whole source",
     )
     mcp_parser.set_defaults(handler=_run_mcp)
+
+    gate_parser = commands.add_parser(
+        "gate",
+        help="check local files before they are published, and exit non-zero on what you name",
+    )
+    gate_parser.add_argument("files", type=Path, metavar="FILE", nargs="+")
+    gate_parser.add_argument("--publisher-id")
+    gate_parser.add_argument("--as-of", type=_iso_date)
+    gate_parser.add_argument(
+        "--profile",
+        choices=PROFILE_CHOICES,
+        default="auto",
+        help="assessment profile, or auto to read it from the leading bytes (default: auto)",
+    )
+    gate_parser.add_argument(
+        "--min-grade",
+        choices=MIN_GRADE_CHOICES,
+        default="none",
+        help="fail when the local-evidence grade is worse than this letter (default: none)",
+    )
+    gate_parser.add_argument(
+        "--fail-on",
+        choices=FAIL_ON_CHOICES,
+        default="never",
+        help="fail on any finding at or above this severity (default: never)",
+    )
+    gate_parser.add_argument(
+        "--format", dest="output_format", choices=("human", "json"), default="human"
+    )
+    gate_parser.add_argument(
+        "--github",
+        action="store_true",
+        help="emit GitHub workflow annotations on stdout instead of the human report",
+    )
+    gate_parser.add_argument(
+        "--summary",
+        type=Path,
+        help="append a Markdown job summary to this file (use $GITHUB_STEP_SUMMARY in Actions)",
+    )
+    gate_parser.add_argument(
+        "--report", type=Path, help="also write the full JSON report to this path"
+    )
+    gate_parser.set_defaults(handler=_run_gate)
+
+    verify_parser = commands.add_parser(
+        "verify",
+        help="re-derive a published grade from its receipt and the bytes it describes",
+    )
+    verify_parser.add_argument("receipt", type=Path, metavar="RECEIPT")
+    verify_parser.add_argument("file", type=Path, metavar="FILE")
+    verify_parser.add_argument(
+        "--format", dest="output_format", choices=("human", "json"), default="human"
+    )
+    verify_parser.set_defaults(handler=_run_verify)
 
     explain_parser = commands.add_parser("explain", help="explain a quality finding code")
     explain_parser.add_argument("finding_code", metavar="FINDING_CODE")

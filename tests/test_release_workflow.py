@@ -9,6 +9,7 @@ the tagged commit, and hold no credential that could publish anything anywhere.
 
 from __future__ import annotations
 
+import base64
 import re
 from pathlib import Path
 from typing import Any, cast
@@ -68,11 +69,89 @@ class TestTheKeyStaysWithTheMaintainer:
         assert "::error" in run
         assert "::warning" not in run
 
-    def test_the_repository_ships_no_placeholder_trust_root(self) -> None:
-        """The point of the check above. A committed placeholder key would look configured and
-        trust nobody, which is worse than an absent file that stops the job."""
+    def test_the_committed_trust_root_is_real_keys_and_nothing_else(self) -> None:
+        """The point of the check above, and it had to change shape to stay honest.
 
-        assert not (ROOT / ".github" / "allowed_signers").exists()
+        This used to assert that `.github/allowed_signers` did not exist at all. That was true
+        while no release had ever been prepared, and it became the thing standing between this
+        repository and its first one: `release.yml` stops at its second step without the file,
+        and the file could not be added while a test forbade it.
+
+        What the check was ever about is not the file's absence. It is that a committed trust
+        root must be a real public key and not a placeholder -- a placeholder looks configured
+        and trusts nobody, which is worse than an absent file that stops the job. So every line
+        is parsed as OpenSSH's `allowed_signers` format and the key material is decoded: the
+        SSH wire format begins with a length-prefixed copy of the algorithm name, so a
+        plausible-looking base64 blob that is not a key fails here rather than at a release.
+        """
+
+        path = ROOT / ".github" / "allowed_signers"
+        assert path.is_file() and path.stat().st_size > 0, (
+            "the release trust root is missing. release.yml refuses to verify a tag without it, "
+            "so no release can be cut; if it was removed deliberately, this test is the record."
+        )
+
+        lines = [
+            line
+            for line in path.read_text(encoding="utf-8").splitlines()
+            if line.strip() and not line.lstrip().startswith("#")
+        ]
+        assert lines, "the trust root has no entries; an empty file trusts nobody"
+
+        for line in lines:
+            lowered = line.lower()
+            for marker in ("example", "placeholder", "replace", "changeme", "todo", "your-key"):
+                assert marker not in lowered, f"placeholder trust root: {line!r}"
+
+            principals, algorithm, material = line.split(" ", 2)
+            assert "@" in principals, f"no principal on {line!r}"
+            assert algorithm in {"ssh-ed25519", "ssh-rsa", "ecdsa-sha2-nistp256"}, algorithm
+
+            blob = base64.b64decode(material.split(" ")[0], validate=True)
+            length = int.from_bytes(blob[:4], "big")
+            assert blob[4 : 4 + length].decode("ascii") == algorithm, (
+                f"the key material in {line!r} does not encode {algorithm}; it is not a key."
+            )
+
+
+class TestNoInputReachesAShell:
+    """`${{ }}` inside a `run:` block is substitution into the script before bash sees a token.
+
+    Demonstrated rather than asserted, on a copy of the old and new shapes with the dispatched
+    value `v1"; touch <path>; echo "`: the old form created the file, the new form printed the
+    whole string as `tag`. The exposure here was bounded -- `workflow_dispatch` on a public
+    repository requires write access, and the tag's signature is checked two steps later -- but
+    this is the one workflow that exists to be trusted, and the repair is an `env:` entry.
+
+    The taint does not stop at the input: `steps.resolve.outputs.tag` is that same dispatched
+    value one hop later, so all three sites were the same defect and are checked together here.
+    A rule that covered only the literal `github.event.inputs.tag` would have passed a workflow
+    that still pasted the same string into bash twice.
+    """
+
+    def test_no_expression_is_interpolated_into_any_run_block(self) -> None:
+        offenders = [
+            (job, str(step.get("name")), expression.strip())
+            for job in JOBS
+            for step in _steps(job)
+            if step.get("run")
+            for expression in re.findall(r"\$\{\{([^}]*)\}\}", str(step["run"]))
+        ]
+        assert offenders == [], (
+            f"these reach bash by substitution into the script rather than through env: {offenders}"
+        )
+
+    def test_the_dispatched_tag_reaches_the_script_as_an_environment_variable(self) -> None:
+        """The other direction: the value still has to get there, or the step does nothing."""
+        resolve = next(
+            step for step in _steps("verify-tag") if str(step.get("id", "")) == "resolve"
+        )
+        env = cast(dict[str, str], resolve["env"])
+        assert "github.event.inputs.tag" in env["DISPATCHED_TAG"]
+        assert "github.ref_name" in env["REF_NAME"]
+        # The bash fallback has to mean what GitHub's `||` meant: dispatched value if non-empty,
+        # otherwise the ref name.
+        assert "${DISPATCHED_TAG:-${REF_NAME}}" in str(resolve["run"])
 
 
 class TestTheReleaseIsAClaimAboutOneCommit:
@@ -107,13 +186,28 @@ class TestVersionAgreement:
     def test_a_changelog_entry_is_required(self) -> None:
         assert "CHANGELOG.md" in _run_text("verify-tag")
 
-    def test_the_current_version_would_be_refused_today(self) -> None:
-        """This is the honest state of the repository: 0.1.0.dev0 is not releasable, and the
-        workflow says so rather than shipping a wheel that claims otherwise."""
+    def test_the_declared_version_is_one_this_workflow_would_accept(self) -> None:
+        """The honest state of the repository, held against the workflow's own refusals.
+
+        This used to assert the opposite -- that the declared version was `0.1.0.dev0` and
+        therefore *not* releasable -- which was the honest state while nothing had been
+        released, and was one of the things that made the first release impossible to land.
+        What it was checking is that the declared version and the workflow agree about whether
+        a release is possible, and that is what it checks now, against the same two refusals
+        `release.yml` implements: the `*dev*|*rc*|*a*|*b*` case pattern, and the changelog
+        section keyed on the declared version.
+        """
 
         version = re.search(r'^version = "([^"]+)"', (ROOT / "pyproject.toml").read_text(), re.M)
         assert version is not None
-        assert "dev" in version.group(1)
+        declared = version.group(1)
+        for marker in ("dev", "rc"):
+            assert marker not in declared, (
+                f"pyproject.toml declares {declared!r}; release.yml refuses a pre-release version."
+            )
+        assert f"[{declared}]" in (ROOT / "CHANGELOG.md").read_text(encoding="utf-8"), (
+            f"release.yml requires a CHANGELOG.md section named [{declared}] and there is none."
+        )
 
 
 class TestNothingIsPublished:
@@ -148,7 +242,7 @@ class TestSupplyChain:
         assert re.fullmatch(r"[0-9a-f]{40}", reference), f"{uses} is not SHA-pinned"
 
     def test_the_workflow_uses_at_least_one_action(self) -> None:
-        """An empty parametrisation above would make the pinning check vacuous."""
+        """An empty parametrization above would make the pinning check vacuous."""
 
         assert "uses:" in TEXT
 

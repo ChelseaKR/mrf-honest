@@ -3,16 +3,29 @@
 **Deterministic, spec-cited grades for hospital price-transparency files, published with the
 evidence attached.**
 
-Two graded cohorts are live, one per CMS file format, side by side and never pooled. The JSON
-cohort covers 17 machine-readable files across 15 publishers, discovered from
-CMS-conventional `cms-hpt.txt` documents, retrieved in one identified run, streamed without
-loading into memory, and graded fail-closed. The distribution is 12 **A**, 1 **B**, 2 **C**,
-2 **F**, and 0 not graded. Every grade, count, and finding on the
+Two graded cohorts are live, one per CMS file format, side by side and never pooled, **both
+collected 2026-09-12**. The JSON cohort covers 17 machine-readable files across 15 publishers,
+discovered from CMS-conventional `cms-hpt.txt` documents, retrieved in one identified run,
+streamed without loading into memory, and graded fail-closed. The distribution is 13 **A**,
+1 **B**, 2 **C**, 0 **F**, and 1 not graded — the seventeenth answered HTTP 403 to one
+identified request, which this project publishes as a dated observation and no longer converts
+into a letter under a hospital's name. Every grade, count, and finding on the
 [site](https://chelseakr.github.io/mrf-honest/) is generated from the committed comparison
-documents ([JSON cohort](data/cohorts/2026-08-19.comparison.json),
-[CSV cohort](data/cohorts/2026-08-19-csv.comparison.json)), never typed in, and each finding
+documents ([JSON cohort](data/cohorts/2026-09-12.comparison.json),
+[CSV cohort](data/cohorts/2026-09-12-csv.comparison.json)), never typed in, and each finding
 cites the CMS rule ([45 CFR § 180.50]) or
 [CMS schema documentation](https://github.com/CMSgov/hospital-price-transparency) it rests on.
+Every grade carries the date it was measured, and every page that publishes one states how old
+that measurement is on the day the page was built — a date a reader has to subtract from a
+"today" the page never states is not an answer to "is this still true?"
+
+The site counts visits with Google Analytics 4
+([ADR 0009](docs/adr/0009-the-published-site-counts-visits-with-google-analytics.md)): only on
+the published address, not at all under Global Privacy Control or Do Not Track or after the
+footer's "Opt out of analytics", with Google signals and ad personalization off. Its
+[privacy page](https://chelseakr.github.io/mrf-honest/privacy/) says what Google receives,
+including that a page's address names the hospital file being read. The CLI, the GitHub Action,
+the pre-commit hook and the published data files carry no analytics.
 
 **The cohorts have a stated sampling frame**, which the first one did not
 ([docs/SAMPLING-FRAME.md](docs/SAMPLING-FRAME.md)). Eleven of the seventeen JSON files come from
@@ -29,42 +42,53 @@ hospitals — 32 of 48 — publish their standard charges as CSV, ZIP, or a vend
 answers `text/csv` rather than JSON; until 2026-08-19 every one was a recorded exclusion, and
 the letter distribution above described hospitals that chose JSON, not hospitals. A second
 assessment profile now implements CMS's CSV v3.0.0 templates, Tall and Wide, and a sibling
-cohort grades all 25 CSV targets of the same draw. The CSV distribution is 11 **A**, 2 **B**,
-4 **C**, 3 **D**, 1 **F**, and 4 not graded — two hosts whose `robots.txt` says no, honored;
-two files over this project's own 1 GiB ceiling, stated rather than blamed on the publisher.
+cohort grades all 25 CSV targets of the same draw. The CSV distribution is 12 **A**, 2 **B**,
+4 **C**, 2 **D**, 0 **F**, and 5 not graded — two hosts whose `robots.txt` says no, honored;
+two files over this project's own 1 GiB ceiling, stated rather than blamed on the publisher; and
+one HTTP 404 observed once, recorded rather than attributed.
 What remains outside both profiles stays recorded: 7 ZIP archives, 4 origins whose
 `cms-hpt.txt` could not be retrieved, and 1 whose location entry did not resolve.
 
-**The CSV profile's first real cohort produced its own best findings.** Across six files,
-118,411 payer or plan names are encoded with no charge beside them — the CSV data dictionary's
-first conditional requirement, violated at scale. The distribution of that number is itself the
-finding: 118,096 of the instances sit in the two files still publishing the superseded v2.0.0
-template more than seven months after CMS's v3.0.0 effective date — in one of them, every
-single data row — while the four current-template files carry only a few-hundred-row residual.
-That is the same defect class as the Cedars-Sinai finding below, measured now in CSV; a third
-hospital declares template `3.0.1`, a version CMS never published. One hospital's own `cms-hpt.txt` points at a URL that
-answers HTTP 404; that is the CSV cohort's F, stated with the dated reason. A single file
-carries 4,785 methodology values outside the CMS accepted set; 3 files are not valid UTF-8 and
-were read as Latin-1 with the tolerance recorded, and 8 of the 25 begin with a UTF-8
-byte-order mark.
+**The CSV profile's headline finding halved between two collections, and the reason is a
+hospital, not a policy.** Across five files, 36,450 payer or plan names are encoded with no
+charge beside them — the CSV data dictionary's first conditional requirement, violated at
+scale. The distribution of that number is itself the finding: 36,135 of the instances sit in
+the one file still publishing the superseded v2.0.0 template eight months after CMS's v3.0.0
+effective date — in it, every single data row — while the four current-template files carry
+only a few-hundred-row residual. On 2026-08-19 the same measurement was 118,411 across six
+files, because Minden Medical Center was then publishing v2.0.0 too; it has since republished
+under the current template, and its 81,961 payer-without-charge instances, its 4,785 invalid
+methodology values and its version error are all gone. That is what a second dated collection
+is *for*, and it is why the change is stated here as a change rather than as a smaller number.
+Another hospital declares template `3.0.1`, a version CMS never published. One hospital's own
+`cms-hpt.txt` points at a URL that answers HTTP 404; that is the CSV cohort's F, stated with the
+dated reason. 0 methodology values outside the CMS accepted set remain in this cohort, down from
+4,785; 3 files are not valid UTF-8 and were read as Latin-1 with the tolerance recorded, and 8
+of the 25 begin with a UTF-8 byte-order mark.
 
-The two **F**s are retrieval failures at the URLs the hospitals' own `cms-hpt.txt` documents
-publish — Northside Hospital Duluth's answers HTTP 403 to an identified client, and Rio Grande
-Regional Hospital's answers HTTP 409, *"Public access is not permitted on this storage account."*
-Both are stated with the dated reason rather than dropped. The two **C**s are both version
-strings: an 884 MB Cedars-Sinai file that declares the superseded 2.0.0 template seven months
-after CMS's v3.0.0 effective date while carrying, element for element, the v3.0.0 envelope that
-version string says it does not have ([the finding, with
-evidence](docs/findings/superseded-template-version-2026-08-14.md)), and Central Maine Medical
-Center's, which declares `3.0` where CMS specifies `3.0.0`. The one **B** is a conforming file
-whose own `last_updated_on` is more than a year before the assessment date. 5 of the 17 files
-begin with a UTF-8 byte-order mark that RFC 8259 forbids and strict JSON parsers reject; the
-catalog records it as a tolerated `INFO` observation, and all five grade **A**.
+The one **F** is a retrieval failure at the URL the hospital's own `cms-hpt.txt` document
+publishes: Northside Hospital Duluth's answers HTTP 403 to an identified client, stated with
+the dated reason rather than dropped. On 2026-08-19 there were two. The second was Rio Grande
+Regional Hospital, whose URL then answered HTTP 409, *"Public access is not permitted on this
+storage account."* Its `cms-hpt.txt` now publishes a working URL for the same file — the
+storage account's shared access signature was rotated — and the file behind it grades **A**.
+Nothing about the grading changed; the hospital's own published address did, which is exactly
+the kind of movement a dated re-collection exists to catch and a single-dated cohort cannot.
+The two **C**s are both version strings: an 884 MB Cedars-Sinai file that declares the
+superseded 2.0.0 template eight months after CMS's v3.0.0 effective date while carrying,
+element for element, the v3.0.0 envelope that version string says it does not have ([the
+finding, with evidence](docs/findings/superseded-template-version-2026-08-14.md)), and Central
+Maine Medical Center's, which declares `3.0` where CMS specifies `3.0.0`. The one **B** is a
+conforming file whose own `last_updated_on` is more than a year before the assessment date.
+3 of the 17 files begin with a UTF-8 byte-order mark that RFC 8259 forbids and strict JSON
+parsers reject; the catalog records it as a tolerated `INFO` observation, and all three grade
+**A**. There were 5 on 2026-08-19: UC Health republished both of its files without the mark.
 
 The first real cohort also broke the pipeline twice, and both breaks are published: a CSV
 dialect the spool reader guessed instead of declared (fixed, regression-pinned), and a default
-memory ceiling the two largest exports exceeded (an operator setting, documented). Finding that
-out on six files instead of six hundred is the point of grading a small cohort first.
+memory ceiling the two largest exports exceeded — an operator setting, and the working value is
+written down in [docs/PHASE-2-FINDINGS.md](docs/PHASE-2-FINDINGS.md#the-ingest-memory-ceiling-is-an-operator-setting).
+Finding that out on six files instead of six hundred is the point of grading a small cohort first.
 
 ## The idea in one paragraph
 
@@ -86,7 +110,10 @@ disk can later be mistaken for evidence.
 
 Two ways to get a real one, both of them a single command. Every file this project has graded is
 named, with its exact URL and the SHA-256 of the bytes that were read, in the committed cohorts
-under `data/cohorts/` — so any published grade can be re-derived from its source. Or start from a
+under `data/cohorts/` — so any published grade can be re-derived from its source, with
+`mrf-honest verify` and the receipt each row publishes. Seven of the 48 rows say plainly that
+they *cannot* be: they have no verified body, so there are no bytes for anyone to re-derive from,
+and their receipts record that instead of offering a procedure nobody can carry out. Or start from a
 hospital: CMS requires each one to serve `https://<domain>/cms-hpt.txt` pointing at its MRF, which
 is what `discover` reads.
 
@@ -107,16 +134,34 @@ uv run mrf-honest inspect prices.json --as-of 2026-08-09 --format json
 # Inspect a local CMS hospital CSV v3 file (Tall or Wide) under the CSV profile.
 uv run mrf-honest inspect standardcharges.csv --profile csv --as-of 2026-08-09 --format json
 
+# Gate a file *before* it is posted: the same inspector, the same fingerprinted policy, and an
+# exit code. 0 clear, 1 a threshold you set was not met, 2 nothing could be graded -- which is a
+# statement about the read and is never an F. Ships as a GitHub Action and a pre-commit hook too;
+# see docs/before-you-post-it.md.
+uv run mrf-honest gate prices.json --profile auto --fail-on error --min-grade B
+
+# Re-derive a published grade yourself. Every published row has a receipt at
+# api/receipt/<slug>.json naming the bytes, the policy and the result; `verify` re-hashes the
+# file and re-runs that policy offline. 0 reproduced, 1 something differs, 2 the check could not
+# be performed at all -- a hash mismatch or a receipt that was never re-derivable, neither of
+# which is evidence about the file.
+uv run mrf-honest verify receipt.json standardcharges.json
+
 # Classify what a URL serves with one bounded ranged request (~4 KB), before deciding which
 # profile to grade it under. Never a grading input; robots.txt is consulted first, no override.
 uv run mrf-honest probe https://files.example.org/standardcharges \
   --contact operator@example.org
 
 # Build a contracted local snapshot. DuckDB is supplied by the dev group or the lakehouse extra.
+# --memory-limit defaults to 256MB, which is a one-file acceptance figure and is too small for a
+# real hospital file: the 2026-09-12 cohort ran at 6GB and four threads, and 256MB stopped at
+# 138 MB of source. docs/PHASE-2-FINDINGS.md records what was measured at which size.
 uv run mrf-honest ingest prices.json \
   --publisher-id example-health \
   --warehouse warehouse \
   --as-of 2026-08-09 \
+  --memory-limit 6GB \
+  --threads 4 \
   --format json
 
 # Retrieve one file and atomically retain its remote-plus-local scorecard.
@@ -140,6 +185,31 @@ uv run mrf-honest compare \
   > comparison.json
 uv run mrf-honest site --comparison comparison.json --out site
 
+# Relate two dated cohorts. Each layer of the comparison is gated on the fingerprint that
+# governs it, so a policy this project changed is reported as a policy change and never as a
+# change in a hospital's file. `--fail-on-regression` exits 2 when nothing could be judged.
+uv run mrf-honest diff \
+  data/cohorts/2026-08-14.comparison.json \
+  data/cohorts/2026-08-19.comparison.json
+
+# Reconcile a cohort against the locations each system's cms-hpt.txt lists. Reads committed
+# evidence, opens no socket, derives no grade: what a system listed with no file behind it, what
+# this cohort graded that no discovery file declares, and where a system's files disagree.
+uv run mrf-honest systems \
+  --assessments data/cohorts/2026-08-19.assessments.jsonl \
+  --discovery data/registry.jsonl
+
+# Count the files discovery has already located, beside the files the cohorts graded. Reads
+# committed evidence, opens no socket, derives no grade. Every retrieved cms-hpt.txt resolves the
+# frame's weakest joint -- which website hosts a given hospital's file -- for every location it
+# names, and until this verb nothing counted them. A URL extension is a candidate and never a
+# determination; an origin that could not be read is never an origin that publishes nothing.
+uv run mrf-honest census \
+  --discovery data/registry.jsonl \
+  --as-of 2026-09-12 \
+  --frame data/frames/2026-08-19.frame.json \
+  $(for a in data/cohorts/*.assessments.jsonl; do printf ' --assessments %s' "$a"; done)
+
 # Serve the published dataset to an MCP client. Read-only, offline, no network at answer time:
 # the site directory's api/ documents are the entire source.
 uv run mrf-honest mcp --site site
@@ -155,8 +225,11 @@ Asking for a grade filter without naming a cohort returns a stated refusal rathe
 count, because a letter counted across cohorts pools rows produced under different profiles and
 policies. `grading_method` reads the rule table from the policy the published grades were minted
 under, not from a summary that could drift from it. There is no tool that retrieves a hospital's
-file. The server is not registered with any MCP registry: that would name a released package, and
-there is no release yet.
+file. The server is not registered with any MCP registry: `v0.1.0` is
+[a signed, released tag](https://github.com/ChelseaKR/mrf-honest/releases/tag/v0.1.0), but
+[ADR 0008](docs/adr/0008-release-versioning-applies.md) is explicit that a GitHub Release is not
+an index listing — nothing here is published to PyPI or to any MCP registry, so there is nothing
+yet to name in a registry entry.
 
 Re-running that command over the committed inputs reproduces
 [the committed comparison](data/cohorts/2026-08-19.comparison.json) byte for byte, and both
@@ -185,7 +258,11 @@ limits prevented assessing is **not graded** — stated, never silently dropped,
 conflated with a publisher failure. That boundary is enforced by a status matrix rather than by
 care: a certificate that will not verify, a `robots.txt` that says no, and this project's own
 size ceiling are all **not graded**, because from one attempt none of them is distinguishable
-from a problem on this end. An **A** means the implemented checks emitted nothing; it is
+from a problem on this end. **An HTTP barrier is now held to the same standard**: a download
+failure carries a letter only from two or more recorded attempts, so a 401, 403, 404 or 409 seen
+once — statuses this project's fetcher deliberately does not retry — is published as the dated
+observation it is, with its status and its attempt count, and not as an **F**. Every published
+letter states how many identified requests stand behind it. An **A** means the implemented checks emitted nothing; it is
 not the official CMS validator and not a certificate of validity.
 
 ## Why this shape
@@ -244,12 +321,14 @@ Built:
 - A DuckDB + partitioned-Parquet lakehouse with 13 documented models, executable data contracts
   at every layer boundary, exact raw text retention, `DECIMAL(38,10)` numerics, and idempotent
   content-addressed run identity ([docs/MODEL-DAG.md](docs/MODEL-DAG.md),
-  [ADR 0003](docs/adr/0003-local-lakehouse-duckdb-parquet.md)). 13 of the cohort files are
+  [ADR 0003](docs/adr/0003-local-lakehouse-duckdb-parquet.md)). 12 of the cohort files are
   contracted through it; two declare a template version the v3-only pipeline does not implement
-  (`2.0.0`, and `3.0` where CMS specifies `3.0.0`) and it refuses them, and two were never
-  retrieved at all. Each refusal is recorded as evidence with its reason and published on the
-  file's page, because a limit of this project rendered as a bare absence reads like an unnamed
-  defect in a named hospital's file.
+  (`2.0.0`, and `3.0` where CMS specifies `3.0.0`) and it refuses them, two carry rows a data
+  contract rejects (`stg_modifier_payer.unique_canonical_payer_plan`, 40 rows each), and one was
+  never retrieved at all. Each refusal and each contract failure is recorded as evidence with
+  its reason and published on the file's page, because a limit of this project rendered as a
+  bare absence reads like an unnamed defect in a named hospital's file — and so does a contract
+  failure rendered as no record at all, which is what happened until 2026-09-12.
 - `robots.txt`, per-host pacing and `Retry-After` enforced in the fetcher rather than by an
   operator's habits (`src/mrf_honest/politeness.py`). robots is fetched before the first request
   and obeyed with no override flag; an unreachable `robots.txt` is a complete disallow per
@@ -278,7 +357,7 @@ Still open:
   the one document inside it, and refuses rather than choosing when there is not exactly one.
   The seven ZIP publications of the committed draw remain recorded exclusions until an operator
   retrieves their bodies, because those bodies are not committed;
-- supported warehouse migrations, fsync behaviour, and the one-statement window between artifact
+- supported warehouse migrations, fsync behavior, and the one-statement window between artifact
   promotion and the catalog commit. Crash and concurrency durability is now measured rather than
   disclaimed: an ingest is killed with SIGKILL at six named progress markers and the catalog is
   required never to report a snapshot it does not hold, three deterministic fault injections cover
@@ -300,6 +379,8 @@ Still open:
 | [docs/PHASE-3-FINDINGS.md](docs/PHASE-3-FINDINGS.md) | Fail-closed remote scorecard contract, verification, and limits |
 | [docs/MODEL-DAG.md](docs/MODEL-DAG.md) | Model grains, lineage, contracts, and methodology-safe query |
 | [docs/how-we-grade.md](docs/how-we-grade.md) | Assessment semantics and the source-cited finding catalog |
+| [docs/before-you-post-it.md](docs/before-you-post-it.md) | For hospital compliance staff and their vendors: the Action and the pre-commit hook, and how to read the three exit codes |
+| [docs/verify-a-grade.md](docs/verify-a-grade.md) | How to re-derive a published grade from its receipt, and which rows cannot be re-derived at all |
 | [docs/how-we-compare.md](docs/how-we-compare.md) | The comparison boundary and the published file-grade policy |
 | [docs/findings/](docs/findings/) | Written-up findings from published cohorts, with evidence |
 | [docs/CORRECTIONS.md](docs/CORRECTIONS.md) | How to dispute or remove a published row, and the record of what this project has already got wrong |
@@ -315,8 +396,7 @@ ADR in [docs/adr/](docs/adr/). No blank rows, no silent skips.
 
 | Standard | State |
 |---|---|
-| Code Quality | Applies: `make verify` runs six gates — `ruff check` (security `S` rules, `max-complexity=10`), `ruff format --check`, `mypy --strict`, pytest with a branch-coverage floor of 85, `uv lock --check`, and `pip-audit --strict` over the exported lockfile. Current: 668 tests passing and 4 skipped, 92.78% branch coverage, zero lint/format/type findings, lockfile in sync, zero known vulnerabilities (2026-09-06). Floors: Python >= 3.12 (`.python-version` pins 3.14), ruff >= 0.15, mypy >= 1.18, locked in `uv.lock`. Dev tooling is a PEP 735 `[dependency-groups]` group, so `uv sync` installs it and a published wheel never carries it. |
-| Security & Supply-Chain | Applies: the streaming, inspection, discovery, fetch, registry, comparison, and site path is standard-library-only; DuckDB is an optional lakehouse dependency ([ADRs 0002-0003](docs/adr/)) and the `anthropic` SDK an optional `ai` extra that only the narration layer imports ([ADR 0006](docs/adr/0006-ai-narration-outside-the-graded-path.md)). The lockfile, ruff `S` gate, HTTPS/redirect validation, bounded downloads, and SHA-pinned CI actions reduce the current surface. Hosted CodeQL (Python and Actions) and a checksum-pinned full-history gitleaks scan run on push, PR, and weekly schedule (`.github/workflows/security.yml`). `make verify` runs `pip-audit --strict` against the whole exported lockfile — every extra and the dev group — with no ignore list, so the audit runs on a laptop and in CI rather than only in CI. The lockfile-drift gate is `uv lock --check`, not `uv sync --frozen`: measured on a deliberately drifted project under uv 0.12.1, `uv lock --check` and `uv sync --locked` exit 1 and `uv sync --frozen` exits 0, because `--frozen` installs from the lockfile without reading `pyproject.toml` and so cannot see the two disagree. |
+| Code Quality | Applies: `make verify` runs six gates — `ruff check` (security `S` rules, `max-complexity=10`), `ruff format --check`, `mypy --strict`, pytest with a branch-coverage floor of 85, `uv lock --check`, and `pip-audit --strict` over the exported lockfile. Current: 1122 tests passing and 4 skipped, 93.20% branch coverage, zero lint/format/type findings, lockfile in sync, zero known vulnerabilities (2026-09-18). Floors: Python >= 3.12 (`.python-version` pins 3.14), ruff >= 0.15, mypy >= 1.18, locked in `uv.lock`. Dev tooling is a PEP 735 `[dependency-groups]` group, so `uv sync` installs it and a published wheel never carries it. || Security & Supply-Chain | Applies: the streaming, inspection, discovery, fetch, registry, comparison, and site path is standard-library-only; DuckDB is an optional lakehouse dependency ([ADRs 0002-0003](docs/adr/)) and the `anthropic` SDK an optional `ai` extra that only the narration layer imports ([ADR 0006](docs/adr/0006-ai-narration-outside-the-graded-path.md)). The lockfile, ruff `S` gate, HTTPS/redirect validation, bounded downloads, and SHA-pinned CI actions reduce the current surface. Hosted CodeQL (Python and Actions) and a checksum-pinned full-history gitleaks scan run on push, PR, and weekly schedule (`.github/workflows/security.yml`). `make verify` runs `pip-audit --strict` against the whole exported lockfile — every extra and the dev group — with no ignore list, so the audit runs on a laptop and in CI rather than only in CI. The lockfile-drift gate is `uv lock --check`, not `uv sync --frozen`: measured on a deliberately drifted project under uv 0.12.1, `uv lock --check` and `uv sync --locked` exit 1 and `uv sync --frozen` exits 0, because `--frozen` installs from the lockfile without reading `pyproject.toml` and so cannot see the two disagree. |
 | CI/CD | Applies: SHA-pinned workflows mirror `make verify` on Python 3.12 and 3.14, build distributions, and publish the site from committed data only. The publish job first re-derives the newest comparison from its committed assessments, manifest, and ingest evidence and requires a byte-for-byte match, then requires one rendered page per row in it; a generator that no longer reproduces its own published artifact cannot deploy. `make verify` runs the same derivation, but that is a separate workflow whose failure would not by itself stop a deploy, which is why the check is on both paths. |
 | Observability | Applies to the local batch shape plus a static published artifact: finalized run manifests and DuckDB `model_metric` rows retain counts, bytes, and wall time; the site is rebuilt from committed data with no availability objective declared. See [docs/ROADMAP.md](docs/ROADMAP.md). |
 | Accessibility | Applies as of the site, and now gated. `.github/workflows/accessibility.yml` runs Lighthouse over **every** page the render produced — enumerated from the build, not typed into the workflow — and requires 1.0 on accessibility, best-practices and SEO, a declared floor above the standard's 0.90. `make verify` runs the parts that need no browser: a contrast assertion over every declared text/background pair in the design tokens, and a heading-order check on every generated page. Two real defects were found and fixed when the gate was first pointed at the live site (`heading-order` on the index; a 4.28:1 finding chip on every file page with a warning). The remaining open obligation is the manual screen-reader pass, stated in [docs/RESPONSIBLE-TECH-AUDITS.md](docs/RESPONSIBLE-TECH-AUDITS.md). |
@@ -325,11 +405,11 @@ ADR in [docs/adr/](docs/adr/). No blank rows, no silent skips.
 | Quality & Metrics | Applies: metrics ledger in [docs/ROADMAP.md](docs/ROADMAP.md); every published number is measured or generated from committed data, never estimated. |
 | AI Development Measurement | Applies: this project is built AI-assisted and says so (see Provenance below). The outcome side is the metrics ledger in [docs/ROADMAP.md](docs/ROADMAP.md), where every published number is measured or generated from committed data rather than estimated. The diagnostic counters the standard names — sessions, tokens, share of generated code, acceptance rate — are not instrumented in this repository, and by the standard's own rule they would be observe-only if they were: they never gate a merge and they never rank a person. |
 | Documentation | Applies: README, `CHANGELOG.md`, `CONTRIBUTING.md`, `SECURITY.md`, `CITATION.cff`, ADR log ([docs/adr/](docs/adr/)), findings log ([docs/findings/](docs/findings/)). |
-| Incident Response | Applies: [SECURITY.md](SECURITY.md) names a private reporting channel, dated response targets (acknowledgement within 72 hours, triage and severity within 7 days), and the one operational incident this project can actually have — a fetched file found to contain individual-level data, which is reported to the publisher rather than analyzed. There is no deployed service and no on-call rotation. [docs/incidents/](docs/incidents/) carries the postmortem template, the four incident classes this project can actually have, and the severity meanings behind the `incident` / `sev1`-`sev4` labels; zero incidents to date is a count, not an exemption. |
+| Incident Response | Applies: [SECURITY.md](SECURITY.md) names a private reporting channel, dated response targets (acknowledgment within 72 hours, triage and severity within 7 days), and the one operational incident this project can actually have — a fetched file found to contain individual-level data, which is reported to the publisher rather than analyzed. There is no deployed service and no on-call rotation. [docs/incidents/](docs/incidents/) carries the postmortem template, the four incident classes this project can actually have, and the severity meanings behind the `incident` / `sev1`-`sev4` labels; zero incidents to date is a count, not an exemption. |
 | Data Governance | Applies: every input is a file its publisher is legally required to post publicly, and it carries prices, not patients. Retrieval records the source URL, provenance tag, fetch time, byte count, and content SHA-256, so a published grade traces back to the exact bytes it graded and the comparison is re-derivable from committed assessments, manifest, and ingest evidence. The datasets and their schemas are documented in [docs/DATA-LANDSCAPE.md](docs/DATA-LANDSCAPE.md), and the handling rule for a file that turns out to contain individual-level data is in [SECURITY.md](SECURITY.md). [docs/DATA-CARD.md](docs/DATA-CARD.md) is the standalone card, and [docs/RETENTION.md](docs/RETENTION.md) is the retention policy for the local blob cache, including the destroy-on-discovery order and the backups it explicitly cannot reach. |
 | Responsible-Tech Framework | Applies: [docs/RESPONSIBLE-TECH-AUDITS.md](docs/RESPONSIBLE-TECH-AUDITS.md) (grades files, never organizations or care; dated appendices for the grade-bias review, the site's accessibility scope, and a 2026-08-16 sweep that found three declarations the later work had made false and left published). |
-| Performance | Applies as of the site. The same Lighthouse job asserts a performance floor and a resource budget in which every non-document resource type is zero: no scripts, no external stylesheets, no fonts, no images, no third parties. Measured 2026-08-19 across all 45 pages: 1.0 performance, 52,404 bytes and one request on the heaviest page ([perf/baseline.json](perf/baseline.json)). The repository does contain one image, the Open Graph card in `assets/`, and it is outside this budget by construction rather than by exemption: no page references it, so no page load requests it, and the budget is asserted against Lighthouse's `resource-summary` audit, which counts what a page actually loads. The k6 latency rows of the performance standard are N/A: there is no server, only static files, and that reason is recorded in the baseline. |
-| Release & Versioning | N/A (pre-publication as a package: no tags, no downstream consumers; the site is a continuously rebuilt artifact). [docs/adr/0001-release-versioning-na.md](docs/adr/0001-release-versioning-na.md). |
+| Performance | Applies as of the site. The same Lighthouse job asserts a performance floor and a resource budget in which every non-document resource type is zero: no script files, no external stylesheets, no fonts, no images, no third parties. The one script on the pages is the inline Google Analytics 4 loader ([ADR 0009](docs/adr/0009-the-published-site-counts-visits-with-google-analytics.md)): it is not a request, it fetches nothing on the 127.0.0.1 the job audits, and on the published address it adds Google's gtag.js and GA's requests, outside the budget by the owner's decision. Measured 2026-08-19 across all 45 pages: 1.0 performance, 52,404 bytes and one request on the heaviest page ([perf/baseline.json](perf/baseline.json)). The repository does contain one image, the Open Graph card in `assets/`, and it is outside this budget by construction rather than by exemption: no page references it, so no page load requests it, and the budget is asserted against Lighthouse's `resource-summary` audit, which counts what a page actually loads. The k6 latency rows of the performance standard are N/A: there is no server, only static files, and that reason is recorded in the baseline. |
+| Release & Versioning | Applies: `v0.1.0` is the first signed tag. `.github/workflows/release.yml` verifies the tag's SSH signature against the committed `.github/allowed_signers`, requires the tag and `pyproject.toml` to agree and to be a non-pre-release version, requires a `CHANGELOG.md` entry for it, re-runs `make verify` at the tagged commit, and builds and hashes the distributions; it holds no signing key and no registry credential and creates no tag. The site remains a continuously rebuilt artifact and is not versioned with the package. [docs/adr/0008-release-versioning-applies.md](docs/adr/0008-release-versioning-applies.md) supersedes [0001](docs/adr/0001-release-versioning-na.md). |
 
 ## Provenance
 

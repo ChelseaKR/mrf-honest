@@ -1,13 +1,615 @@
 # Changelog
 
 All notable changes to this project are documented here, in the
-[Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format. The project is pre-release with
-no version tags yet; until the first dated release (phase 5 of
-[docs/IMPLEMENTATION-PLAN.md](docs/IMPLEMENTATION-PLAN.md)), entries are grouped by date.
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format. Entries before `0.1.0` are
+grouped by date rather than by version: they were written while nothing had been released, and
+they are left as they were written rather than retrofitted into versions that never existed.
 
 ## [Unreleased]
 
+### Added
+
+- **Whether cheap revalidation generalizes beyond the one origin PR #113 measured, checked at
+  ten more.** [docs/findings/cross-origin-conditional-revalidation-2026-09-14.md](docs/findings/cross-origin-conditional-revalidation-2026-09-14.md)
+  sends a real conditional `GET` at ten more real hospital origins, spanning the gzip/plain
+  encoding split. **9 of 10 measurable origins answered `304` and moved no body** — `chihealth.com`
+  (0 of 3, PR #113) is the outlier this sample found, not the rule. Two origins could not be
+  measured at all: one (`www.frederickhealth.org`) refuses an automated client outright, the same
+  class of finding as #99 at a different origin; the other's committed `mrf_url`
+  (`hospitalpricedisclosure.com`) now redirects to an error page, meaning a refresh there needs
+  re-discovery before it needs a conditional request.
+
+- **The published site counts visits with Google Analytics 4**, by the owner's decision of
+  2026-09-17 ([ADR 0009](docs/adr/0009-the-published-site-counts-visits-with-google-analytics.md)).
+  `src/mrf_honest/analytics.py` holds the ID, `G-57DWCFVLWQ`, and renders one inline loader
+  that `mrf-honest site` puts in the head of every page by default (`--ga4-id ""` turns it off;
+  `render_site()` without an ID is byte-for-byte what it was). The loader loads nothing off
+  `https://chelseakr.github.io/mrf-honest/`, under Global Privacy Control or Do Not Track, or
+  after the new footer "Opt out of analytics" button (localStorage key
+  `mrf-honest:analytics-opt-out`). Google signals and ad personalization are off, the ad consent
+  signals are denied, `analytics_storage` is denied by default in the EEA, the UK and
+  Switzerland, and `page_location` is the origin and path only. Every footer says so and links a
+  new `privacy/` page, which says plainly that a page's address names the hospital file being
+  read. `tests/test_analytics.py` runs the loader under Node, with negative controls. The README,
+  the metrics ledger and `perf/resource-budget.json` no longer say the site has no script, and
+  `docs/RESPONSIBLE-TECH-AUDITS.md` carries a dated appendix.
+
 ### Fixed
+
+- **`v0.1.0` is now an actual GitHub Release, and the README's "there is no release yet" line
+  was left behind when it was cut.** `release.yml` verifies the signed tag, re-runs `make verify`
+  at the tagged commit, builds the distributions and uploads them as a run artifact for the
+  maintainer to inspect — by design it stops there and does not call the Releases API, so the tag
+  existing and being signed was not the same claim as a release existing
+  (`gh api repos/.../releases` returned zero after the tag push). The two wheel/sdist files
+  attached to the release are byte-identical to the ones that artifact held, verified against the
+  sha256 digests the workflow itself printed. Nothing here is published to PyPI or to any MCP
+  registry, which is a different, still-true claim the README now states separately from the
+  release one.
+
+## [0.1.0] - 2026-09-13
+
+### Security
+
+- **A `workflow_dispatch` input reached a bash script by substitution, in the one workflow that
+  exists to be trusted.** `.github/workflows/release.yml` assigned the dispatched tag with
+  `tag="${{ github.event.inputs.tag || github.ref_name }}"` inside a `run:` block. An expression
+  inside `run:` is textual substitution **into the script** before bash sees a token, which is the
+  documented command-injection shape; an `env:` entry makes the value a variable the shell can
+  only read. All three interpolations in that workflow now go through `env:` — the input itself
+  and, one hop later, the two uses of `steps.resolve.outputs.tag`, which is the same dispatched
+  value and would have left the defect standing twice.
+
+  The exposure was bounded and is stated rather than dramatized: `workflow_dispatch` on a public
+  repository requires write access, and the tag's signature is verified against
+  `.github/allowed_signers` two steps further down. Bounded is not absent, and this is the
+  workflow that mints releases.
+
+  Demonstrated rather than asserted, on copies of the old and new shapes with the dispatched value
+  `v1"; touch <path>; echo "`: the old form **executed the `touch`**; the new form printed the
+  whole string as `tag` and created nothing. `tests/test_release_workflow.py` now fails if any
+  expression is interpolated into any `run:` block of that workflow, and, in the other direction,
+  if the dispatched tag stops reaching the script through `env:` at all.
+
+### Added
+
+- **The first release.** `v0.1.0` is the first signed tag this project has ever had.
+  [ADR 0008](docs/adr/0008-release-versioning-applies.md) supersedes ADR 0001's
+  Release & Versioning **N/A** declaration, whose own "revisit if" clause had fired on every
+  count: the repository is public, the site is published from it, and `action.yml` and
+  `.pre-commit-hooks.yaml` are surfaces built for *other* repositories, both of which told a
+  consumer to pin a ref that did not exist. Documenting a pinning discipline while shipping
+  nothing to pin asks a consumer to do the careful thing and then leaves the careless thing as
+  the only option — which matters here more than usual, because the grade is a pure function of
+  bytes, an `as_of` date and a policy fingerprint the commit determines, so a floated branch
+  floats the grading policy.
+
+  `docs/before-you-post-it.md` and `.pre-commit-hooks.yaml` now name `v0.1.0`.
+  `CITATION.cff` gains `version` and `date-released`, which ADR 0001 had it omit. Nothing is
+  published to any index: `release.yml` has no upload step and no registry credential, and
+  adding one is a separate decision. The site is **not** versioned with the package — it stays a
+  continuously rebuilt artifact of committed data, and what dates a published grade is the
+  cohort's `as_of`.
+
+  The dated headings further down stay grouped by date. They were written while nothing had
+  been released, and retrofitting them into versions that never existed would be a fabricated
+  history of releases.
+
+- **What a refresh actually costs, measured rather than assumed.**
+  [docs/findings/what-a-re-collection-actually-cost-2026-09-12.md](docs/findings/what-a-re-collection-actually-cost-2026-09-12.md)
+  derives, from the two committed collections and nothing else, where the bytes of a
+  re-collection go. **Only 4 of 42 files' bytes changed**, and 22 of 42 subjects answered HTTP
+  304 and moved no body at all — and the re-collection still cost **62%** of what a cold pass of
+  the same 42 would have cost (2,984,626,191 wire bytes against roughly 4.81 GB). **43.7% of it
+  moved content this project already held byte for byte**, the largest single bucket being
+  733,080,497 bytes for two files whose URL rotated its query-string credential while their
+  `ETag` and `Last-Modified` stayed identical across the rotation. A "7% of files change so 7% of
+  the bytes move" reading of a monthly refresh is wrong by an order of magnitude, and the
+  difference is the whole input to the tier decision. Every figure is re-derived by
+  `tests/test_published_claims.py` from the registries, so the document cannot drift from them.
+
+- **`mrf-honest census`: count the files discovery has already located, beside the files the
+  cohorts graded.** A cohort answers how good a file is. Nothing was asking the cheaper and much
+  larger question — *which files does this project know the address of?* — and the answer turned
+  out to be **550 distinct files at 49 origins, against 41 graded**, with no request made to
+  learn it.
+
+  That gap matters because of which half is expensive. `docs/SAMPLING-FRAME.md` calls resolving a
+  facility to the website hosting its file "the one manual step in the frame, and the frame's
+  weakest joint", and it was wrong on ten of the first forty-eight candidate origins. One
+  retrieved `cms-hpt.txt` resolves that joint for **every location it names** — 49 documents name
+  656 locations — for a few kilobytes. Grading is the cost that scales per file, at a mean of
+  182 MB. So the affordable shape is to locate broadly and grade on demand, and this verb is the
+  first half of it. 406 of the 550 are a candidate for a profile this project already implements.
+
+  Five refusals are enforced rather than documented. A URL extension is a **candidate**, never a
+  determination — the 2026-08-19 run spent 669,479,338 bytes learning that four extensionless
+  targets were CSV, which is why `probe` exists. A URL that carries no usable extension is its
+  own population and is never folded into "a format we do not grade". An origin that produced no
+  body is never an origin that publishes nothing, and is kept **apart** from an origin that
+  answered with a body no location could be read out of — three of those carry the parser's own
+  "served HTML rather than a cms-hpt.txt document", and merging them would say a server refused a
+  request it answered. "Not graded here" is stated as this project's collection scope. And **no
+  share is computed against the 3,024-hospital frame**: the frame enumerates facilities, this
+  enumerates locations named by documents, and the join does not exist — a test asserts every
+  population is an integer so a share across it cannot appear. Contact details gathered during
+  discovery are never carried, which `docs/CORRECTIONS.md` promises and a test asserts over the
+  whole serialized document.
+
+  One discriminator was added after the fact and is worth naming: on a checkout with **no**
+  discovery registry the first version reported "17 graded row(s) match no located file", having
+  read nothing. The census now carries a `status`, and that one count is `null` rather than `0`
+  when no document was read, while every count of something that really was examined stays zero.
+
+  Like `mrf-honest systems`, this is a command over local operator evidence and not published
+  output, because the discovery registry it reads is deliberately gitignored. The write-up is
+  [docs/findings/what-discovery-already-located-2026-09-12.md](docs/findings/what-discovery-already-located-2026-09-12.md).
+  `scorecard.public_url` and `scorecard.text_digest` are exported under public names so that
+  anything publishing a URL uses the project's one rule for it.
+
+- **The release trust root is committed, so a signed tag can be verified at all.**
+  `.github/allowed_signers` now carries the public half of the maintainer's release signing key
+  (`ssh-ed25519`, `SHA256:Kz1JPRtDNVmRa1tD/buR0/iOGDSwEa4P4iu3DN+bElk`) — the same trust root
+  `tods-validate` already publishes. `.github/workflows/release.yml` refuses to verify a tag
+  without it and stops at its second step, so until now no release could be cut and no tag could
+  be checked, which is the literal content of "Pre-release". Nothing private is committed and no
+  workflow gains a credential: the key that signs stays with the maintainer, and signing the tag
+  remains the one act `docs/EXPANSION-PLAN.md` phase 14 names as hers alone.
+
+  `tests/test_release_workflow.py` used to assert that this file **did not exist**, which was
+  true while no release had been prepared and became the thing standing between this repository
+  and its first one. It now parses every line as OpenSSH's `allowed_signers` format and decodes
+  the key material — the SSH wire format begins with a length-prefixed copy of the algorithm
+  name, so a plausible base64 blob that is not a key fails in the test suite rather than at a
+  release. Shown to bite on a placeholder principal, a placeholder key, a valid-base64 blob
+  declaring the wrong algorithm, and on the file being removed.
+
+### Changed
+
+- **Both cohorts re-collected on 2026-09-12; the published grades were twenty-four days old.**
+  The same 17 JSON and 25 CSV subjects, the same retrieval, assessment and grade policy
+  fingerprints, one serial operator-invoked run per profile. Nothing was re-drawn: the frame is
+  the committed 2026-08-19 draw, named rather than re-run, so the two collections describe the
+  same hospitals and `mrf-honest diff` can relate them row for row. Every target's URL was
+  resolved again from its own origin's `cms-hpt.txt`, retrieved the same day, rather than
+  replayed from the earlier cohort -- a re-collection that reuses last time's URL cannot see a
+  hospital move its file.
+
+  Two of 42 grades moved, and neither moved because of anything this project did. **Rio Grande
+  Regional Hospital F -> A**: the URL its `cms-hpt.txt` published on 2026-08-19 answered
+  HTTP 409, *"Public access is not permitted on this storage account"*; its document now
+  publishes a working URL for the same file, and the 631 MB v3.0.0 document behind it grades A.
+  **Minden Medical Center D -> A**: it republished under the current CSV template, taking
+  81,961 payer-without-charge instances, 4,785 invalid methodology values and a `2.0.0`
+  version declaration with it -- which is the whole reason the CSV cohort's headline figure
+  fell from 118,411 to 36,450. Three JSON subjects moved to a URL that publishes as the same
+  string (a rotated Azure shared access signature inside the redacted query), and one origin,
+  `msh.ms.gov`, stopped being retrievable at all while the file it used to declare is still
+  served. [docs/findings/what-moved-between-two-collections-2026-09-12.md](docs/findings/what-moved-between-two-collections-2026-09-12.md)
+  is the write-up.
+
+### Fixed
+- **Five documents blocked scheduled collection on work that shipped four weeks earlier.**
+  `.github/workflows/pages.yml`, `docs/ROADMAP.md`, `docs/IMPLEMENTATION-PLAN.md`,
+  `docs/PHASE-2-FINDINGS.md` and `docs/PHASE-3-FINDINGS.md` all said broad scheduled retrieval
+  was waiting on the `robots.txt` policy, per-host pacing and `Retry-After` work. That work
+  shipped on 2026-08-15 (`src/mrf_honest/politeness.py`), with no override path, and the issue
+  naming it is closed. Each of those documents now names the gate that is actually left — the
+  service/job tier declaration that `docs/EXPANSION-PLAN.md` phase 14 records as an owner
+  decision about what this project promises to keep running, and explicitly not a file an agent
+  should author. The two dated findings documents keep their original sentence with a dated
+  retirement note beside it, because they record what was unproven on the day they were written.
+  A gate in `tests/test_published_claims.py` fails if any of the three live documents restates
+  the retired blocker, and is shown to bite on both of the sentences that used to stand.
+
+- **The ingest memory ceiling was called "documented" and was not, and 256MB cannot load a real
+  hospital file.** The README named the default DuckDB memory limit as "an operator setting,
+  documented"; nothing in `docs/`, this file or the README stated a working value, so the
+  2026-09-12 re-collection met the ceiling as a DuckDB traceback -- `Out of Memory Error: failed
+  to allocate data of size 100.3 MiB` at the Parquet export, on CHI Health Lakeside's
+  138,540,999 source bytes -- rather than as a setting somebody chose. `docs/PHASE-2-FINDINGS.md`
+  now records what was measured at which size: the 256MB/two-thread figures in that document are
+  a one-file 2026-08-09 acceptance against 64,828,148 bytes, and all twelve files the 2026-09-12
+  JSON cohort loaded (6,713,916 to 630,969,424 source bytes) ingested at `6GB` and four threads.
+  The failure also says which kind of failure it is now: an out-of-memory error carries the
+  configured limit, the thread count and the sentence that this is an operator setting and not a
+  defect in the file or the pipeline. Only that failure -- annotating an unrelated exception with
+  memory advice would send the next reader after a cause that is not the cause. Nothing a grade
+  depends on is involved: warehouse evidence is not a grading input in either direction (ADR
+  0005).
+
+- **`systems` fell back to an older discovery record without saying a newer attempt had failed.**
+  The reconciliation runs against the newest `cms-hpt.txt` record that *succeeded*, which is
+  right -- a document retrieved last month still says what that origin listed last month. What it
+  did not say is that a later attempt was made and produced nothing, and a stale record and a
+  current one rendered identically apart from their dates. Observed on the 2026-09-12 CSV
+  re-collection: `msh.ms.gov`'s `robots.txt` began answering HTTP 301, which RFC 9309 § 2.3.1.4
+  makes a complete disallow, so its `cms-hpt.txt` could not be retrieved at all that day -- and
+  the report rendered its 2026-08-19 record under a header line saying all 25 graded rows were
+  declared by a listed location. Each record now names the later attempt, its status and its
+  stated reason; `coverage` counts the rows resting on one as their own subset of the rows a
+  listed location declares, rather than as a separate class or as nothing; and the document
+  version moves to 2. A later attempt that *parsed* is not reported -- it refreshed the record --
+  and a failure dated after the cohort is never read back onto it. On a cohort nothing was
+  reconciled against, the new count is `null` rather than `0`, because 0 would read as "checked,
+  all current".
+
+- **A grade carried its date and never its age, and the page never stated a "today" to subtract
+  it from.** Every published row has always carried `as_of`. A date on a static page is not an
+  answer to "is this still true?": the reader has to know what day it is and do the arithmetic,
+  and the one number that would have made the 2026-08-19 cohorts' staleness obvious -- twenty-four
+  days -- appeared nowhere. Each cohort section, each index card and each file page now states how
+  old its measurement is, computed from the row's own `as_of` and the date the page was built,
+  with **both dates named** so the subtraction is checkable rather than asserted. Past
+  `STALE_AFTER_DAYS` (30) a cohort says in words that it may no longer describe the files at
+  those URLs. The footer used to say "Generated <date>" for the comparison's date, which reads as
+  when the grades were taken; it now separates the build date from the comparison's.
+
+  Deliberately a published threshold and not a build gate: a calendar-driven check turns `main`
+  red on a day nobody committed anything, and trains a reader to ignore it. What *is* gated is
+  the mechanism -- `tests/test_site.py` requires every rendered grade to carry its own age, and
+  requires the age to move when the build date moves, which a hard-coded sentence would not.
+  An `as_of` that cannot be parsed renders the stated absence and **never** zero: "measured
+  today" is the most flattering possible reading of a date nobody could read. A cohort dated
+  *after* the build is reported as that rather than clamped, because a future date otherwise
+  satisfies a freshness check forever.
+
+- **A read that stopped published its running totals under "What the file contains".** When a
+  document cannot be streamed to the end -- a truncated transfer, a parse error, a web page
+  served where a file was asked for -- the inspector keeps the counts it had reached and records
+  `inspection_scan_completed: false` beside them. The grade is `F` for it and the grade's own
+  sentence names the failure; the counts table next to it rendered a partial reader's totals in
+  the same shape, the same table and the same confident commas as a file that was read to the
+  end. `dataset.csv` carried the completeness flag in the row beside those counts; the page
+  carried nothing. The heading is now "What the read reached before it stopped" and the block
+  says the figures are a floor, not a count of what the file holds.
+
+- **A data contract rejected a file and the page said nobody had tried to load it.**
+  `LakehouseScopeRefusal` already carried its own evidence document, for the stated reason that
+  "a refusal that only ever existed as a process exit code cannot be stated". A `ContractError`
+  -- the *other* way an ingest ends without a snapshot -- did exactly that: it reached the
+  operator as an exit code, `compare` had no record to attach, and the file page rendered "No
+  warehouse ingest was recorded for this file", which is the sentence it also shows for a file
+  nobody ever tried to load. Found on the 2026-09-12 re-collection: two republished UC Health
+  files violate `stg_modifier_payer.unique_canonical_payer_plan` on 40 rows each, and the only
+  published trace was that absence.
+
+  `LakehouseContractFailure` now carries the source file id and every violation, `ingest` emits
+  it as an evidence document in the same shape a refusal produces, and the file page states it
+  with the model, rule, row count and message. The two statuses stay distinct because they say
+  opposite things: a refusal is a limit of what this project implements and is never a finding
+  about the file; a contract failure says the verified body carries rows a declared invariant
+  forbids. Neither touches the grade -- warehouse evidence is not a grading input in either
+  direction. The exception subclasses `ContractError` as well, so every caller relying on "a
+  contract violation fails the build rather than warning" is unchanged. `COMPARISON_VERSION` is
+  4: a version-3 reader would take a present record whose status is not `refused` for a
+  completed load. Every committed comparison was regenerated at version 4 from its own
+  unchanged inputs; no grade, date or assessment moved.
+
+- **`mrf-honest diff` announced a URL change and then printed the same URL twice.** A published
+  `requested_url` has its userinfo, query and fragment redacted while the digest beside it covers
+  the exact URL, so two genuinely different URLs can publish as the same string -- which is what
+  a storage account does every time it rotates an access signature, and what three subjects of
+  the 2026-09-12 JSON cohort did. The comparison has always read the digests and has always been
+  right. The document carried only the strings, so neither a reader nor a machine consumer could
+  see what the tool had seen. `subject_url` now carries `before_sha256`, `after_sha256` and
+  `redacted_difference`, and the report names the digests and says the difference lies inside the
+  redacted part (`diff_version` 2).
+
+- **The sampling-frame gates checked one of three published cohorts, and told the other two
+  they predated a frame they name (#95).** Both gates resolved their frame from the
+  comparison's *filename* -- `<prefix>.frame.json` -- so `2026-08-19-csv.comparison.json`
+  looked for a file that does not exist and was skipped with the reason
+  "predates the sampling frame". It does not predate it: its own document names
+  `data/frames/2026-08-19.frame.json` under `collection.sampling_frame.record`, was drawn
+  from it, and records the draw. A failed lookup was rendered as a fact about the data,
+  inside a gate written to catch exactly that.
+
+  - The frame is now the one the comparison **names**. The seeded-draw gate examines 2 of 3
+    published comparisons rather than 1, and additionally holds each comparison's own stated
+    seed, sample size and eligible-identifier digest to the record it names -- so a cohort
+    that names a frame it was not drawn from fails instead of being re-derived against the
+    wrong draw.
+  - A named frame record that is **not committed** now fails rather than skipping. It is the
+    one state where a skip and a pass are the same output.
+  - The per-facility accounting gate stays scoped to the cohort the frame's `attempts`
+    describe, and says so, naming the sibling. `attempts[].detail` is a
+    `hospital-json-v3-2026-08-19` slug, so pointing it at the CSV sibling unchanged fails 48
+    of 48 times, correctly and uselessly. The deferral is **checked**: a test resolves
+    `test_every_drawn_facility_is_accounted_for_across_both_profile_cohorts` by name and
+    requires the named sibling to be published and itself examined, so deleting or renaming
+    the covering gate fails rather than opening a hole.
+  - `tests/frame_coverage.py` prints both gates' coverage in the terminal summary of every
+    run -- how many published comparisons each examines, out of how many exist -- with every
+    unexamined cohort named and its own reason stated. Four structural refusals hold it up
+    (every comparison classified from a closed vocabulary, no unresolvable named record, a
+    deferral that names a real covering gate, and a non-vacuity floor of one). No number a
+    human maintains: `docs/SAMPLING-FRAME.md`'s two figures are re-derived by
+    `test_this_document_states_the_coverage_the_frame_gates_actually_have`.
+
+- **The roadmap promised a recovery this code does not have (#80).**
+  `docs/ROADMAP.md` said of a warehouse killed at the instant DuckDB creates
+  `warehouse.duckdb` that "it is not permanent; a re-run recovers it". Measured on the same
+  code: it is permanent. `_connect` is a bare `duckdb.connect`, nothing detects an invalid
+  database file and nothing removes one, so a re-run over that warehouse raises and stops.
+
+  **The sentence survived a measurement in this repository's own suite.** Nothing related the
+  paragraph to the code, and the only thing that ever disagreed with it was a sampled test
+  failing at random: `test_a_killed_run_can_be_re_run_to_completion` asserted unconditional
+  recovery at every marker, passed most runs because the kill usually lands before any bytes
+  are written -- in which case the file is *absent* and the re-run is ordinary -- and failed
+  in CI on 2026-09-06, on a pull request whose entire diff was one line of
+  `.github/workflows/pages.yml`.
+
+  - The paragraph now states what is true, and records why the wrong version survived.
+  - The sampled test reads the state the kill actually produced and asserts the outcome that
+    state has. That is not a weakened assertion: every stage still has to reach a named
+    outcome, an invalid database is still only permitted at the one marker that races the
+    header write, and the refusal branch asserts that nothing was left claiming otherwise.
+    The invariant the old sentence wanted is held deterministically by
+    `test_a_valid_database_left_by_a_kill_re_runs_and_an_invalid_one_does_not`, which
+    constructs both sub-cases rather than racing for them. The branch's expiry is written into
+    its docstring.
+  - A new gate, `test_the_roadmap_does_not_promise_the_recovery_this_code_does_not_have`,
+    **measures the behavior by running it** and then requires the document to carry exactly
+    one of two verdict sentences -- the one the measurement supports. Both directions, so the
+    day #80 is settled it is the other verdict the paragraph has to carry.
+  - The first version of that gate was the wrong shape and is worth recording: it forbade the
+    words the old claim used, and then fired on the *corrected* paragraph, because a paragraph
+    that records its own correction contains the sentence it is correcting. Gating on a
+    verdict sentence, and requiring exactly one of the two, is what survives a rewrite that
+    narrates the history.
+
+  **This does not settle #80.** Whether an invalid warehouse database should be removed
+  automatically or refused with a named, actionable error is a durability judgment, and the
+  issue stays open for it.
+
+### Added
+
+- **Two archive bounds no test could see, and a refusal about bytes nobody read.** Both found by
+  re-checking the live follow-ups in `docs/PR-TRIAGE.md` against `origin/master` by execution.
+
+  `MAX_MEMBERS = 64` was pinned by nothing: the only test of the cap builds
+  `range(MAX_MEMBERS + 1)`, a fixture always exactly one past whatever the bound happens to be,
+  so `MAX_MEMBERS = 4` and `MAX_MEMBERS = 10000` each left all 21 tests of that module passing.
+  `MAX_MEMBER_EXPANSION_RATIO = 200.0` was pinned in one direction only — raising it to a million
+  fails, and *lowering* it to `4.0` was silent, which is the direction that refuses ordinary CMS
+  CSV as an archive bomb and reads as the publisher's fault. Both are now pinned against
+  literals, on both sides, with the behavioral halves planted separately from the constants so a
+  changed comparison is caught as well as a changed number.
+
+  **And the refusal reason was a claim about contents made without opening them.** `_choose`
+  skips any member whose name does not end in `.json` or `.csv` *before* sniffing, so a
+  CMS-shaped CSV stored extensionless — a shape this project publishes four of in its own
+  committed draw — came back as "no member is a document this project has a profile for" with its
+  bytes unread. The prefilter stays, because the sniffer classifies a CSV and a README alike as
+  `text` and dropping the name would make a document-beside-a-readme archive ambiguous; what
+  changed is that the stated reason now separates the members that were examined from the members
+  that were not, and names the second set. **Nothing about which members are accepted changes.**
+  The `_GRADEABLE_SUFFIXES` comment, which claimed "the leading bytes decide", is corrected to
+  say what the code does.
+
+  **A third instance of the same shape, in the published confidence intervals.** `Z_95` was
+  pinned by nothing: `Z_95 = 1.0` and `Z_95 = 2.5` each left all 31 tests of
+  `tests/test_statistics.py` passing. Every existing test of the interval is a *property* — it
+  brackets the estimate, it stays on the scale, it rejects an empty denominator — and every one
+  of those holds for any `z`. A width is not a property, so nothing saw it, while every published
+  `statistics` block labels the result 95%. At `z = 1.0` the interval for 5 of 10 is
+  (0.3492, 0.6508): a 68% interval published under a 95% label. The width is now pinned against
+  the standard tabulated Wilson values, checked independently against the published closed form
+  rather than against this module's own arithmetic.
+
+- **The two sub-cases of the `"database opened"` kill are now measured every run instead of
+  sampled by luck** (the third option in #80, which needs none of that issue's durability
+  judgment). The crash matrix could previously say only "the warehouse database opened or it
+  did not"; it now names the state -- `absent`, `valid`, `invalid` -- for every stage of the
+  sweep, and two new tests construct the recoverable and unrecoverable states by hand rather
+  than racing for them, so the difference between them is exercised on every run.
+
+  **Measured, and it corrects the analysis in #80.** That issue reasons that a kill leaving zero
+  bytes on disk is benign because "`duckdb.connect()` initializes it happily". On DuckDB 1.5.5 it
+  does not: a `warehouse.duckdb` that exists and is not a valid database is refused whether it
+  holds zero bytes, four bytes, or 4 KiB of nulls. The recoverable sub-case is therefore not
+  "the file is empty" but "the header write finished before the kill", and the unrecoverable
+  window is the whole of the time the file exists without a complete header rather than a sliver
+  of it. `docs/ROADMAP.md`'s durability sentence is wrong by more than the issue thought, and how
+  to repair it is still the open decision recorded at #80.
+
+  Nothing was widened or retried: `test_a_killed_run_can_be_re_run_to_completion` is untouched
+  and still fails when a kill lands in the invalid window, which is correct.
+
+- **A `diff` verb, so "is this file getting better?" has an answer that cannot blame a hospital
+  for a change this project made to itself.** Each cohort was a dated snapshot with no relation
+  to the one before it. `mrf-honest diff <before.comparison.json> <after.comparison.json>`
+  compares two published cohorts subject by subject, in text or JSON, with `--slug` to restrict
+  it to one file and `--fail-on-regression` to make it a gate.
+
+  **The comparison is gated in three independent layers, one per fingerprint the cohort already
+  carries.** `retrieval_policy_fingerprint` governs the bytes (`content_sha256`, `size_bytes`,
+  retrieval coverage); `inspection_fingerprint` governs the document (`template_version`,
+  `last_updated_on`); `assessment_policy_fingerprint` **and** the presentation grade's
+  `policy_fingerprint` together govern the judgment (the grade and the finding list). A layer
+  whose fingerprint moved is reported as `policy_changed` with both fingerprints and is not
+  compared at all — not compared and found equal, which is the reading a single yes/no would
+  have produced. Diffing the two committed JSON cohorts exercises exactly this: the six subjects
+  graded in both are byte-identical, and the assessment policy moved between them, so the bytes
+  compare and the findings do not.
+
+  **Three absences are stated instead of scored.** A subject in only one of the two cohorts is
+  reported as that and nothing else — these are drawn samples, and a facility drawn once has said
+  nothing about its file. A move between a letter and `NOT_GRADED` leaves the regression
+  undetermined, because `NOT_GRADED` is a limit of this tool and scoring it as a worse letter
+  would publish this project's failure as the hospital's. A location graded at a *different* URL
+  closes every layer for that subject, because two files are not one file that changed.
+
+  **`--fail-on-regression` exits 2 when no subject's judgment layer was comparable.** Returning
+  0 there would be a gate that reports a clean run over zero comparisons.
+
+- **A `systems` verb: what a hospital system's `cms-hpt.txt` lists, against what this project
+  graded.** CMS's convention is one machine-readable file per hospital location, and a system's
+  discovery file names every location with the file that serves it. The cohort grades files, and
+  the README's rule is that a grade never becomes a statement about a hospital — so "fifteen
+  locations listed, one of them with no file at all" had nowhere to live. `mrf-honest systems
+  --assessments <cohort>.assessments.jsonl --discovery <registry>.jsonl` is that separate place.
+  It reads committed evidence, opens no socket, derives no grade, and does not touch the
+  published comparison document.
+
+  **The join is `sha256(mrf-url)` against the row's `requested_url_sha256`, and it has to be.**
+  A published row's `requested_url` has its query string redacted; the digest is of the raw URL.
+  Measured on the committed CSV cohort, Bay Area Hospital and Taylor Regional Hospital publish
+  through one vendor endpoint that differs only in a query parameter, so a join on the redacted
+  string reports each system as listing the other's file. The exact-digest join matches all 48
+  committed rows across the three cohorts and produces no cross-publisher match.
+
+  **Three absences kept apart.** A listed location this cohort did not grade is reported as this
+  project's sampling scope with the reason, never as a missing file. A listed location that names
+  itself and carries no `mrf-url` is a publication defect and is counted — WVU Medicine lists
+  Harrison Community Hospital that way. A parsed block carrying *neither* a name nor a URL is not
+  a location at all: UPMC's file opens with an ASCII-art banner and instructions for a human
+  reader, and counting those made UPMC publish 42 locations instead of 38, four of them
+  "listed with no mrf-url" — a defect in a named system invented out of this project's parser.
+
+  **One file for several listed locations is stated, not flagged**, because the dictionary defines
+  `location_name` as an array; what that makes checkable is whether the file's own array covers
+  the locations pointed at it. Element differences across a system's files are all published with
+  both files named, and only `version` and `last_updated_on` are *counted*: the rest are defined
+  per location by the dictionary, and counting `license_information` would have made Stanford
+  Health Care's license beside Stanford Health Care Tri-Valley's into a finding against a system
+  publishing correctly.
+
+- **A receipt, a `verify` verb and a badge, so "every published grade can be re-derived from its
+  source" is a procedure rather than a sentence.** The README has made that claim since the first
+  cohort. It was true and it had no command: a reader who wanted to check it had to reimplement
+  the grader. `site` now writes `api/receipt/<slug>.json` and `badge/<slug>.svg` for every
+  published row, and `mrf-honest verify <receipt> <file>` re-hashes the bytes and re-runs the
+  policy version the receipt names, offline, opening no socket.
+
+  **Seven of the 48 published rows say plainly that they cannot be re-derived.** Four were never
+  retrieved and three stopped mid-stream, so no graded bytes exist for anybody — this project
+  included — to reproduce. Those rows still get receipts, because a missing receipt reads as an
+  oversight, and the receipts carry `re_derivable: false` with the reason; `verify` refuses them
+  by name. The alternative is the defect this design exists to avoid: a receipt that looks like
+  every other receipt, a `verify` run against whatever file the reader has, and the inevitable
+  hash mismatch published as though a named hospital's file had changed — out of the fact that a
+  download failed.
+
+  **Exit 2 is never evidence about the file.** A hash mismatch, an unreadable `receipt_version`,
+  a policy version this build no longer has, and a not-re-derivable receipt are all "the check
+  could not be performed", kept apart from exit 1, "the bytes match and something differs". The
+  policy case is the sharpest: reporting a moved *policy* as a difference would blame a
+  hospital's file for a change in this repository.
+
+  `missing_exports` — which the deploy path calls, not just `make verify` — now fails when a row
+  has no receipt or badge, and when a receipt states a grade or a content hash the published row
+  does not. Checking only that the file exists is the easy half. `receipts_for` refuses a
+  duplicate slug for the same reason `render_site` does: silently overwriting would publish one
+  cohort's receipt at another cohort's URL, and a reader following the link would be told the
+  hospital's file had changed.
+
+  The badges are SVG documents no page embeds, so the site's zero non-document byte budget is
+  unchanged and the Lighthouse job — which enumerates `*.html` — audits exactly the pages it did
+  before; a test asserts `perf/baseline.json` still counts them correctly. Each badge carries
+  `role="img"` and a `<title>` holding the whole claim (grade, hospital, date, policy version,
+  and that it certifies nothing), and every grade's fill is asserted against its own text at
+  4.5:1 so a palette change made for the page cannot take the badge below the threshold
+  unnoticed. `docs/verify-a-grade.md` is written for the person doing the checking. Closes #70.
+- **`make metrics`: the Code Quality figures written from a run, not typed.**
+  `test_the_published_suite_size_is_the_suite_that_actually_collects` already held the README
+  row and the metrics ledger to the size pytest collects, so the *total* could not go stale.
+  The split could: "736 passing and 4 skipped" and "740 passing and 0 skipped" satisfy that
+  check equally, and the four skips here are runtime `pytest.skip()` calls whose conditions
+  depend on which cohorts are published and, in one case, on whether a remote is reachable --
+  nothing offline can tell you how many fired. `tools/publish_metrics.py` takes the split, the
+  branch-coverage percentage and the date from one complete run and writes both documents
+  together. It derives the passing count as `collected - skipped` rather than reading
+  `N passed`, which is what lets it repair the very claim whose staleness makes the suite red,
+  and it refuses to write anything from a run that failed for any other reason: a run that did
+  not finish has no passing count, and publishing one would be an absence rendered as a
+  measurement.
+- **`test_the_two_documents_state_one_measurement`.** The README row and the ledger row are one
+  measurement stated twice, and nothing held them to each other on the split, the percentage or
+  the date -- only on a total each satisfied independently. `docs/CORRECTIONS.md` records that
+  going wrong ("A ledger row said 262 tests when the merged stack had 324; the number came from
+  one branch"). It is checked now.
+
+- **`mrf-honest gate`, a GitHub Action and a pre-commit hook: the same inspector, run by the
+  publisher, before the file is posted.** Every finding this project has published was visible
+  in the file on the day it went up -- the `3.0` where CMS specifies `3.0.0`, the 118,411 payer
+  names with no charge beside them, the seven-month-old publication date. None of it needed a
+  network fetch to see. `gate` reads local files under the *committed* presentation-grade policy
+  (`cohort.grade_local_evidence`, the same rule table and the same fingerprint the site prints,
+  applied to the four local dimensions -- retrievability is a fact about a URL and a local file
+  has never seen one) and returns an exit code: `0` clear, `1` a threshold the caller set was not
+  met, `2` nothing could be graded. `--profile auto` reads the leading bytes and *refuses* rather
+  than guessing when they are neither JSON nor CSV. Shipped as `action.yml` (annotations on the
+  file with each finding's citation, plus a job summary) and `.pre-commit-hooks.yaml`, with
+  `docs/before-you-post-it.md` written for compliance staff rather than engineers.
+
+  Three boundaries are load-bearing and are tested rather than merely documented. **A refusal is
+  not an F**: a truncated file, a ZIP holding a document rather than the document, and bytes that
+  match no profile all exit `2` and carry no letter, because "I could not read this" is a claim
+  about the read and an `F` is a claim about the file. **An absence is named, never scored**: a
+  `NOT_ASSESSED` dimension produces no finding, so no `--fail-on` severity can see it at any
+  setting; it lowers the grade, so `--min-grade` can, and the report and summary list those
+  dimensions by name so a clean severity run can never be read as "nothing was missed".
+  **Clearing the gate certifies nothing**, said in the summary every time and asserted with the
+  disclaimer stripped out first, so its own presence cannot be what makes the test pass.
+  `grade_local_evidence` raises on an unrecognized profile instead of falling back to the JSON
+  policy -- the substitution that would grade a CSV file against the JSON dictionary and publish
+  the result as the file's own defects.
+
+  A new `publisher-gate` workflow runs both packagings against fixtures written at run time (this
+  repository ships no sample MRF and will not), and asserts the two *failing* cases as well as
+  the passing one, so the workflow cannot go green through a change that made the gate exit 0 on
+  everything. `.pre-commit-hooks.yaml` uses `types_or`, not `types`: pre-commit ANDs `types`, so
+  the `types: [json, csv]` the proposal suggested would match no file at all and report success
+  forever. Closes #66.
+
+### Fixed
+
+- **The roadmap denied a distribution this repository already publishes.** `docs/ROADMAP.md`
+  stated "No real multi-publisher grade distribution or hosted scorecard surface is claimed
+  yet". Both halves had been false since the cohorts landed: the three committed comparison
+  documents grade **48 files across 39 distinct real publishers** (A 28, B 3, C 7, D 3, F 3,
+  and 4 recorded not graded with the reason stated), the two dated cohorts carry a stated
+  sampling frame and Wilson intervals, and the site is served at
+  <https://chelseakr.github.io/mrf-honest/>. This is the mirror image of the defect the rest of
+  this file guards -- not a number inflated past its evidence, but a published denial of
+  evidence already in hand -- and it is the same failure either way: prose that no longer
+  describes the data beside it. `test_the_roadmap_does_not_deny_the_distribution_it_publishes`
+  now derives the file count, the publisher count and every grade tally from the committed
+  documents, so the paragraph cannot drift from them again in either direction. Closes #62.
+
+- **Three published claims whose gates did not check them.** All three are the same shape:
+  a document or a deploy check that carries the authority of a measurement while enforcing
+  nothing.
+
+  *The shares gate could not see a missing interval.* `missing_shares` is the check on the
+  deploy path — `make verify` is a separate workflow, so a red run there does not stop a
+  deployment — and it looked only for `"{numerator} of {denominator}"`. Deleting the Share and
+  Interval cells from `_estimate_row` left it silent, in the module whose whole thesis is that
+  a point estimate must never be published without the interval that qualifies it: the page
+  would have carried `11 of 48` and no proportion at all, and the gate would have called that
+  published. It now requires the share and both bounds to have reached the page, and reports a
+  missing or non-numeric bound as its own problem rather than letting `_share` render it as
+  `?` — a `?` on the page would otherwise satisfy a presence check while telling a reader
+  nothing.
+
+  *A vacuous glob, including over the anti-pooling rule.* `tests/test_dataset.py` globbed
+  `data/cohorts/*.comparison.json` into a module-level parameter list with no non-emptiness
+  guard, unlike `tests/test_published_claims.py`, which has had one since it was written.
+  Measured with the comparison documents removed: six tests fail and five pass on an empty
+  list, among them `test_every_row_carries_the_scope_that_makes_it_uncomparable`, which
+  enforces the rule that rows assessed under different profiles are never pooled. A green run
+  reported that the rule held over nothing at all.
+
+  *Two documents described a refusal vocabulary this code no longer has.* Phase 7 added a
+  sixth refusal code, `incomplete_accounting` — the one `_population_statistics` calls the
+  most common in practice, and the refusal actually rendered on the published CSV cohort page
+  — and left ADR 0007's "Five refusals" heading, its five-row table, and
+  `docs/how-we-compare.md`'s "the five refusals" untouched. Both documents are corrected, and
+  two new tests now derive the catalog and the count from `RefusalCode` itself, so the prose
+  cannot drift from the enum again without failing.
 
 - **An assessment policy this build cannot identify was reported as a broken comparison
   scope.** `_verify_comparison_scope` resolves the profile a persisted record was written
@@ -151,7 +753,7 @@ no version tags yet; until the first dated release (phase 5 of
   fails if a digit reappears in it.
 
   Observed failing four ways: the Open Graph block removed; the error page's `noindex`
-  removed so it canonicalises to `/404/` again; the pooled count restored to the
+  removed so it canonicalizes to `/404/` again; the pooled count restored to the
   description; the canonical pointed at the bare shared origin. The deploy check in
   `pages.yml` was extended over the same ground, so it reads all 45 rendered pages rather
   than only the ones the test fixtures cover, and its `robots.txt` line now records that
@@ -184,12 +786,13 @@ no version tags yet; until the first dated release (phase 5 of
   of quiet non-interruptions cannot pass as evidence. Two writers are raced against one warehouse
   and one source, and one snapshot is the measured result. One observed state is recorded rather
   than asserted away: killing at the instant DuckDB creates `warehouse.duckdb` leaves a file it
-  will not open read-only, because the file exists before its header does; a re-run recovers it.
+  will not open, because the file exists before its header does. This entry said a re-run recovers
+  it; measured on 2026-09-08, it does not, and the correction is recorded below.
   The interesting part is what the matrix could **not** show: reordering the catalog commit ahead
   of artifact promotion left every marker green, because that window is too narrow for a kill to
   land in. Three deterministic fault injections close it, at promotion, at the Parquet write and
   at the manifest write, and the reordering fails them. What stays open is named rather than
-  implied: historical migrations, fsync behaviour (which needs a filesystem fault injector, not a
+  implied: historical migrations, fsync behavior (which needs a filesystem fault injector, not a
   signal), and the one-statement window `_clean_promoted` guards, which no fault this suite can
   inject reaches. That last one has a test whose only job is to say so.
 
@@ -215,7 +818,7 @@ no version tags yet; until the first dated release (phase 5 of
 - **A correction and removal flow, and the record of what this project got wrong (phase 10).**
   [docs/CORRECTIONS.md](docs/CORRECTIONS.md) says what is published about a named institution,
   gives four routes for raising a problem, and states the rule the rest of the page is built on:
-  **a removal request is honoured on request, with no proof asked for and no case to make.** A
+  **a removal request is honored on request, with no proof asked for and no case to make.** A
   withdrawn row leaves a stated trace in the cohort's accounting, because a cohort that quietly
   shrinks would misstate its own denominator and the statistics layer would then compute a share
   of a population edited after the fact. Two GitHub issue forms match, and a test asserts the
@@ -374,7 +977,7 @@ no version tags yet; until the first dated release (phase 5 of
   committed comparison by a third test, so growing a cohort without editing the prose fails the
   build rather than shipping a stale number.
 - **The methods page publishes how subjects were chosen, or says plainly that they were not.** A
-  grade distribution invites a reader to generalise from it whether or not the page invites them
+  grade distribution invites a reader to generalize from it whether or not the page invites them
   to, so `mrf-honest site` now renders the cohort's sampling frame and its format rule; a cohort
   with no frame renders that fact rather than an empty heading.
 
@@ -598,7 +1201,7 @@ no version tags yet; until the first dated release (phase 5 of
   manifest and ingest evidence and requires the committed `*.comparison.json` back byte for
   byte. Nothing checked this before: the site renders a committed document, so a change to the
   comparison layer, the grade policy or the finding catalog could ship green while the artifact
-  on disk -- and therefore every number on the site -- still described the old behaviour. The
+  on disk -- and therefore every number on the site -- still described the old behavior. The
   same derivation runs on the deploy path in `.github/workflows/pages.yml`, because `verify` is
   a separate workflow and a red run there does not by itself stop a publish.
 - **The ingest evidence documents themselves**, under `data/cohorts/<date>.ingest/`. Until now
@@ -614,7 +1217,7 @@ no version tags yet; until the first dated release (phase 5 of
   `Disallow` matching the `mrf-honest` product token is a hard stop, an unreachable `robots.txt`
   is a complete disallow (RFC 9309 section 2.3.1.4), and a 4xx means none exists and the fetch
   may proceed (section 2.3.1.3). A per-host minimum interval is held across a whole run and a
-  `Crawl-delay` can lengthen it but never shorten it. `Retry-After` on 429 and 503 is honoured
+  `Crawl-delay` can lengthen it but never shorten it. `Retry-After` on 429 and 503 is honored
   ahead of this tool's own backoff. Every decision and every wait is retained as JSON-safe
   evidence for the registry.
 - **`FetchStatus.ROBOTS_DISALLOWED`**, mapped to **not graded** rather than F. A host that asks
@@ -641,7 +1244,7 @@ no version tags yet; until the first dated release (phase 5 of
   ratchet.
 - **Contrast and heading-order assertions in `make verify`**, so the half of the gate that
   needs no browser runs on every push: the palette is a single `PALETTE` mapping with a
-  declared table of every text-on-background pair, each asserted at 4.5:1, and a colour added
+  declared table of every text-on-background pair, each asserted at 4.5:1, and a color added
   without a declared pair fails the suite.
 
 ### Fixed
@@ -651,7 +1254,7 @@ no version tags yet; until the first dated release (phase 5 of
   the `FINDINGS` status chip and the `WARNING` severity chip rendered `#a35d00` on `#f6ead8` at
   11.2px bold, measured 4.28:1 against a 4.5:1 requirement, on every file page that recorded a
   warning; those pages scored 0.95. A new `--c-ink` token at 5.53:1 fixes the contrast without
-  changing the badge colours. All nine pages now score 1.0 on all four Lighthouse categories.
+  changing the badge colors. All nine pages now score 1.0 on all four Lighthouse categories.
 
 - **`make verify` gained a format gate, a lockfile-drift gate, and a dependency audit**, taking
   it from three checks to six: `ruff check`, `ruff format --check`, `mypy --strict`, pytest with

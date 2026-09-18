@@ -49,6 +49,27 @@ cohort id against the published index before it is ever a path, with fifteen hos
 spellings exercised across every tool that takes one. The `release.yml` shallow-clone
 defect is closed by `fetch-depth: 0` on the `build` job.
 
+## Status, 2026-09-06: every live follow-up is now accounted for
+
+Each re-checked against `origin/master` by execution rather than by reading, because this
+document is eight days old and the queue has moved.
+
+| Follow-up | Now |
+|---|---|
+| the vacuous `PUBLISHED` glob in `tests/test_dataset.py` | **already fixed.** A guard test asserts the glob is non-empty, with the same reasoning this document gives. |
+| the 1 GiB total ceiling in `container.py` | **pinned, as this document says.** Mutating it to 64 MiB fails `test_an_oversized_archive_is_refused_from_the_central_directory`. |
+| the 200:1 expansion ratio | **half-pinned, which this document overstates as "VALUE PINNED".** Raising it to 1,000,000 fails; *lowering* it to `4.0` left all 21 tests passing, and lowering is the direction that refuses ordinary publications as archive bombs. Now pinned both ways. |
+| `MAX_MEMBERS = 64` | **not pinned, as this document says.** `4` and `10000` both left all 21 passing. Now pinned against the literal, on both sides of the boundary. |
+| the filename prefilter in `_choose` | **still a prefilter, deliberately, and the reason it publishes is now true.** The bytes cannot distinguish a CSV from a README — both sniff as `text` — so dropping the name would make a document-beside-a-readme archive ambiguous. What was wrong was the *sentence*: a member whose name carried no extension this reader looks at was refused with "no member is a document this project has a profile for", a claim about bytes nobody had read. |
+| the unpinned Wilson interval in `tests/test_statistics.py` | **not pinned, as this document says.** `Z_95 = 1.0` and `Z_95 = 2.5` both left all 31 tests passing; every existing test of the interval is a property that holds for any `z`, and a width is not a property. Now pinned against the standard tabulated values. |
+| the five-versus-six refusal drift in ADR 0007 | **already fixed.** Measured by planting a seventh `RefusalCode`: `test_adr_0007_lists_exactly_the_refusal_codes_this_build_can_emit` and `test_both_documents_state_the_number_of_refusals_the_code_has` both fail, so the count is gated in two places. |
+| `missing_shares` not requiring the interval | **already fixed.** `_missing_qualifiers` requires the share *and* both bounds on the page, and reports a non-numeric bound as its own problem rather than letting `_share`'s `"?"` satisfy a presence check. Its docstring records the same defect this document does. |
+
+**Nothing on the list above is outstanding.** Two items were real and are fixed here; one was
+overstated and is now fixed in the direction it was missing; three were already closed by work
+that landed after this document was written. A reader arriving at this file should start from
+this table rather than from the per-PR review below, which describes a tree that has moved.
+
 **What remains live is the per-PR technical review.** Those defects are not closed by
 the merges: the code they describe is on `master` now, so every finding below about
 unpinned constants in `container.py`, the vacuous `PUBLISHED` glob in
@@ -142,7 +163,10 @@ YAML rather than grepping text for the load-bearing assertions, and
 `test_an_absent_allowed_signers_file_stops_the_job` scopes itself to the single named step
 after the author found that a job-wide `"exit 1" in run` passed against a warning-downgrade
 mutant. Verified: `.github/allowed_signers` is genuinely absent from the tree, so
-`test_the_repository_ships_no_placeholder_trust_root` holds.
+`test_the_repository_ships_no_placeholder_trust_root` holds. *(True when this triage was
+written. The trust root was committed on 2026-09-12 so that a first release could be verified
+at all, and that test was rewritten to parse and decode the committed key instead of asserting
+the file's absence.)*
 
 **Defect — the release job would fail at its own gate.** Verified by reading, with direct
 corroborating evidence from inside the same stack:
@@ -279,12 +303,12 @@ make candidate selection byte-based or soften the CHANGELOG claim to match the c
 
 ---
 
-## #37 — Phase 10: a removal is honoured on request, and here is what went wrong
+## #37 — Phase 10: a removal is honored on request, and here is what went wrong
 - **Base:** `master`. **Head:** `feat/phase-10-corrections`. **State:** CLEAN, all checks green.
 - **Unique contribution:** `docs/CORRECTIONS.md`, two issue-form templates, `tests/test_corrections.py`, `ci.yml` fetch-depth, `pyyaml` promoted to the dev group.
 
 **What it does.** Publishes a corrections and removal page whose load-bearing promise is
-that a removal is honoured on request with no proof required, wires it into every rendered
+that a removal is honored on request with no proof required, wires it into every rendered
 page's footer, and writes up ten things this project has already got wrong, each naming the
 commit that fixed it.
 
@@ -643,7 +667,7 @@ data-element table, independent of whether the row's code columns are populated.
 
 `_check_item_completeness` now dispatches to three named helpers instead of one nested
 chain, and gains a branch for charged rows that are neither items nor modifier rows.
-The modifier branch is reached first and is unchanged, so every behaviour PR #31 broke
+The modifier branch is reached first and is unchanged, so every behavior PR #31 broke
 stays intact. The refactor was required, not cosmetic: adding the branch inline pushed the
 function to McCabe 11 against the repo's `max-complexity=10`, and CONTRIBUTING says to fix
 the change rather than the floor.

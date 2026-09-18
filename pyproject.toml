@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mrf-honest"
-version = "0.1.0.dev0"
+version = "0.1.0"
 description = "Bounded inspection and contracted local ingestion of CMS hospital price-transparency files"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -52,7 +52,7 @@ packages = ["src/mrf_honest"]
 [tool.mypy]
 strict = true
 python_version = "3.12"
-files = ["src", "perf"]
+files = ["src", "perf", "tools"]
 
 [tool.ruff]
 line-length = 100

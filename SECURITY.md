@@ -19,7 +19,7 @@ Do not disclose secrets or exploitable details in a public issue. Email the main
 
 ## Response targets
 
-- Acknowledgement: within 72 hours.
+- Acknowledgment: within 72 hours.
 - Triage and severity assessment: within 7 days.
 - Fix or mitigation: timeline communicated at triage; credential exposure or data-exposure
   findings are prioritized.

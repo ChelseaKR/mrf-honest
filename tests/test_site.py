@@ -5,12 +5,14 @@ from __future__ import annotations
 import itertools
 import json
 import re
+from datetime import date, timedelta
 from pathlib import Path
 from typing import cast
 
 import pytest
 from test_cohort import (
     GENERATED_AT,
+    _document,
     _failure_record,
     _framed_manifest,
     _manifest,
@@ -29,8 +31,10 @@ from mrf_honest.site import (
     PALETTE,
     SHARES_HEADING,
     SHARES_REFUSAL,
+    STALE_AFTER_DAYS,
     TEXT_ON_BACKGROUND,
     contrast_ratio,
+    measurement_age_days,
     missing_shares,
     render_site,
 )
@@ -151,6 +155,60 @@ def test_not_graded_target_stays_visible_with_its_reason(tmp_path: Path) -> None
     assert "no item, charge, or rate counts exist" in page
 
 
+def test_every_file_page_states_the_requests_behind_its_grade(tmp_path: Path) -> None:
+    """#99: the evidence behind a letter is on the page, and a withheld letter reads as withheld.
+
+    Three rows that differ in what their letter rests on: a body that arrived after one request,
+    a 403 seen once, and a 500 the fetcher retried to exhaustion. Only the last may carry an
+    ``F`` for a retrieval, and every one of them has to say how many requests stand behind it.
+    """
+    records = [
+        _success_record(tmp_path / "bodies", subject=_subject("alpha-health", "main")),
+        _failure_record(
+            FetchStatus.HTTP_ERROR,
+            http_status=403,
+            attempts=1,
+            subject=_subject("gamma-health", "main"),
+        ),
+        _failure_record(
+            FetchStatus.HTTP_ERROR,
+            http_status=500,
+            attempts=3,
+            subject=_subject("delta-health", "main"),
+        ),
+    ]
+    comparison = build_comparison(records, _manifest(), generated_at=GENERATED_AT)
+    out = _render(tmp_path, comparison)
+
+    def page(publisher: str) -> str:
+        return (out / "hospital" / publisher / "main" / "index.html").read_text(encoding="utf-8")
+
+    label = "Retrieval attempts behind this grade</dt><dd>"
+    alpha = page("alpha-health")
+    assert f"{label}1 identified request</dd>" in alpha
+
+    once = page("gamma-health")
+    assert f"{label}1 identified request</dd>" in once
+    assert ">F<" not in once
+    assert "is a fact about this request rather than about the publisher" in once
+
+    confirmed = page("delta-health")
+    assert f"{label}3 identified requests</dd>" in confirmed
+    assert ">F<" in confirmed
+
+
+def test_an_unrecorded_attempt_count_is_never_rendered_as_one(tmp_path: Path) -> None:
+    """ "We did not record how many times we asked" must not print as "we asked once"."""
+    comparison = _comparison(tmp_path)
+    rows = cast(list[dict[str, object]], comparison["files"])
+    del cast(dict[str, object], rows[0]["grade"])["retrieval_attempts"]
+    out = _render(tmp_path, comparison)
+    slug = str(rows[0]["slug"])
+    page = (out / "hospital" / slug / "index.html").read_text(encoding="utf-8")
+    assert "Retrieval attempts behind this grade</dt><dd>not recorded for this row</dd>" in page
+    assert "1 identified request" not in page
+
+
 def test_methods_page_documents_the_policy_and_emitted_codes(tmp_path: Path) -> None:
     out = _render(tmp_path, _comparison(tmp_path))
     methods = (out / "how-we-grade" / "index.html").read_text(encoding="utf-8")
@@ -189,7 +247,7 @@ def test_every_indexable_page_names_itself_and_not_the_shared_origin(
         canonical = re.search(r'<link rel="canonical" href="([^"]*)">', html)
         assert canonical, f"{name} has no canonical URL"
         assert canonical.group(1) == url, (
-            f"{name} canonicalises to {canonical.group(1)!r}, not {url!r}"
+            f"{name} canonicalizes to {canonical.group(1)!r}, not {url!r}"
         )
         assert canonical.group(1).rstrip("/") != "https://chelseakr.github.io", (
             f"{name} points at the shared origin, which is a different site"
@@ -272,7 +330,7 @@ def test_no_page_requests_an_image_so_the_zero_image_budget_still_holds(
         assert '<link rel="icon" href="data:,">' in html, f"{name} lost its inert favicon"
 
 
-def test_the_error_page_canonicalises_nowhere_and_is_not_indexable(
+def test_the_error_page_canonicalizes_nowhere_and_is_not_indexable(
     tmp_path: Path,
 ) -> None:
     """The error page is written to `404.html`, but its `Page.path` is `"404"`.
@@ -367,8 +425,8 @@ def test_cli_site_renders_from_files(tmp_path: Path, capsys: pytest.CaptureFixtu
     assert '<link rel="canonical" href="https://example.test/mrf-honest/">' in index
 
 
-def test_every_palette_colour_is_covered_by_a_declared_contrast_pair() -> None:
-    """A new colour token must declare where it is read, or the gate is decorative.
+def test_every_palette_color_is_covered_by_a_declared_contrast_pair() -> None:
+    """A new color token must declare where it is read, or the gate is decorative.
 
     Without this the contrast test would only ever check the pairs someone remembered to add,
     which is the failure mode it exists to prevent.
@@ -391,7 +449,7 @@ def test_declared_text_pairs_meet_wcag_aa(foreground: str, background: str, wher
 
 
 def test_contrast_ratio_matches_known_wcag_values() -> None:
-    """Anchor the maths, so a broken formula cannot quietly pass every pair above."""
+    """Anchor the math, so a broken formula cannot quietly pass every pair above."""
     assert contrast_ratio("#000000", "#ffffff") == pytest.approx(21.0)
     assert contrast_ratio("#ffffff", "#ffffff") == pytest.approx(1.0)
     # The exact combination that shipped: --c on the amber wash, measured by axe at 4.28.
@@ -400,15 +458,15 @@ def test_contrast_ratio_matches_known_wcag_values() -> None:
 
 
 def test_stylesheet_is_generated_from_the_palette(tmp_path: Path) -> None:
-    """The audited page must embed the same colours the test above checks."""
+    """The audited page must embed the same colors the test above checks."""
     out = _render(tmp_path, _comparison(tmp_path))
     index = (out / "index.html").read_text(encoding="utf-8")
     for token, value in PALETTE.items():
         assert f"--{token}: {value};" in index
-    # and no colour is hard-coded past the token layer
+    # and no color is hard-coded past the token layer
     hexes = set(re.findall(r"#[0-9a-fA-F]{6}", index.split("<style>")[1].split("</style>")[0]))
     assert hexes <= set(PALETTE.values()), (
-        f"stylesheet hard-codes colours: {hexes - set(PALETTE.values())}"
+        f"stylesheet hard-codes colors: {hexes - set(PALETTE.values())}"
     )
 
 
@@ -548,6 +606,65 @@ def test_missing_shares_names_each_share_the_page_dropped(tmp_path: Path) -> Non
     assert "20 of 22 is in the document but not on the page" in problems
 
 
+def test_missing_shares_catches_a_page_that_kept_the_count_and_dropped_the_interval(
+    tmp_path: Path,
+) -> None:
+    """The defect this check existed to catch and could not see.
+
+    `missing_shares` looked only for "{numerator} of {denominator}". Deleting the Share and
+    Interval cells from `_estimate_row` therefore left it silent, in the one module whose
+    stated thesis is that a point estimate must never be published without the interval that
+    qualifies it: the page would carry "11 of 48" and no proportion at all, and the deploy
+    gate would call that published.
+    """
+
+    comparison = build_comparison(
+        _two_records(tmp_path / "bodies"),
+        _framed_manifest(sample_size=22, exclusions=20),
+        generated_at=GENERATED_AT,
+    )
+    out = tmp_path / "site"
+    render_site(comparison, out, origin=DEFAULT_ORIGIN)
+    html = (out / "index.html").read_text(encoding="utf-8")
+
+    # Drop the third and fourth cells of every shares row -- the Share and the Interval --
+    # and keep the count, which is exactly the shape the old check could not distinguish.
+    without_qualifiers = re.sub(
+        r'(<th scope="row">[^<]*</th><td>[^<]*</td>)<td>[^<]*</td><td>[^<]*</td>',
+        r"\1",
+        html,
+    )
+    assert without_qualifiers != html, "the rewrite did not remove anything"
+    assert "2 of 22" in without_qualifiers, "the count must survive, or this proves nothing"
+
+    problems = missing_shares(comparison, without_qualifiers)
+    assert problems, "the gate stayed silent on a page carrying counts and no proportions"
+    assert any("did not reach the page" in problem for problem in problems)
+
+
+def test_missing_shares_reports_an_estimate_that_carries_no_interval() -> None:
+    """A bound that is absent is named as absent, never rendered as a number.
+
+    `_share` turns anything it cannot read into "?", so an estimate missing a bound would
+    otherwise render "?" onto the page and satisfy a presence check -- an absence published
+    in the shape of a measurement.
+    """
+
+    comparison = {
+        "statistics": {
+            "estimates": [
+                {"numerator": 3, "denominator": 9, "point": 0.3333333333333333},
+            ],
+            "refusal": None,
+        }
+    }
+    html = f"<h3>{SHARES_HEADING}</h3><td>3 of 9</td><td>33.3%</td>"
+    problems = missing_shares(comparison, html)
+    assert problems == [
+        "3 of 9 carries no interval, and ADR 0007 forbids publishing a point estimate without one"
+    ]
+
+
 def test_missing_shares_catches_a_dropped_refusal(tmp_path: Path) -> None:
     comparison = build_comparison(
         _two_records(tmp_path / "bodies"),
@@ -599,3 +716,178 @@ def test_every_page_carries_the_route_to_a_correction(tmp_path: Path) -> None:
         html = page.read_text(encoding="utf-8")
         assert CORRECTIONS_URL in html, f"{page} has no correction route"
         assert "you are not asked to prove anything" in html.lower()
+
+
+# --- how old is this grade, and can the reader see it? ---------------------------------------
+#
+# Every published row has always carried its own `as_of`. A date is not an age: a reader on a
+# static page has no "today" to subtract it from, and the site never stated one. These gates are
+# on the mechanism rather than on any particular date -- the age has to be computed from the
+# row's own date and the build date, both of them named on the page, and a date that cannot be
+# read has to say so rather than arrive as zero.
+
+COLLECTED = date.fromisoformat("2026-05-01")
+"""The `as_of` of the cohort `tests.test_cohort._manifest` attests."""
+
+
+def _rendered_pages(tmp_path: Path, built_on: date) -> dict[str, str]:
+    comparison = _comparison(tmp_path)
+    out = tmp_path / f"site-{built_on.isoformat()}"
+    render_site(comparison, out, built_on=built_on)
+    return {
+        path.relative_to(out).as_posix(): path.read_text(encoding="utf-8")
+        for path in sorted(out.rglob("*.html"))
+    }
+
+
+def test_every_rendered_file_page_states_how_old_its_own_grade_is(tmp_path: Path) -> None:
+    """A grade whose age a reader cannot see is a stale number stated as current.
+
+    Both dates have to reach the page: the measurement's, and the build's. An age with only one
+    date beside it is a number nobody can check.
+    """
+    built_on = COLLECTED + timedelta(days=9)
+    pages = _rendered_pages(tmp_path, built_on)
+    file_pages = {name: html for name, html in pages.items() if name.startswith("hospital/")}
+    assert file_pages, "the render produced no file pages to check"
+    for name, html in file_pages.items():
+        assert f"measured {COLLECTED.isoformat()}, 9 days before this page was built" in html, (
+            f"{name} publishes a grade without saying how old it is"
+        )
+        assert built_on.isoformat() in html, f"{name} states an age with no build date beside it"
+        assert "Age of this measurement" in html, f"{name} has no age row in its provenance block"
+    index = pages["index.html"]
+    assert index.count(f"measured {COLLECTED.isoformat()}, 9 days before") >= len(file_pages), (
+        "the index lists grades whose age it does not state"
+    )
+
+
+def test_the_published_age_is_computed_from_the_build_date_and_not_written_down(
+    tmp_path: Path,
+) -> None:
+    """The negative control for the gate above.
+
+    A hard-coded sentence would satisfy every assertion there and be wrong the following day.
+    Rendering the same comparison on two different days must move the age by exactly the
+    difference between them.
+    """
+    early = _rendered_pages(tmp_path, COLLECTED + timedelta(days=3))
+    late = _rendered_pages(tmp_path, COLLECTED + timedelta(days=40))
+    page = "hospital/beta-health/north/index.html"
+    assert "3 days before this page was built" in early[page]
+    assert "40 days before this page was built" in late[page]
+    assert "3 days before this page was built" not in late[page]
+
+
+def test_a_measurement_date_that_cannot_be_read_is_stated_not_counted_as_zero(
+    tmp_path: Path,
+) -> None:
+    """An unreadable date must never render as "measured today".
+
+    Zero is the most flattering reading of an absence, and publishing it would be the exact
+    defect the rest of this project exists to catch.
+    """
+    for unreadable in (None, "", "not-a-date", "2026-13-01", 20260501, {"as_of": "2026-05-01"}):
+        assert measurement_age_days(unreadable, COLLECTED) is None, unreadable
+    assert measurement_age_days("2026-05-01", COLLECTED) == 0
+
+
+def test_a_cohort_past_the_published_threshold_says_so_in_words(tmp_path: Path) -> None:
+    """Both directions, because a banner that is always there says nothing.
+
+    One day under the threshold the page must not warn; one day over it must, and the sentence
+    has to name the age rather than only the threshold.
+    """
+    fresh = _rendered_pages(tmp_path, COLLECTED + timedelta(days=STALE_AFTER_DAYS))
+    stale = _rendered_pages(tmp_path, COLLECTED + timedelta(days=STALE_AFTER_DAYS + 1))
+    assert f"more than {STALE_AFTER_DAYS} days old" not in fresh["index.html"]
+    assert f"more than {STALE_AFTER_DAYS} days old" in stale["index.html"]
+    assert f"collected {STALE_AFTER_DAYS + 1:,} days ago" in stale["index.html"]
+    assert (
+        f"Nothing here has been re-collected since {COLLECTED.isoformat()}" in stale["index.html"]
+    )
+
+
+def test_a_cohort_dated_after_the_build_is_reported_rather_than_clamped(tmp_path: Path) -> None:
+    """A negative age is a real defect -- a mis-stamped cohort, or a clock that ran backwards.
+
+    Clamping it to zero would publish "measured today" for a date that has not happened, which
+    is how a future date satisfies a freshness check forever.
+    """
+    pages = _rendered_pages(tmp_path, COLLECTED - timedelta(days=2))
+    assert measurement_age_days("2026-05-01", COLLECTED - timedelta(days=2)) == -2
+    assert "AFTER this page was built" in pages["index.html"]
+    assert "one of the two dates is wrong" in pages["index.html"]
+
+
+def test_the_footer_separates_the_build_date_from_the_collection_date(tmp_path: Path) -> None:
+    """The footer used to state one date and call it "Generated", which a reader reasonably
+    reads as when the grades were taken. Those are three different days and the page says so."""
+    built_on = COLLECTED + timedelta(days=5)
+    pages = _rendered_pages(tmp_path, built_on)
+    for name, html in pages.items():
+        assert f"Built {built_on.isoformat()} from the comparison document generated" in html, (
+            f"{name} does not separate its build date from its comparison's"
+        )
+
+
+# --- a partial read's totals are not the file's contents -------------------------------------
+
+
+def _truncated_comparison(tmp_path: Path) -> dict[str, object]:
+    """One row whose read stopped mid-array, with counts already on the clock.
+
+    The grade for it is `F` and says so. The counts beside it are a lower bound on a document
+    nobody finished reading, and this is the fixture that makes the difference visible.
+    """
+    document = _document()
+    document["standard_charge_information"] = (
+        cast(list[object], document["standard_charge_information"]) * 3
+    )
+    raw = json.dumps(document).encode()
+    truncated = raw[: raw.rindex(b'{"description"')]
+    stopped = _success_record(tmp_path / "bodies", raw=truncated)
+    # A comparison needs two rows; the second is a clean read, which is also the control for
+    # `test_a_completed_read_still_states_its_counts_plainly`.
+    whole = _success_record(tmp_path / "bodies", subject=_subject("beta-health", "north"))
+    return build_comparison([stopped, whole], _manifest(), generated_at=GENERATED_AT)
+
+
+def test_a_read_that_stopped_does_not_publish_its_totals_as_the_file_contents(
+    tmp_path: Path,
+) -> None:
+    """The project's own defect class, one surface out from where it was last fixed.
+
+    `inspection_scan_completed: false` reached `dataset.csv` and never reached the page. The
+    file page rendered a stopped reader's running totals under "What the file contains", in the
+    same table and the same shape as a document that was read to the end -- the grade's sentence
+    carried the failure and the numbers next to it carried none of it.
+    """
+    comparison = _truncated_comparison(tmp_path)
+    row = next(
+        entry
+        for entry in cast(list[dict[str, object]], comparison["files"])
+        if entry["slug"] == "example-health/main"
+    )
+    assert cast(dict[str, object], row["coverage"])["inspection_scan_completed"] is False
+    assert cast(dict[str, int], row["counts"])["item_count"] > 0, (
+        "the fixture is only a control if the stopped read left counts behind"
+    )
+    out = tmp_path / "site"
+    render_site(comparison, out, built_on=COLLECTED)
+    page = (out / "hospital" / "example-health" / "main" / "index.html").read_text(encoding="utf-8")
+    assert "What the file contains" not in page, (
+        "a document nobody finished reading is published as though its contents were counted"
+    )
+    assert "What the read reached before it stopped" in page
+    assert "how far the read got before it failed" in page
+    assert "a floor, not a" in page
+
+
+def test_a_completed_read_still_states_its_counts_plainly(tmp_path: Path) -> None:
+    """The other direction. A caveat that is always on the page says nothing."""
+    out = _render(tmp_path, _comparison(tmp_path))
+    page = (out / "hospital" / "alpha-health" / "main" / "index.html").read_text(encoding="utf-8")
+    assert "What the file contains" in page
+    assert "how far the read got before it failed" not in page
+    assert "What the read reached before it stopped" not in page

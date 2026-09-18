@@ -51,8 +51,15 @@ MAX_TOTAL_UNCOMPRESSED_BYTES = 1024 * 1024 * 1024
 #: the highest ratio observed in this project's own fixtures is far below this bound.
 MAX_MEMBER_EXPANSION_RATIO = 200.0
 
-#: Extensions this project has a profile for. Read from the member name only as a first pass;
-#: the leading bytes decide, exactly as the sampling frame's format rule requires.
+#: Extensions this project has a profile for.
+#:
+#: This used to say "read from the member name only as a first pass; the leading bytes decide".
+#: That is not what happens and the difference is publishable: :func:`_choose` skips a member
+#: whose name does not end here **before** opening it, so for those members the name decides and
+#: no byte is ever read. It is kept that way deliberately -- the sniffer classifies a CSV and a
+#: README alike as ``text``, so dropping the name would make an archive holding a document and a
+#: readme ambiguous, which is a worse answer than this one. What had to change is the *reason*
+#: published when nothing is selected: see :data:`ArchiveRefusal.NO_GRADEABLE_MEMBER`.
 _GRADEABLE_SUFFIXES = (".json", ".csv")
 
 _ARCHIVE_SUFFIXES = (".zip", ".gz", ".tar", ".tgz", ".7z", ".rar", ".bz2", ".xz")
@@ -197,13 +204,53 @@ def _select(archive: zipfile.ZipFile) -> ArchiveOutcome:
     return _choose(archive, members)
 
 
+def _no_gradeable_member_detail(read: list[str], unread: list[str]) -> str:
+    """Why nothing was selected, separating what was examined from what was not.
+
+    The single sentence this replaces -- "no member is a document this project has a profile
+    for" -- was a claim about every member's contents, and it was made without opening most of
+    them. A CMS-shaped CSV stored under a name with no extension, or under ``.txt``, was refused
+    with those words while its bytes went unread. This project publishes four extensionless CSV
+    endpoints in its own committed draw, so that is an observed shape and not a hypothetical, and
+    a refusal that reads as the publisher's fault for a file nobody looked at is the conflation
+    the whole codebase is built to avoid.
+
+    Nothing about which members are *accepted* changes here. Only the stated reason does.
+    """
+
+    if read and unread:
+        return (
+            f"none of the {len(read)} member(s) whose name ends in .json or .csv holds a "
+            f"document this project has a profile for, and {len(unread)} further member(s) "
+            "were not opened at all because their names carry no extension this project reads: "
+            + ", ".join(repr(name) for name in unread)
+        )
+    if read:
+        return (
+            f"none of the {len(read)} member(s) whose name ends in .json or .csv holds a "
+            "document this project has a profile for"
+        )
+    if unread:
+        return (
+            f"no member was opened: none of the {len(unread)} member(s) carries a name ending "
+            "in .json or .csv, which is how this reader decides what to look at. Their contents "
+            "were not examined, so this is not a statement about them: "
+            + ", ".join(repr(name) for name in unread)
+        )
+    return "the archive holds no members"
+
+
 def _choose(archive: zipfile.ZipFile, members: list[zipfile.ZipInfo]) -> ArchiveOutcome:
     """Among admitted members, find the ones this project has a profile for."""
 
     candidates: list[tuple[zipfile.ZipInfo, str]] = []
+    read: list[str] = []
+    unread: list[str] = []
     for info in members:
         if not info.filename.lower().endswith(_GRADEABLE_SUFFIXES):
+            unread.append(info.filename)
             continue
+        read.append(info.filename)
         with archive.open(info) as handle:
             sniffed = _classify(handle)
         if sniffed in {"json", "text"}:
@@ -211,7 +258,7 @@ def _choose(archive: zipfile.ZipFile, members: list[zipfile.ZipInfo]) -> Archive
     if not candidates:
         return ArchiveRefused(
             ArchiveRefusal.NO_GRADEABLE_MEMBER,
-            "no member is a document this project has a profile for",
+            _no_gradeable_member_detail(read, unread),
             tuple(info.filename for info in members),
         )
     if len(candidates) > 1:

@@ -1,0 +1,43 @@
+{
+ "policy": "A cohort manifest attests the collection context that assessment rows cannot carry by themselves (docs/PHASE-3-FINDINGS.md). `build_comparison` refuses to compare rows without the operator_controlled_single_run attestation.",
+ "cohort_id": "hospital-json-v3-origin-chihealth-com-2026-09-13",
+ "collection": {
+  "operator_controlled_single_run": true,
+  "utc_date": "2026-09-13",
+  "user_agent": "mrf-honest/0.1",
+  "description": "One serial, single-process run of the JSON assessment profile over every location entry in a 2026-09-13 retrieval of https://chihealth.com/cms-hpt.txt, under the default retrieval policy: identified User-Agent with a contact address, HTTPS only, robots.txt fetched and obeyed in code before every request, one shared per-host minimum interval held across the whole run rather than reset per invocation, conditional revalidation against the verified cache, retry backoff, and the default 1 GiB decoded-size ceiling. The retrieval policy fingerprint is byte-identical to the one the 2026-08-19 and 2026-09-12 cohorts were collected under. No URL was replayed from an earlier run: every graded URL is the one this origin's own cms-hpt.txt published on the day of the run.",
+  "population": {
+   "kind": "complete_enumeration_of_one_origin",
+   "origin": "chihealth.com",
+   "document": "https://chihealth.com/cms-hpt.txt",
+   "retrieved_at": "2026-09-13T14:56:34.998941Z",
+   "document_sha256": "480e0697851d146747f03a61137bb98ad7f133a954b6e83977bd6658919f862f",
+   "locations_listed": 17,
+   "locations_with_an_mrf_url": 17,
+   "distinct_mrf_urls": 15,
+   "locations_sharing_a_file": {
+    "https://www.chihealth.com/content/dam/chihealthcom/documents/patients-and-visitors/financial-assistance/price-transparency-standard-charges/470379755-1336184019_good-samaritan-hospital_standardcharges.json": [
+     "CHI Health Good Samaritan",
+     "CHI Health Richard Young Behavioral Health"
+    ],
+    "https://www.chihealth.com/content/dam/chihealthcom/documents/patients-and-visitors/financial-assistance/price-transparency-standard-charges/470484764-1508941097_alegent-health-bergan-mercy-health-system_standardcharges.json": [
+     "CHI Health Creighton University Medical Center - Bergan  Mercy",
+     "CHI Health Creighton University Medical Center - University Campus"
+    ]
+   },
+   "basis": "Every location this document lists was targeted, so this run is a complete enumeration of one origin's publication set rather than a draw from a frame. The origin was selected on cost -- it is the cheapest origin in the committed discovery registry with at least ten locations in an implemented profile -- so with respect to the 3,024-hospital sampling frame at data/frames/2026-08-19.frame.json this run is a convenience selection and estimates nothing about it. It deliberately records no sampling_frame, and the published statistics block therefore refuses with no_sampling_frame rather than computing a share of a population it did not sample. These rows are kept out of data/cohorts/ for the same reason: folding an origin-scoped enumeration into the seeded probability samples published there would change what those cohorts' Wilson-score estimates are estimates of."
+  }
+ },
+ "discovery": {
+  "method": "`mrf-honest discover` retrieved https://chihealth.com/cms-hpt.txt on 2026-09-13 with an identified client; the attempt and its parse are durable evidence in the local discovery registry. No MRF URL in this run was hand-assembled and none was carried over from an earlier cohort.",
+  "date": "2026-09-13",
+  "origins_checked": 1,
+  "domains": [
+   {
+    "domain": "chihealth.com",
+    "facilities": []
+   }
+  ]
+ },
+ "exclusions": []
+}

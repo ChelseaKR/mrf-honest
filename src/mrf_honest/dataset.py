@@ -72,9 +72,25 @@ COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("completeness_status", "string", "OBSERVED, FINDINGS, or NOT_ASSESSED."),
     ("interpretability_status", "string", "OBSERVED, FINDINGS, or NOT_ASSESSED."),
     ("freshness_status", "string", "OBSERVED, FINDINGS, or NOT_ASSESSED."),
-    ("error_findings", "integer", "Count of ERROR findings across all dimensions."),
-    ("warning_findings", "integer", "Count of WARNING findings across all dimensions."),
-    ("info_findings", "integer", "Count of INFO findings, which never lower a grade."),
+    (
+        "error_findings",
+        "integer",
+        "Count of ERROR findings across all dimensions. Zero where nothing was assessed as "
+        "well as where nothing was wrong: read it with the *_status columns, which say which "
+        "of the two this row is.",
+    ),
+    (
+        "warning_findings",
+        "integer",
+        "Count of WARNING findings across all dimensions. Zero where nothing was assessed as "
+        "well as where nothing was wrong; see error_findings.",
+    ),
+    (
+        "info_findings",
+        "integer",
+        "Count of INFO findings, which never lower a grade. Zero where nothing was assessed as "
+        "well as where nothing was observed; see error_findings.",
+    ),
     ("network_attempted", "boolean", "Whether a network retrieval was attempted."),
     ("verified_body_available", "boolean", "Whether a verified body was admitted."),
     ("inspection_scan_completed", "boolean", "Whether the charge array was streamed to the end."),
@@ -344,4 +360,45 @@ def missing_exports(comparisons: Sequence[Mapping[str, object]], out_dir: Path) 
     """
 
     root = Path(out_dir)
-    return _dataset_problems(root, comparisons) + _api_problems(root, comparisons)
+    return (
+        _dataset_problems(root, comparisons)
+        + _api_problems(root, comparisons)
+        + _receipt_problems(root, comparisons)
+    )
+
+
+def _receipt_problems(root: Path, comparisons: Sequence[Mapping[str, object]]) -> list[str]:
+    """Check that every published row got a receipt and a badge, and that they agree with it.
+
+    The grade equality is the whole point. A receipt is an invitation to re-derive a number,
+    so a receipt carrying a *different* number from the row it was minted for would send a
+    reader to reproduce something the site never published. Checking only that the file exists
+    would not see that, and the file existing is the easy half.
+    """
+    problems: list[str] = []
+    for comparison in comparisons:
+        rows = comparison.get("files")
+        if not isinstance(rows, Sequence):
+            continue
+        for row in rows:
+            if not isinstance(row, Mapping):
+                continue
+            slug = str(row.get("slug"))
+            receipt_path = root / "api" / "receipt" / f"{slug}.json"
+            badge_path = root / "badge" / f"{slug}.svg"
+            if not badge_path.is_file():
+                problems.append(f"badge/{slug}.svg was not written")
+            if not receipt_path.is_file():
+                problems.append(f"api/receipt/{slug}.json was not written")
+                continue
+            receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+            grade = row.get("grade")
+            published = str(cast(Mapping[str, object], grade).get("grade")) if grade else None
+            if receipt.get("grade") != published:
+                problems.append(
+                    f"api/receipt/{slug}.json states grade {receipt.get('grade')!r}; the "
+                    f"published row states {published!r}"
+                )
+            if receipt.get("content_sha256") != row.get("content_sha256"):
+                problems.append(f"api/receipt/{slug}.json does not carry the row's content_sha256")
+    return problems

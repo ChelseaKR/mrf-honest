@@ -1,21 +1,33 @@
 PYTHON ?= .venv/bin/python
 UV ?= uv
 
-.PHONY: verify lint format typecheck test lock audit
+.PHONY: verify lint format typecheck test lock audit metrics
 
 verify: lint format typecheck test lock audit
 
 lint:
-	$(PYTHON) -m ruff check src tests perf
+	$(PYTHON) -m ruff check src tests perf tools
 
 format:
-	$(PYTHON) -m ruff format --check src tests perf
+	$(PYTHON) -m ruff format --check src tests perf tools
 
 typecheck:
 	$(PYTHON) -m mypy
 
 test:
 	$(PYTHON) -m pytest --cov --cov-report=term-missing -q
+
+# Writes the Code Quality figures the README and the metrics ledger publish --
+# the passing/skipped split, the branch-coverage percentage, and the date --
+# from one complete run, into both documents at once. `verify` already gates
+# the half of that which is derivable without running anything (the suite's
+# size); this produces the half that only a run can answer, so that adding a
+# test never means retyping a number in two places.
+#
+# Deliberately outside `verify`: a gate that repairs what it checks cannot
+# fail. It refuses to write from a run that did not finish.
+metrics:
+	$(PYTHON) tools/publish_metrics.py
 
 # `uv lock --check` is the lockfile-drift gate, and the exact spelling matters.
 # Measured on a deliberately drifted project (a dependency added to pyproject.toml, the

@@ -1,7 +1,7 @@
 # A download that stopped early was published as a hospital's unreadable file
 
 *An engineering finding about this project, observed 2026-08-18, with a dated measurement of how
-six real published MRF endpoints frame their responses. It describes this tool's behaviour and
+six real published MRF endpoints frame their responses. It describes this tool's behavior and
 those servers' HTTP framing on one date. It is not a ranking of any hospital, not a statement
 about care, and not a legal compliance determination.*
 

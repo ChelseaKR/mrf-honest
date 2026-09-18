@@ -260,7 +260,7 @@ def test_an_unreadable_robots_also_stops_the_fetch(tmp_path: Path) -> None:
 
 
 def test_there_is_no_argument_that_turns_robots_off() -> None:
-    """A regression guard on the API shape, not on behaviour.
+    """A regression guard on the API shape, not on behavior.
 
     The whole control depends on there being no way to spell "skip robots". If someone adds
     an ``ignore_robots`` or ``force`` parameter later, this fails.
@@ -346,7 +346,7 @@ def test_an_unreadable_retry_after_is_none_not_zero() -> None:
     assert parse_retry_after("12.5", now=now) is None
 
 
-def test_retry_after_is_honoured_only_on_429_and_503() -> None:
+def test_retry_after_is_honored_only_on_429_and_503() -> None:
     politeness = Politeness(
         user_agent=f"{PRODUCT_TOKEN}/0.1",
         opener=RobotsOpener(),

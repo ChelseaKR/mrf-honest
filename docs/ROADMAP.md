@@ -9,8 +9,17 @@ Phases 0 through 3 are implemented (`PHASE-0-FINDINGS.md`, `PHASE-2-FINDINGS.md`
 `PHASE-3-FINDINGS.md`, and `how-we-grade.md`). Phase 3 keeps local inspection separate from mutable remote evidence, then
 combines them in an integrity-hashed `FileAssessment`: every terminal fetch outcome becomes a row,
 publisher type and URL provenance are explicit, missing bodies leave four dimensions explicitly
-`NOT_ASSESSED`, and comparison is refused across type/profile/provenance/policy/date scopes. No
-real multi-publisher grade distribution or hosted scorecard surface is claimed yet.
+`NOT_ASSESSED`, and comparison is refused across type/profile/provenance/policy/date scopes.
+
+Both halves of the sentence that stood here -- "no real multi-publisher grade distribution or
+hosted scorecard surface is claimed yet" -- have been false since the committed cohorts landed.
+Five comparison documents now publish **90 graded files across 39 distinct real publishers**
+(A 53, B 6, C 13, D 5, F 0, and 13 recorded not graded with the reason stated), the four dated
+cohorts carry a stated sampling frame and Wilson intervals over their probability stratum, and the
+site is published at <https://chelseakr.github.io/mrf-honest/>. The figures in this paragraph are
+not hand-maintained: `test_the_roadmap_does_not_deny_the_distribution_it_publishes` derives every
+one of them from the committed comparison documents and fails when the prose and the data
+disagree, which is the failure this sentence was an instance of.
 
 ## Observability
 
@@ -34,7 +43,7 @@ Two of the three durability gaps this paragraph used to leave open are now measu
 third is not. `tests/test_durability.py` kills a real ingest subprocess with SIGKILL at six named
 progress markers and asserts, after every kill, that the catalog reports no completed snapshot and
 that any run it does report has its manifest and every named Parquet on disk; a killed warehouse
-is then re-run to completion at every marker. The kill points are markers rather than wall-clock
+is then re-run at every marker, and recovers at every one except the state named below. The kill points are markers rather than wall-clock
 offsets because offsets were tried first and abandoned: a kill scheduled at a fraction of a run
 measured a second earlier lands wherever the machine's load puts it, interrupting a different
 stage on every run and sometimes none at all. A marker is the same point on a fast machine and a
@@ -42,17 +51,38 @@ slow one, and the sweep fails outright if fewer than four of its six samples wer
 killed, so a run of quiet non-interruptions cannot pass as evidence. Two writers are raced against
 one warehouse and one source, and one snapshot is the measured result.
 
-One observed state is recorded rather than asserted away: killing at the instant DuckDB first
-creates `warehouse.duckdb` leaves a file it will not open read-only, because the file exists
-before its header does. That is not a false claim, which is what this suite guards against, and it
-is not permanent; a re-run recovers it, and the recovery test covers that marker like every other.
+One observed state is recorded rather than asserted away, and this paragraph got it wrong once:
+killing at the instant DuckDB first creates `warehouse.duckdb` leaves a file it will not open,
+because the file exists before its header does. That is not a false claim, which is what this
+suite guards against. **A re-run does not recover that warehouse.** `_connect` is a bare
+`duckdb.connect`; nothing detects an invalid database file and nothing removes one, so a re-run
+over it raises `IOException` and stops.
+
+Until 2026-09-08 this paragraph asserted the opposite, and the reason it survived is worth
+recording. The sweep reaches the state by luck: the kill usually lands before any bytes are
+written, the file is then absent, and the re-run is ordinary. So the recovery test passed most
+runs -- and failed one in CI on 2026-09-06, on a pull request whose whole diff was one line of a
+workflow file.
+
+Two things are now measured deterministically rather than sampled, because the rare direction is
+the one that hides the defect. `test_a_valid_database_left_by_a_kill_re_runs_and_an_invalid_one_does_not`
+constructs both sub-cases by hand and asserts the second does not recover -- an assertion that
+records an open defect and says in its own docstring what has to change when it is settled. And
+`test_an_empty_database_file_is_as_invalid_as_a_partial_one` corrects a second thing this
+paragraph implied: on DuckDB 1.5.5 a zero-byte `warehouse.duckdb` is refused exactly as a
+half-written one is, so the unrecoverable window is the whole of the time the file exists without
+a complete header rather than a sliver of it.
+
+What to do about it -- recover automatically by removing a file this tool did not finish writing,
+or refuse with a named, actionable error and leave the removal to an operator -- is a durability
+judgment rather than a detail, and it is open at #80.
 
 **Sampled kills are evidence, not proof**, and that was measured too: reordering the catalog
 commit ahead of artifact promotion left every marker green, because the window between them is too
 narrow for a kill to land in. Three deterministic fault injections cover it, at promotion, at the
 Parquet write, and at the manifest write, and the reordering fails them.
 
-Still open, and named rather than implied: historical warehouse migrations; fsync behaviour, which
+Still open, and named rather than implied: historical warehouse migrations; fsync behavior, which
 needs a filesystem-level fault injector rather than a signal; and the one-statement window between
 promotion and the catalog commit that `_clean_promoted` guards, which no fault this suite can
 inject lands inside (`tests/test_durability.py::test_one_window_this_suite_does_not_reach`).
@@ -65,8 +95,21 @@ rendered pages disagree with that document — the coverage sentence must carry 
 count, and every row must have its own rendered page that the index links to. There is no scheduled
 refresh, no alert destination, and no declared availability objective — the site is a published
 artifact, not a service, and it never fetches anything at build time. Scheduled collection
-remains out of scope until the `robots.txt` policy, per-host pacing, and `Retry-After` work
-below; any future scheduled job must take a real service/job tier declaration before shipping.
+remains out of scope — but no longer for the reason this paragraph used to give. The
+`robots.txt` policy, per-host pacing and `Retry-After` work it named shipped on 2026-08-15 and
+is described below; the issue that named it is closed. The one remaining gate is a real
+service/job tier declaration, which `docs/EXPANSION-PLAN.md` phase 14 records as an owner
+decision about what this project promises to keep running rather than a file an agent should
+author. What a refresh would actually cost, measured on the two committed collections rather
+than assumed, is in
+[docs/findings/what-a-re-collection-actually-cost-2026-09-12.md](findings/what-a-re-collection-actually-cost-2026-09-12.md).
+What one *origin-scoped* collection cost end to end — 17 locations, 15 files, 96,766,261 wire
+bytes and 7 minutes 10 seconds on a laptop, with the measured answer to that document's open
+question about `-gzip` entity tags — is in
+[docs/findings/what-one-origin-cost-2026-09-13.md](findings/what-one-origin-cost-2026-09-13.md).
+That run is committed under `data/origins/`, deliberately outside the sampled cohorts the site
+renders: it is a complete enumeration of one origin chosen on cost, so it estimates nothing about
+the sampling frame and must not change what the published cohorts' intervals are estimates of.
 
 ## Metrics ledger
 
@@ -81,16 +124,15 @@ README quotes a ledger figure, this table is the source and the README follows i
 
 | Metric | Target | Measured by | Gate | Last measured |
 |---|---|---|---|---|
-| Branch coverage | >= 85% | `pytest --cov` (branch mode, `fail_under = 85`) | AUTO (`make verify`) | 92.78%, 668 tests passing and 4 skipped, 2026-09-06 |
-| Lint findings (ruff `E,F,I,B,S,C90,UP,RUF`, `max-complexity=10`) | 0 | `ruff check src tests perf` | AUTO (`make verify`) | 0, 2026-08-16 |
-| Formatting findings | 0 | `ruff format --check src tests perf` | AUTO (`make verify`) | 0, 2026-08-16 |
-| `mypy --strict` errors | 0 | `mypy` over `src` and `perf` | AUTO (`make verify`) | 0, 2026-08-16 |
+| Branch coverage | >= 85% | `pytest --cov` (branch mode, `fail_under = 85`) | AUTO (`make verify`) | 93.20%, 1122 tests passing and 4 skipped, 2026-09-18 || Lint findings (ruff `E,F,I,B,S,C90,UP,RUF`, `max-complexity=10`) | 0 | `ruff check src tests perf tools` | AUTO (`make verify`) | 0, 2026-08-16 |
+| Formatting findings | 0 | `ruff format --check src tests perf tools` | AUTO (`make verify`) | 0, 2026-08-16 |
+| `mypy --strict` errors | 0 | `mypy` over `src`, `perf` and `tools` | AUTO (`make verify`) | 0, 2026-08-16 |
 | Lockfile drift | none | `uv lock --check` (**not** `uv sync --frozen`, which cannot see drift) | AUTO (`make verify`, CI `uv sync --locked`) | in sync, 2026-08-16 |
 | Known vulnerabilities in the locked dependency set | 0, no ignore list | `pip-audit --strict --no-deps` over `uv export --all-extras` (71 pinned distributions; `uv.lock` resolves 72 packages and `--no-emit-project` drops this one; 20 of them arrive with the optional `ai` extra) | AUTO (`make verify`) | 0, 2026-08-16 |
 | Lighthouse accessibility, best-practices and SEO, every rendered page | 1.0 (a declared floor above the standard's 0.90) | `perf/score_lighthouse.py` over Lighthouse 12 reports for every HTML file the render produced | AUTO (`.github/workflows/accessibility.yml`) | 1.0 / 1.0 / 1.0 on all 20 pages, 2026-08-19; the 45-page two-cohort surface re-audits on the same job at the next push |
 | Lighthouse performance, every rendered page | >= 0.95 absolute, and no worse than 10% off `perf/baseline.json` | same job | AUTO (`.github/workflows/accessibility.yml`) | 1.0 on all 20 pages, 2026-08-19; 45-page re-audit on the next push |
-| Page weight and request count | 0 bytes of script, stylesheet, font, image and third party; 1 request; <= 60 KB document | `perf/resource-budget.json` asserted against Lighthouse's `resource-summary` audit (**not** `--budget-path`, which does not exist in Lighthouse 12) | AUTO (`.github/workflows/accessibility.yml`) | heaviest page (the two-cohort index) 52,404 bytes in 1 request, 2026-08-19 |
-| Design-token contrast, every declared text/background pair | >= 4.5:1 (WCAG 2.2 SC 1.4.3), no large-text exemptions claimed | `tests/test_site.py`, which also fails on a palette colour with no declared pair | AUTO (`make verify`) | 16 pairs, minimum 4.97:1, 2026-08-15 |
+| Page weight and request count | 0 bytes of script, stylesheet, font, image and third party; 1 request; <= 64 KiB document (60 KiB until the analytics loader of ADR 0009 added 2,647 bytes to every page; the reason is in the budget file) (as served to the audit on 127.0.0.1, where the inline analytics loader of ADR 0009 fetches nothing; on the published address it adds gtag.js, outside the budget by decision) | `perf/resource-budget.json` asserted against Lighthouse's `resource-summary` audit (**not** `--budget-path`, which does not exist in Lighthouse 12) | AUTO (`.github/workflows/accessibility.yml`) | heaviest page (the two-cohort index) 52,404 bytes in 1 request, 2026-08-19 |
+| Design-token contrast, every declared text/background pair | >= 4.5:1 (WCAG 2.2 SC 1.4.3), no large-text exemptions claimed | `tests/test_site.py`, which also fails on a palette color with no declared pair | AUTO (`make verify`) | 16 pairs, minimum 4.97:1, 2026-08-15 |
 | Heading order, every generated page | no skipped level, exactly one h1 | `tests/test_site.py` | AUTO (`make verify`) | 0 violations, 2026-08-15 |
 | robots.txt obeyed, no override path | a disallow or an unreadable robots.txt stops the fetch before any request for the file | `tests/test_politeness.py` against a real `http.server` on loopback, plus a signature assertion that no `ignore_robots`/`force` parameter exists | AUTO (`make verify`) | 22 cases, 0 failures, 2026-08-15 |
 | Per-host interval and `Retry-After` | interval held across a run; `Crawl-delay` lengthens only; 429/503 `Retry-After` outranks local backoff | same suite | AUTO (`make verify`) | default floor 2.0 s; measured 3.0 s waited on a `Retry-After: 3` against a 100 s configured backoff, 2026-08-15 |
@@ -121,11 +163,11 @@ interval method it measures against.
 
 Retrieval politeness is no longer an operator procedure. `src/mrf_honest/politeness.py` fetches
 and obeys `robots.txt` before the first request with no override flag, holds a per-host minimum
-interval across a whole run that a `Crawl-delay` can only lengthen, and honours `Retry-After` on
+interval across a whole run that a `Crawl-delay` can only lengthen, and honors `Retry-After` on
 429 and 503 ahead of this tool's own backoff. Every decision and every wait is retained as
 JSON-safe evidence. What that unblocked was the second cohort, published 2026-08-19 with a stated
 sampling frame (`docs/SAMPLING-FRAME.md`) rather than a convenience list; what it does not by
-itself authorise is a *scheduled* job, which still needs a service/job tier declaration before
+itself authorize is a *scheduled* job, which still needs a service/job tier declaration before
 it ships.
 
 **Closed on the same day it was measured: the fetcher now has a cheap way to learn a file's

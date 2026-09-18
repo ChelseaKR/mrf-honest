@@ -12,4 +12,6 @@ abstract: >-
   methodology-safe rate representations. One published cohort comparison exists,
   deriving a versioned per-file presentation grade from persisted assessments;
   payer adapters and any published rate comparison are planned, not implemented.
-  Pre-release: version and date-released will be added with the first dated release.
+version: 0.1.0
+date-released: 2026-09-13
+repository-code: "https://github.com/ChelseaKR/mrf-honest"

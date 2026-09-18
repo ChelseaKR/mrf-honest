@@ -128,8 +128,85 @@ class LakehouseScopeRefusal(LakehouseError):
         }
 
 
+class LakehouseContractFailure(LakehouseError, ContractError):
+    """A data contract rejected the verified body, with the violations it rejected it for.
+
+    The sibling of ``LakehouseScopeRefusal``, and it exists for the same reason. A refusal the
+    warehouse *chose* already carried its own evidence document; a contract the warehouse
+    *enforced* raised a ``ContractError`` that reached the operator as a process exit code and
+    nothing else. One ingest attempt is supposed to yield one evidence document either way --
+    and it did not, so the comparison had no record to publish and the file page said "no
+    warehouse ingest was recorded for this file", which is what it also says about a file nobody
+    ever tried to load. Measured on the 2026-09-12 cohort: two republished UC Health files
+    violated ``stg_modifier_payer.unique_canonical_payer_plan`` on 40 rows each, and the only
+    published trace of that was an absence indistinguishable from "not attempted".
+
+    Unlike a scope refusal, this *is* evidence about the file: it is a statement that the
+    verified body carries rows a declared invariant forbids. It still never touches the grade --
+    warehouse evidence is not a grading input in either direction (ADR 0005) -- and the page
+    that publishes it has to say which of the two kinds of statement it is.
+    """
+
+    def __init__(self, error: ContractError, *, source_file_id: str) -> None:
+        # Both bases on purpose. Every existing caller that catches ``ContractError`` -- and the
+        # documented promise that "a contract violation fails the build rather than warning" --
+        # goes on working unchanged; what is added is that the failure can also be *published*.
+        ContractError.__init__(self, list(error.violations))
+        self.reason = str(error)
+        self.source_file_id = source_file_id
+
+    def to_dict(self, *, publisher_id: str) -> dict[str, object]:
+        return {
+            "status": "contract_failed",
+            "source_file_id": self.source_file_id,
+            "publisher_id": publisher_id,
+            "reason": self.reason,
+            "violations": [
+                {
+                    "model": violation.model,
+                    "rule": violation.rule,
+                    "violating_rows": violation.violating_rows,
+                    "message": violation.message,
+                }
+                for violation in self.violations
+            ],
+        }
+
+
 class LakehouseUnavailable(LakehouseError):
     """The optional DuckDB dependency is not installed."""
+
+
+#: DuckDB's own wording when its buffer manager cannot satisfy an allocation inside the
+#: configured ``memory_limit``. Matched as a substring because the rest of the sentence carries
+#: the allocation size and the current usage, which vary per run.
+OUT_OF_MEMORY_MARKER = "Out of Memory Error"
+
+#: What an operator has to be told when the ceiling they set is the thing that stopped the
+#: build. Without it the failure reads as a defect in the file or in this pipeline, which is the
+#: reading the 2026-09-12 re-collection produced: CHI Health Lakeside (138,540,999 source bytes)
+#: exited non-zero at the Parquet export under the CLI default of 256MB, with nothing in the
+#: message naming the setting, and ``docs/PHASE-2-FINDINGS.md`` records the working value.
+MEMORY_LIMIT_ADVICE = (
+    "this is the configured DuckDB memory_limit being exceeded, which is an operator setting "
+    "and not a defect in the source file or in this pipeline. Raise --memory-limit (and, if the "
+    "machine has the cores, --threads) and re-run; docs/PHASE-2-FINDINGS.md records the values "
+    "a cohort-scale ingest was measured at."
+)
+
+
+def memory_limit_note(exc: BaseException, *, memory_limit: str, threads: int) -> str | None:
+    """The sentence a DuckDB out-of-memory failure owes the operator, or ``None``.
+
+    Returns ``None`` for every other failure rather than guessing: an unrelated exception
+    annotated with memory advice would send the next reader after a setting that is not the
+    cause, which is the same defect in the other direction.
+    """
+
+    if OUT_OF_MEMORY_MARKER not in str(exc):
+        return None
+    setting = f"configured memory_limit {memory_limit!r} with {threads} thread(s)"
+    return f"{setting}; {MEMORY_LIMIT_ADVICE}"
 
 
 @dataclass(frozen=True)
@@ -1218,9 +1295,15 @@ def ingest_hospital_file(
                     )
                 except Exception as status_exc:
                     exc.add_note(f"recording failed status also failed: {status_exc}")
-        if isinstance(exc, (ContractError, LakehouseError)):
+        if isinstance(exc, ContractError):
+            # Carry the violations out as publishable evidence rather than only as an exit
+            # code; see LakehouseContractFailure.
+            raise LakehouseContractFailure(exc, source_file_id=source_file_id) from exc
+        if isinstance(exc, LakehouseError):
             raise
-        raise LakehouseError(f"lakehouse build failed during {stage}: {exc}") from exc
+        note = memory_limit_note(exc, memory_limit=memory_limit, threads=threads)
+        suffix = f" -- {note}" if note is not None else ""
+        raise LakehouseError(f"lakehouse build failed during {stage}: {exc}{suffix}") from exc
     finally:
         connection.close()
         _reset_staging(staging)

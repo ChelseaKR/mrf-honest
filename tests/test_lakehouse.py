@@ -5,6 +5,7 @@ import json
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
+from typing import cast
 
 import duckdb
 import pytest
@@ -12,6 +13,7 @@ import pytest
 import mrf_honest.lakehouse as lakehouse
 from mrf_honest.contracts import ContractError, validate_contracts
 from mrf_honest.lakehouse import (
+    LakehouseContractFailure,
     LakehouseError,
     PublisherRef,
     ingest_hospital_file,
@@ -837,3 +839,113 @@ def test_spool_load_declares_quoting_beyond_the_sniffer_sample(tmp_path: Path) -
             "SELECT modifier_codes_json FROM stg_charge_group WHERE charge_group_id = 'group-last'"
         ).fetchone()[0]
         assert json.loads(modifier_json) == ["51"]
+
+
+# --- a contract failure is evidence, not only an exit code -----------------------------------
+
+
+def test_a_contract_failure_carries_publishable_evidence(tmp_path: Path) -> None:
+    """One ingest attempt, one evidence document -- for both ways an attempt can end.
+
+    A scope refusal already produced a document `compare --ingest-result` could publish. A
+    contract failure produced a traceback and nothing else, so the comparison had no record and
+    the file page said "No warehouse ingest was recorded for this file" -- the same sentence it
+    shows for a file nobody ever tried to load. Measured on two republished UC Health files in
+    the 2026-09-12 cohort, whose only published trace of a rejected load was that absence.
+    """
+    source = _write(tmp_path / "hospital.json", _document(setting="telehealth"))
+    digest = hashlib.sha256(source.read_bytes()).hexdigest()
+
+    with pytest.raises(LakehouseContractFailure) as raised:
+        ingest_hospital_file(source, tmp_path / "warehouse", publisher=PublisherRef("example"))
+
+    evidence = raised.value.to_dict(publisher_id="example")
+    assert evidence["status"] == "contract_failed"
+    assert evidence["source_file_id"] == digest, (
+        "the evidence must key to the bytes the cohort graded, or it cannot be joined to a row"
+    )
+    assert evidence["publisher_id"] == "example"
+    violations = cast(list[dict[str, object]], evidence["violations"])
+    assert violations, "a contract failure with no violation names nothing"
+    assert {str(item["model"]) for item in violations} == {"stg_charge_group"}
+    assert {str(item["rule"]) for item in violations} == {"accepted_setting"}
+    assert all(int(cast(int, item["violating_rows"])) > 0 for item in violations)
+    assert all(str(item["message"]).strip() for item in violations)
+
+
+def test_a_contract_failure_is_still_a_contract_error_for_every_existing_caller(
+    tmp_path: Path,
+) -> None:
+    """Adding the evidence must not quietly change what the build does on a violation.
+
+    `docs/MODEL-DAG.md` and the warehouse section of the README both promise that a contract
+    violation fails the build rather than warning. Every caller that catches `ContractError`
+    keeps working because the new exception is one.
+    """
+    source = _write(tmp_path / "hospital.json", _document(setting="telehealth"))
+    with pytest.raises(ContractError, match="accepted_setting"):
+        ingest_hospital_file(source, tmp_path / "warehouse", publisher=PublisherRef("example"))
+
+
+# --- a ceiling an operator set has to say so when it stops the build -------------------------
+
+
+#: DuckDB's real wording, taken verbatim from the 2026-09-12 re-collection's failure on CHI
+#: Health Lakeside at the CLI default of 256MB. Written out rather than referenced from the
+#: module under test so that changing the marker there fails here.
+DUCKDB_OOM_MESSAGE = (
+    "Out of Memory Error: failed to allocate data of size 100.3 MiB (237.5 MiB/244.1 MiB used)"
+)
+
+
+def test_an_out_of_memory_failure_names_the_setting_that_caused_it() -> None:
+    note = lakehouse.memory_limit_note(
+        duckdb.OutOfMemoryException(DUCKDB_OOM_MESSAGE), memory_limit="256MB", threads=2
+    )
+    assert note is not None
+    assert "'256MB'" in note, "the note has to name the value that was actually configured"
+    assert "2 thread(s)" in note
+    assert "operator setting" in note
+    assert "docs/PHASE-2-FINDINGS.md" in note, "the operator needs somewhere to read a value off"
+
+
+def test_no_other_failure_is_annotated_with_memory_advice() -> None:
+    """The same defect in the other direction: advice pointing at a setting that is not the cause.
+
+    Two shapes are checked -- an unrelated DuckDB exception and a plain one -- because matching
+    on the exception *type* rather than its wording would pass the first and fail the second.
+    """
+    unrelated = duckdb.InvalidInputException("Invalid Input Error: no such column")
+    assert lakehouse.memory_limit_note(unrelated, memory_limit="256MB", threads=2) is None
+    assert lakehouse.memory_limit_note(ValueError("nope"), memory_limit="256MB", threads=2) is None
+
+
+def test_the_build_carries_the_advice_out_to_the_operator(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """End to end: the wrapper is what the operator reads, and it has to carry the sentence.
+
+    The failure is injected at `_duckdb_runtime`, which runs after the settings are applied and
+    before anything is staged, because a real out-of-memory failure needs a file large enough
+    that no test should download it. What is proved here is the wrapping, not DuckDB's limits.
+    """
+
+    def explode(*_args: object, **_kwargs: object) -> dict[str, object]:
+        raise duckdb.OutOfMemoryException(DUCKDB_OOM_MESSAGE)
+
+    monkeypatch.setattr(lakehouse, "_duckdb_runtime", explode)
+    source = _write(tmp_path / "hospital.json", _document())
+
+    with pytest.raises(LakehouseError) as raised:
+        ingest_hospital_file(
+            source,
+            tmp_path / "warehouse",
+            publisher=PublisherRef("example"),
+            memory_limit="256MB",
+            threads=2,
+        )
+
+    message = str(raised.value)
+    assert "Out of Memory Error" in message, "the underlying failure is still reported verbatim"
+    assert "'256MB'" in message
+    assert "operator setting" in message

@@ -1,7 +1,7 @@
 # A web page served where a file was requested was published as a hospital's unreadable file
 
 *An engineering finding about this project, observed 2026-08-19. It describes this tool's
-behaviour and the sentences it publishes. It is not a ranking of any hospital, not a statement
+behavior and the sentences it publishes. It is not a ranking of any hospital, not a statement
 about care, and not a legal compliance determination.*
 
 ## The rule this is an instance of
@@ -11,8 +11,8 @@ about care, and not a legal compliance determination.*
 HTTP status describes the *transfer*, not the *payload*. A 200 means a server chose to answer;
 it does not mean it answered with the thing that was asked for. Every stage downstream of a
 retrieval that treats "the fetch returned" as "the document is here" will eventually describe
-something that is not the document — and, in a tool that publishes beside a real organisation's
-name, will describe it *as that organisation's*.
+something that is not the document — and, in a tool that publishes beside a real organization's
+name, will describe it *as that organization's*.
 
 The fix has two halves, and the order matters:
 
@@ -138,7 +138,7 @@ There, an HTTP 200 returning a Cloudflare interstitial or a consent wall is stor
 snapshot and re-extracts to zero claims, which then diffs as a promise *removed* by a named
 company. Recording `Content-Type` would not help at all: the interstitial and the genuine
 privacy policy are both `text/html`, so the declaration carries no signal there. What arrived
-had to be characterised structurally instead — by whether the capture retained any of the
+had to be characterized structurally instead — by whether the capture retained any of the
 extractable structure that watch target had already demonstrated — and the refusal had to run
 in both directions, because a false exoneration is as bad as a false accusation.
 

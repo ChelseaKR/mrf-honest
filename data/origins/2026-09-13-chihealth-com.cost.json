@@ -1,0 +1,219 @@
+{
+ "version": 1,
+ "as_of": "2026-09-13",
+ "origin": "chihealth.com",
+ "cohort_id": "hospital-json-v3-origin-chihealth-com-2026-09-13",
+ "basis": {
+  "what_this_file_is": "The cost of one end-to-end origin collection, recorded because the assessment rows cannot carry it. Everything here is wall clock, pacing, robots evidence and process memory; every byte count and every disposition lives in data/origins/2026-09-13-chihealth-com.assessments.jsonl and is deliberately not repeated here, so that no number in this project has two sources that can disagree.",
+  "wall_clock": "time.monotonic() around the whole loop and around each assess_hospital_url call, in one process. `seconds` therefore includes robots.txt consultation, pacing, the HTTP request, the streamed download, gzip decoding, the full inspection, and the durable append.",
+  "peak_rss_bytes": "resource.getrusage(RUSAGE_SELF).ru_maxrss, read after each target and at the end. It is a high-water mark for the whole process, so `peak_rss_bytes_after` is monotonic by construction and is not a per-target measurement.",
+  "pacing": "The Politeness object's own evidence. One Politeness was shared by all 17 retrievals, so the per-host minimum interval held across the run rather than resetting per invocation.",
+  "probe_pass": "A `mrf-honest probe` of each distinct URL before any body was retrieved: one ranged GET asking for the first 4,096 bytes with Accept-Encoding: identity, robots.txt first. It was run to price the order before downloading it. Its wire cost is NOT recorded because it is not measurable from here: every one of the 15 responses was HTTP 200 rather than 206, so the server ignored the Range header and began sending a full body that the client read 4 KiB of and closed. What arrived before the close is whatever was already in flight.",
+  "not_measured": [
+   "request and response header bytes, TLS handshake bytes, and TCP overhead: `wire_size_bytes` in the assessment rows counts response body bytes only",
+   "the bandwidth the probe pass cost, for the reason stated above",
+   "anything about a GitHub-hosted runner: this run was on the operator's laptop"
+  ]
+ },
+ "discovery": {
+  "url": "https://chihealth.com/cms-hpt.txt",
+  "final_url": "https://www.chihealth.com/cms-hpt.txt",
+  "attempted_at": "2026-09-13T14:56:34.998941Z",
+  "http_status": 200,
+  "size_bytes": 7778,
+  "wire_size_bytes": 835,
+  "content_sha256": "480e0697851d146747f03a61137bb98ad7f133a954b6e83977bd6658919f862f",
+  "locations_listed": 17,
+  "document_problems": []
+ },
+ "probe_pass": {
+  "elapsed_seconds": 28.251,
+  "probes": 15,
+  "sample_bytes_requested": 4096,
+  "all_probed": true,
+  "http_200": 15,
+  "range_honored": 0,
+  "declared_size_known": 0,
+  "sniffed_json": 15
+ },
+ "collection": {
+  "elapsed_seconds": 430.215,
+  "peak_rss_bytes": 76955648,
+  "min_interval_seconds": 2.0,
+  "concurrency": 1,
+  "process_count": 1,
+  "max_bytes": 1073741824,
+  "targets": [
+   {
+    "order": 1,
+    "location_id": "chi-health-good-samaritan",
+    "seconds": 23.035,
+    "pacing_waited_seconds": 0.0,
+    "pacing_reason": "no_wait",
+    "robots_status": "allowed",
+    "robots_crawl_delay_seconds": null,
+    "peak_rss_bytes_after": 59736064
+   },
+   {
+    "order": 2,
+    "location_id": "chi-health-richard-young-behavioral-health",
+    "seconds": 46.116,
+    "pacing_waited_seconds": 0.0,
+    "pacing_reason": "no_wait",
+    "robots_status": "allowed",
+    "robots_crawl_delay_seconds": null,
+    "peak_rss_bytes_after": 62062592
+   },
+   {
+    "order": 3,
+    "location_id": "chi-health-nebraska-heart",
+    "seconds": 14.525,
+    "pacing_waited_seconds": 0.0,
+    "pacing_reason": "no_wait",
+    "robots_status": "allowed",
+    "robots_crawl_delay_seconds": null,
+    "peak_rss_bytes_after": 64651264
+   },
+   {
+    "order": 4,
+    "location_id": "chi-health-st-elizabeth",
+    "seconds": 12.464,
+    "pacing_waited_seconds": 0.0,
+    "pacing_reason": "no_wait",
+    "robots_status": "allowed",
+    "robots_crawl_delay_seconds": null,
+    "peak_rss_bytes_after": 64651264
+   },
+   {
+    "order": 5,
+    "location_id": "chi-health-st-francis",
+    "seconds": 17.0,
+    "pacing_waited_seconds": 0.0,
+    "pacing_reason": "no_wait",
+    "robots_status": "allowed",
+    "robots_crawl_delay_seconds": null,
+    "peak_rss_bytes_after": 64651264
+   },
+   {
+    "order": 6,
+    "location_id": "chi-health-mercy-corning",
+    "seconds": 27.564,
+    "pacing_waited_seconds": 0.0,
+    "pacing_reason": "no_wait",
+    "robots_status": "allowed",
+    "robots_crawl_delay_seconds": null,
+    "peak_rss_bytes_after": 64651264
+   },
+   {
+    "order": 7,
+    "location_id": "chi-health-missouri-valley",
+    "seconds": 35.727,
+    "pacing_waited_seconds": 0.0,
+    "pacing_reason": "no_wait",
+    "robots_status": "allowed",
+    "robots_crawl_delay_seconds": null,
+    "peak_rss_bytes_after": 64651264
+   },
+   {
+    "order": 8,
+    "location_id": "chi-health-plainview",
+    "seconds": 27.486,
+    "pacing_waited_seconds": 0.0,
+    "pacing_reason": "no_wait",
+    "robots_status": "allowed",
+    "robots_crawl_delay_seconds": null,
+    "peak_rss_bytes_after": 64651264
+   },
+   {
+    "order": 9,
+    "location_id": "chi-health-st-mary-s",
+    "seconds": 19.207,
+    "pacing_waited_seconds": 0.0,
+    "pacing_reason": "no_wait",
+    "robots_status": "allowed",
+    "robots_crawl_delay_seconds": null,
+    "peak_rss_bytes_after": 64651264
+   },
+   {
+    "order": 10,
+    "location_id": "chi-health-schuyler",
+    "seconds": 27.367,
+    "pacing_waited_seconds": 0.0,
+    "pacing_reason": "no_wait",
+    "robots_status": "allowed",
+    "robots_crawl_delay_seconds": null,
+    "peak_rss_bytes_after": 64651264
+   },
+   {
+    "order": 11,
+    "location_id": "chi-health-mercy-council-bluffs",
+    "seconds": 18.967,
+    "pacing_waited_seconds": 0.0,
+    "pacing_reason": "no_wait",
+    "robots_status": "allowed",
+    "robots_crawl_delay_seconds": null,
+    "peak_rss_bytes_after": 64651264
+   },
+   {
+    "order": 12,
+    "location_id": "chi-health-creighton-university-medical-center-bergan-mercy",
+    "seconds": 20.789,
+    "pacing_waited_seconds": 0.0,
+    "pacing_reason": "no_wait",
+    "robots_status": "allowed",
+    "robots_crawl_delay_seconds": null,
+    "peak_rss_bytes_after": 67174400
+   },
+   {
+    "order": 13,
+    "location_id": "chi-health-creighton-university-medical-center-university-campus",
+    "seconds": 20.959,
+    "pacing_waited_seconds": 0.0,
+    "pacing_reason": "no_wait",
+    "robots_status": "allowed",
+    "robots_crawl_delay_seconds": null,
+    "peak_rss_bytes_after": 68616192
+   },
+   {
+    "order": 14,
+    "location_id": "chi-health-immanuel",
+    "seconds": 27.593,
+    "pacing_waited_seconds": 0.0,
+    "pacing_reason": "no_wait",
+    "robots_status": "allowed",
+    "robots_crawl_delay_seconds": null,
+    "peak_rss_bytes_after": 68616192
+   },
+   {
+    "order": 15,
+    "location_id": "lasting-hope-recovery-center",
+    "seconds": 25.469,
+    "pacing_waited_seconds": 0.0,
+    "pacing_reason": "no_wait",
+    "robots_status": "allowed",
+    "robots_crawl_delay_seconds": null,
+    "peak_rss_bytes_after": 76955648
+   },
+   {
+    "order": 16,
+    "location_id": "chi-health-lakeside",
+    "seconds": 39.115,
+    "pacing_waited_seconds": 0.0,
+    "pacing_reason": "no_wait",
+    "robots_status": "allowed",
+    "robots_crawl_delay_seconds": null,
+    "peak_rss_bytes_after": 76955648
+   },
+   {
+    "order": 17,
+    "location_id": "chi-health-midlands",
+    "seconds": 26.813,
+    "pacing_waited_seconds": 0.0,
+    "pacing_reason": "no_wait",
+    "robots_status": "allowed",
+    "robots_crawl_delay_seconds": null,
+    "peak_rss_bytes_after": 76955648
+   }
+  ]
+ }
+}
