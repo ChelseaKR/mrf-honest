@@ -36,6 +36,38 @@ they are left as they were written rather than retrofitted into versions that ne
 
 ### Fixed
 
+- **A charged CSV row with no code pairing was excused from the description and setting
+  requirements (issue #28).** In `_check_item_completeness`, `CMS_CSV_DESCRIPTION_MISSING` and
+  `CMS_CSV_SETTING_INVALID` both sat behind `is_item`, which is `complete_codes > 0`. A data row
+  that disclosed a standard charge but paired no code therefore reported
+  `CMS_CSV_CODE_PAIRING_MISSING` and nothing else: the absent pairing switched off two checks
+  the same row still owed. `description` and `setting` are both "Blanks Accepted: No" in the
+  data dictionary's required standard-charge, item/service and coding table
+  (`corpus/cms/csv-data-dictionary.md`), and neither requirement is conditioned on the code
+  columns being populated. A third branch now covers charged rows that are neither items nor
+  modifier rows. Modifier rows are untouched: note 11 makes a description plus one
+  payer-specific charge their minimum and does not list `setting`, so widening the `is_item`
+  gate instead — the approach taken by PR #31, closed unmerged for exactly this reason — would
+  both report a blank `setting` on a conforming modifier row and make
+  `CMS_CSV_MODIFIER_ROW_CONTEXT_MISSING` unreachable for any row carrying a charge. Both
+  behaviors are pinned by new tests, the second of which fails under PR #31's approach.
+- **Both CSV cohorts re-assessed under inspection policy v2, 2026-09-18.** The fix above changes
+  what the CSV inspector reports, so `CSV_INSPECTION_POLICY_VERSION` moves to
+  `cms-hospital-csv-v3-inspection-v2` and the assessment policy fingerprint moves from
+  `55ed46872e7f…` to `28d7b4380d78…`. The comparison refuses rows graded under any other
+  fingerprint, so both committed CSV cohorts (`hospital-csv-v3-2026-08-19` and
+  `hospital-csv-v3-2026-09-12`, the one the site renders) were re-assessed from the verified
+  local cache with the new `tools/reassess_cohort.py`. It opens no socket: each row's retrieval
+  evidence is carried over byte for byte, the 40 inspected bodies (7.7 GB read in all) are
+  re-hashed against their recorded digests and inspected again, and the 10 rows with no body stay
+  `NOT_GRADED` with their reasons. Run under v1 first over 11 of the 2026-08-19 rows, it
+  reproduced them byte for byte.
+  **No hospital's grade or findings moved in either cohort (0 of 25 in each).** The fix can only
+  add findings to a row that already reports `CMS_CSV_CODE_PAIRING_MISSING`, and none of the 40
+  files did. Every published CSV finding now traces to the new fingerprint. The per-hospital
+  diff is in
+  [docs/findings/csv-cohorts-reassessed-2026-09-18.md](docs/findings/csv-cohorts-reassessed-2026-09-18.md).
+
 - **`v0.1.0` is now an actual GitHub Release, and the README's "there is no release yet" line
   was left behind when it was cut.** `release.yml` verifies the signed tag, re-runs `make verify`
   at the tagged commit, builds the distributions and uploads them as a run artifact for the
@@ -669,31 +701,6 @@ they are left as they were written rather than retrofitted into versions that ne
   document's total is not the number of tests that actually collect. The branch-coverage
   percentage beside it is deliberately left ungated and is stated as a dated measurement: the
   run that would check it is the one in progress.
-
-- **A charged CSV row with no code pairing was excused from the description and setting
-  requirements (issue #28).** In `_check_item_completeness`, `CMS_CSV_DESCRIPTION_MISSING` and
-  `CMS_CSV_SETTING_INVALID` both sat behind `is_item`, which is `complete_codes > 0`. A data row
-  that disclosed a standard charge but paired no code therefore reported
-  `CMS_CSV_CODE_PAIRING_MISSING` and nothing else: the absent pairing switched off two checks
-  the same row still owed. `description` and `setting` are both "Blanks Accepted: No" in the
-  data dictionary's required standard-charge, item/service and coding table
-  (`corpus/cms/csv-data-dictionary.md`), and neither requirement is conditioned on the code
-  columns being populated. A third branch now covers charged rows that are neither items nor
-  modifier rows. Modifier rows are untouched: note 11 makes a description plus one
-  payer-specific charge their minimum and does not list `setting`, so widening the `is_item`
-  gate instead — the approach taken by PR #31, closed unmerged for exactly this reason — would
-  both report a blank `setting` on a conforming modifier row and make
-  `CMS_CSV_MODIFIER_ROW_CONTEXT_MISSING` unreachable for any row carrying a charge. Both
-  behaviours are pinned by new tests, the second of which fails under PR #31's approach.
-- `CSV_INSPECTION_POLICY_VERSION` moves to `cms-hospital-csv-v3-inspection-v2`, because
-  inspection behaviour changed without a catalog or rule-set change. **This invalidates the
-  committed `hospital-csv-v3-2026-08-19` cohort**, whose rows were assessed under v1 semantics:
-  `test_committed_comparison_is_reproducible_from_committed_inputs[2026-08-19-csv.comparison.json]`
-  fails until that cohort is re-assessed and its comparison regenerated. That is the
-  fingerprint doing the job its own comment describes — prior findings cannot be silently
-  reused after grading semantics change — rather than a regression. The re-assessment is an
-  operator-invoked act: it needs the retrieved bodies, and it will change published finding
-  counts for named hospitals.
 
 ### Added
 
