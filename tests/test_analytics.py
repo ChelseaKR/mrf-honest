@@ -229,7 +229,7 @@ class TestTheMeasurementId:
 
         assert cli.main([*args, "--out", str(tmp_path / "default")]) == 0
         home = (tmp_path / "default" / "index.html").read_text(encoding="utf-8")
-        assert home.count(f"var GA4_ID = {json.dumps(MEASUREMENT_ID)};") == 1
+        assert home.count(f"var I={json.dumps(MEASUREMENT_ID)},") == 1
 
         assert cli.main([*args, "--out", str(tmp_path / "off"), "--ga4-id", ""]) == 0
         assert "analytics" not in (tmp_path / "off" / "index.html").read_text(encoding="utf-8")
@@ -480,16 +480,15 @@ def test_a_page_without_the_footer_control_still_loads(script: str, tmp_path: Pa
 @pytest.mark.parametrize(
     ("guard", "scenario"),
     [
-        ("  if (n.globalPrivacyControl === true) return;\n", {"gpc": True}),
-        ('  if (dnt === "1" || dnt === "yes") return;\n', {"dnt": "1"}),
-        ("  if (optedOut) return;\n", {"storage": {OPT_OUT_KEY: "1"}}),
+        ("if(n.globalPrivacyControl===true)return;\n", {"gpc": True}),
+        ('if(t==="1"||t==="yes")return;\n', {"dnt": "1"}),
+        ("if(o)return;\n", {"storage": {OPT_OUT_KEY: "1"}}),
         (
-            '  if (l.protocol !== "https:" || l.hostname !== PUBLISHED_HOST) return;\n',
+            'if(l.protocol!=="https:"||l.hostname!==H)return;\n',
             {"url": "http://127.0.0.1:8000/mrf-honest/"},
         ),
         (
-            '  if (l.pathname !== "/mrf-honest" && l.pathname.indexOf(PUBLISHED_PATH) !== 0) '
-            "return;\n",
+            'if(l.pathname!=="/mrf-honest"&&l.pathname.indexOf(P)!==0)return;\n',
             {"url": "https://chelseakr.github.io/ctdl-validate/"},
         ),
     ],
@@ -505,7 +504,7 @@ def test_removing_a_guard_is_caught(
 
 
 def test_turning_google_signals_on_is_caught(script: str, tmp_path: Path) -> None:
-    broken = sabotage(script, "allow_google_signals: false,", "allow_google_signals: true,")
+    broken = sabotage(script, "allow_google_signals:false,", "allow_google_signals:true,")
     assert run(broken, tmp_path)["dataLayer"][3][2]["allow_google_signals"] is True
 
 

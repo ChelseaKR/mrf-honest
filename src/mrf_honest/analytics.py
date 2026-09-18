@@ -94,89 +94,34 @@ def measurement_id_or_none(value: str | None) -> str | None:
 
 def _js(value: object) -> str:
     """A value as a JavaScript literal that cannot close the ``<script>`` it sits in."""
-    return json.dumps(value, ensure_ascii=False).replace("<", "\\u003c")
+    return json.dumps(value, ensure_ascii=False, separators=(",", ":")).replace("<", "\\u003c")
 
 
+#: Written compactly on purpose. The index page already sits close to the 60 KiB document cap in
+#: perf/resource-budget.json, and these bytes are on every page; the readable account of what the
+#: script does is the module docstring above and tests/test_analytics.py, which executes it.
+#: Each guard keeps a line of its own so a negative control can remove exactly one.
 _TEMPLATE: Final[str] = """<script id="analytics">
-(function () {
-  "use strict";
-  var GA4_ID = %(id)s;
-  var PUBLISHED_HOST = %(host)s;
-  var PUBLISHED_PATH = %(path)s;
-  var OPT_OUT_KEY = %(key)s;
-  var DENIED_REGIONS = %(regions)s;
-  var M = %(messages)s;
-  var w = window, n = navigator, d = document, l = w.location;
-  if (!/^G-[A-Z0-9]+$/.test(GA4_ID)) return;
-  if (l.protocol !== "https:" || l.hostname !== PUBLISHED_HOST) return;
-  if (l.pathname !== %(bare_path)s && l.pathname.indexOf(PUBLISHED_PATH) !== 0) return;
-  var dnt = n.doNotTrack || w.doNotTrack || n.msDoNotTrack;
-  var signal = n.globalPrivacyControl === true || dnt === "1" || dnt === "yes";
-  var optedOut = false;
-  try { optedOut = w.localStorage.getItem(OPT_OUT_KEY) === "1"; } catch (e) {}
-
-  // The footer's opt-out control. It stays hidden unless this runs.
-  d.addEventListener("DOMContentLoaded", function () {
-    var box = d.getElementById("analytics-choice");
-    var button = d.getElementById("analytics-opt-out");
-    var status = d.getElementById("analytics-status");
-    if (!box || !button || !status) return;
-    box.hidden = false;
-    if (signal) {
-      status.textContent = M.signal;
-      return;
-    }
-    function show(message) {
-      button.textContent = optedOut ? M.opt_in : M.opt_out;
-      status.textContent = message;
-    }
-    button.hidden = false;
-    show(optedOut ? M.off : "");
-    button.addEventListener("click", function () {
-      optedOut = !optedOut;
-      w["ga-disable-" + GA4_ID] = optedOut;
-      try {
-        if (optedOut) w.localStorage.setItem(OPT_OUT_KEY, "1");
-        else w.localStorage.removeItem(OPT_OUT_KEY);
-      } catch (e) {
-        show(M.not_saved);
-        return;
-      }
-      show(optedOut ? M.off : M.back_on);
-    });
-  });
-
-  if (n.globalPrivacyControl === true) return;
-  if (dnt === "1" || dnt === "yes") return;
-  if (optedOut) return;
-  w.dataLayer = w.dataLayer || [];
-  function gtag() { w.dataLayer.push(arguments); }
-  gtag("consent", "default", {
-    ad_storage: "denied",
-    ad_user_data: "denied",
-    ad_personalization: "denied",
-    analytics_storage: "granted"
-  });
-  gtag("consent", "default", {
-    ad_storage: "denied",
-    ad_user_data: "denied",
-    ad_personalization: "denied",
-    analytics_storage: "denied",
-    region: DENIED_REGIONS
-  });
-  gtag("js", new Date());
-  gtag("config", GA4_ID, {
-    page_location: l.origin + l.pathname,
-    allow_google_signals: false,
-    allow_ad_personalization_signals: false
-  });
-  var s = d.createElement("script");
-  s.async = true;
-  s.src = "https://www.googletagmanager.com/gtag/js?id=" + encodeURIComponent(GA4_ID);
-  d.head.appendChild(s);
-})();
+(function(){
+var I=%(id)s,H=%(host)s,P=%(path)s,K=%(key)s,R=%(regions)s,M=%(messages)s,w=window,n=navigator,d=document,l=w.location;
+if(!/^G-[A-Z0-9]+$/.test(I))return;
+if(l.protocol!=="https:"||l.hostname!==H)return;
+if(l.pathname!==%(bare_path)s&&l.pathname.indexOf(P)!==0)return;
+var t=n.doNotTrack||w.doNotTrack||n.msDoNotTrack,s=n.globalPrivacyControl===true||t==="1"||t==="yes",o=false;
+try{o=w.localStorage.getItem(K)==="1"}catch(e){}
+d.addEventListener("DOMContentLoaded",function(){var c=d.getElementById("analytics-choice"),b=d.getElementById("analytics-opt-out"),u=d.getElementById("analytics-status");if(!c||!b||!u)return;c.hidden=false;if(s){u.textContent=M.signal;return}function f(m){b.textContent=o?M.opt_in:M.opt_out;u.textContent=m}b.hidden=false;f(o?M.off:"");b.addEventListener("click",function(){o=!o;w["ga-disable-"+I]=o;try{if(o)w.localStorage.setItem(K,"1");else w.localStorage.removeItem(K)}catch(e){f(M.not_saved);return}f(o?M.off:M.back_on)})});
+if(n.globalPrivacyControl===true)return;
+if(t==="1"||t==="yes")return;
+if(o)return;
+w.dataLayer=w.dataLayer||[];function g(){w.dataLayer.push(arguments)}
+function a(v,r){var c={ad_storage:"denied",ad_user_data:"denied",ad_personalization:"denied",analytics_storage:v};if(r)c.region=r;return c}
+g("consent","default",a("granted"));
+g("consent","default",a("denied",R));
+g("js",new Date());
+g("config",I,{page_location:l.origin+l.pathname,allow_google_signals:false,allow_ad_personalization_signals:false});
+var e=d.createElement("script");e.async=true;e.src="https://www.googletagmanager.com/gtag/js?id="+encodeURIComponent(I);d.head.appendChild(e)})();
 </script>
-"""
+"""  # noqa: E501 - page bytes, not Python: compact on purpose (see the comment above)
 
 
 def loader(measurement_id: str) -> str:

@@ -1301,10 +1301,10 @@ def _discovery_tags(page: Page, origin: str) -> str:
 #: render without one is byte-for-byte what it was. It changes a setting rather than going
 #: anywhere, so it is a button, drawn like the footer's links; min-height keeps the target at
 #: 24px (WCAG 2.2 SC 2.5.8).
-_ANALYTICS_RULES = """
-.link-button { font: inherit; color: var(--accent); background: none; border: 0; padding: 0;
-  min-height: 24px; text-decoration: underline; cursor: pointer; }
-"""
+_ANALYTICS_RULES = (
+    ".link-button{font:inherit;color:var(--accent);background:none;border:0;padding:0;"
+    "min-height:24px;text-decoration:underline;cursor:pointer}\n"
+)
 
 
 def _footer_analytics(page: Page) -> str:

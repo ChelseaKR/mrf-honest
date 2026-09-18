@@ -57,6 +57,13 @@ Google's gtag.js and GA's requests. Those are outside the budget by the owner's 
 budget file, the README and the metrics ledger now say so instead of saying the site has no
 script.
 
+The document and total caps are the one number that moves: from 61,440 bytes (60 KiB) to 65,536
+(64 KiB). The loader and its footer opt-out add 2,647 bytes to every page, and the index, the
+heaviest page at 58,629 bytes, had less headroom than that once response headers are counted.
+The first CI run of this change measured it at 62,520 bytes, over the old cap. The loader is
+written compactly (2,195 bytes, down from 3,228 when it was laid out for reading), so the widening
+pays for the decision and for nothing else. Content growth past 64 KiB is still a failed build.
+
 ## Consequences
 
 - The site has a data flow about its readers. Google receives:
