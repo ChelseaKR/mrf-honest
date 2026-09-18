@@ -7,6 +7,23 @@ they are left as they were written rather than retrofitted into versions that ne
 
 ## [Unreleased]
 
+### Added
+
+- **The published site counts visits with Google Analytics 4**, by the owner's decision of
+  2026-09-17 ([ADR 0009](docs/adr/0009-the-published-site-counts-visits-with-google-analytics.md)).
+  `src/mrf_honest/analytics.py` holds the ID, `G-57DWCFVLWQ`, and renders one inline loader
+  that `mrf-honest site` puts in the head of every page by default (`--ga4-id ""` turns it off;
+  `render_site()` without an ID is byte-for-byte what it was). The loader loads nothing off
+  `https://chelseakr.github.io/mrf-honest/`, under Global Privacy Control or Do Not Track, or
+  after the new footer "Opt out of analytics" button (localStorage key
+  `mrf-honest:analytics-opt-out`). Google signals and ad personalisation are off, the ad consent
+  signals are denied, `analytics_storage` is denied by default in the EEA, the UK and
+  Switzerland, and `page_location` is the origin and path only. Every footer says so and links a
+  new `privacy/` page, which says plainly that a page's address names the hospital file being
+  read. `tests/test_analytics.py` runs the loader under Node, with negative controls. The README,
+  the metrics ledger and `perf/resource-budget.json` no longer say the site has no script, and
+  `docs/RESPONSIBLE-TECH-AUDITS.md` carries a dated appendix.
+
 ## [0.1.0] - 2026-09-13
 
 ### Security

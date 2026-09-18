@@ -118,6 +118,10 @@ jobs:
           test -f site/how-we-grade/index.html
           test -f site/sitemap.xml
           test -f site/404.html
+          # The privacy page every footer links to (docs/adr/0009). `mrf-honest site` publishes the
+          # committed Google Analytics 4 ID by default, which is what writes this page and the
+          # footer link to it; a footer link to a missing disclosure is the failure checked here.
+          test -f site/privacy/index.html
           grep -Fq 'Sitemap: https://chelseakr.github.io/mrf-honest/sitemap.xml' site/robots.txt
           # site/robots.txt is published for completeness and is INERT as deployed: a crawler
           # only reads /robots.txt at the ORIGIN root, and this project cannot publish
