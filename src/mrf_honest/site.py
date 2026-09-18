@@ -21,6 +21,7 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import cast
 
+from mrf_honest import analytics
 from mrf_honest.cohort import (
     INGEST_CONTRACT_FAILED,
     INGEST_REFUSED,
@@ -1136,6 +1137,80 @@ def methods_page(comparisons: Sequence[Mapping[str, object]], origin: str) -> Pa
     )
 
 
+PRIVACY_PATH = "privacy"
+"""Where the privacy page is written, when the render has a GA4 measurement ID (ADR 0009)."""
+
+
+def privacy_page(measurement_id: str) -> Page:
+    """What a visit sends to Google Analytics, and when it sends nothing (ADR 0009).
+
+    Written only when the render has a measurement ID, so a site without one carries no page
+    describing analytics it does not run. The cookie name and the opt-out key are read off the
+    same constants the script uses, so the page cannot name a cookie or a key the script does not.
+    """
+    cookie = "_ga_" + measurement_id.removeprefix("G-")
+    body = (
+        '<nav class="crumbs"><a href="../">All graded files</a></nav>'
+        "<h1>Privacy</h1>"
+        '<p class="lede">mrf-honest has no accounts and asks you for nothing. It counts visits '
+        "with Google Analytics 4 (GA4), which Google runs for the site's author. This page says "
+        "what that sends, and when it sends nothing.</p>"
+        "<h2>What Google Analytics receives</h2>"
+        "<p>For each page you open, GA4 receives:</p>"
+        "<ul>"
+        "<li>the page's address, without anything after a <code>#</code> or <code>?</code>. On "
+        "this site the address names the hospital file you are reading, so Google learns which "
+        "hospitals' pages were looked at</li>"
+        "<li>the address of the page that linked you here, if your browser sends it</li>"
+        "<li>your browser, operating system, screen size and language, and a rough location that "
+        "Google works out from your IP address (GA4 does not store the IP address itself)</li>"
+        "<li>when you scroll to the bottom of a page, follow a link to another site, or download "
+        "a file such as the dataset</li>"
+        "<li>a random ID kept in two first-party cookies, <code>_ga</code> and "
+        f"<code>{_e(cookie)}</code>, for up to two years, so that a return visit can be told "
+        "apart from a new one. <code>_ga</code> is shared by every site under "
+        "chelseakr.github.io</li>"
+        "</ul>"
+        "<p>Google signals and ad personalisation are off, and the advertising consent signals "
+        "are denied, so nothing here is used for advertising. No name, email address or account "
+        "is involved, and nothing about your own health or care is asked for or sent.</p>"
+        "<p>In the European Economic Area, the UK and Switzerland, analytics cookies are off by "
+        "default, so GA4 does not set its cookies there. Google still receives a cookieless ping "
+        "for each page view, with no ID that links one visit to another.</p>"
+        "<p>Google keeps this data for 14 months and then deletes it. Google processes it in the "
+        'United States, as described in <a href="https://policies.google.com/technologies/'
+        'partner-sites">How Google uses information from sites that use its services</a>.</p>'
+        "<h2>When nothing is sent</h2>"
+        "<p>No request goes to Google, and no Google cookie is set, when your browser sends Global "
+        "Privacy Control or Do Not Track, when you have opted out on this device, or when "
+        "JavaScript is off.</p>"
+        "<h2>Opting out on this device</h2>"
+        "<p>The \u201cOpt out of analytics\u201d button at the foot of every page stores "
+        f"<code>{_e(analytics.OPT_OUT_KEY)}</code> in this browser's local storage. That is not a "
+        "cookie, and it is never sent anywhere. \u201cOpt back in\u201d removes it, and so does "
+        "clearing this site's data. Opting out does not delete <code>_ga</code> cookies you "
+        "already have, because other chelseakr.github.io sites share them. They expire on their "
+        "own, and this site sends nothing to Google while you are opted out. Google also offers a "
+        '<a href="https://tools.google.com/dlpage/gaoptout">browser add-on</a> that turns Google '
+        "Analytics off everywhere.</p>"
+        "<h2>Hosting</h2>"
+        "<p>GitHub Pages hosts this site, and GitHub may log visitors' IP addresses; see the "
+        '<a href="https://docs.github.com/en/site-policy/privacy-policies/'
+        'github-general-privacy-statement">GitHub General Privacy Statement</a>.</p>'
+    )
+    return Page(
+        path=PRIVACY_PATH,
+        title="Privacy: what mrf-honest sends to Google Analytics",
+        description=(
+            "What mrf-honest sends to Google Analytics 4 when you read it, what it does not send, "
+            "when nothing is sent at all, and how to opt out on your device."
+        ),
+        changefreq="monthly",
+        priority="0.3",
+        body=body,
+    )
+
+
 def not_found_page() -> Page:
     return Page(
         path="404",
@@ -1187,8 +1262,10 @@ def _discovery_tags(page: Page, origin: str) -> str:
     actually requests while loading. No page requests this card: it is named in a `<meta>`
     tag, fetched only by whatever unfurls a pasted link, and never by a browser rendering
     the site. The budget's own reason ("adding one is a failed build rather than a change
-    nobody noticed") is about page weight, and page weight is unchanged: still no script, no
-    stylesheet, no font, no image request, one request per page.
+    nobody noticed") is about page weight, and page weight is unchanged: no script file, no
+    stylesheet, no font, no image request, one request per page. (The Google Analytics loader of
+    ADR 0009 is inline, so it is not a request, and off the published address -- including the
+    127.0.0.1 the budget is measured on -- it fetches nothing.)
 
     What the card does change is the promise. `twitter:card` is `summary_large_image`, which
     promises an image, so the image has to exist: `test_site.py` requires `og:image` on any
@@ -1220,17 +1297,52 @@ def _discovery_tags(page: Page, origin: str) -> str:
     )
 
 
-def _shell(page: Page, origin: str, generated_at: str, built_on: date) -> str:
+#: The footer's analytics opt-out, added to the stylesheet only on a render with a GA4 ID, so a
+#: render without one is byte-for-byte what it was. It changes a setting rather than going
+#: anywhere, so it is a button, drawn like the footer's links; min-height keeps the target at
+#: 24px (WCAG 2.2 SC 2.5.8).
+_ANALYTICS_RULES = (
+    ".link-button{font:inherit;color:var(--accent);background:none;border:0;padding:0;"
+    "min-height:24px;text-decoration:underline;cursor:pointer}\n"
+)
+
+
+def _footer_analytics(page: Page) -> str:
+    """The footer's analytics sentence, the privacy link and the opt-out control (ADR 0009).
+
+    The link is relative to the page, like every other in-site link, except on the error page,
+    which is served at whatever address was not found and so links absolutely, as its body does.
+    """
+    if page.path == "404":
+        privacy = f"{analytics.PUBLISHED_PATH}{PRIVACY_PATH}/"
+    else:
+        privacy = "../" * (page.path.count("/") + 1 if page.path else 0) + f"{PRIVACY_PATH}/"
+    return (
+        '<p>This site counts visits with Google Analytics 4. <a href="'
+        f'{privacy}">What it records, and how to opt out</a>.'
+        '<span id="analytics-choice" hidden> \u00b7 '
+        '<button type="button" id="analytics-opt-out" class="link-button" hidden>'
+        f"{_e(analytics.MESSAGES['opt_out'])}</button> "
+        '<span id="analytics-status" role="status"></span></span></p>\n'
+    )
+
+
+def _shell(
+    page: Page, origin: str, generated_at: str, built_on: date, ga4_id: str | None = None
+) -> str:
+    head_analytics = "" if ga4_id is None else analytics.loader(ga4_id)
+    style = _STYLE if ga4_id is None else _STYLE + _ANALYTICS_RULES
+    footer_analytics = "" if ga4_id is None else _footer_analytics(page)
     return f"""<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{_e(page.title)}</title>
+{head_analytics}<title>{_e(page.title)}</title>
 <meta name="description" content="{_e(page.description)}">
 {_discovery_tags(page, origin)}
 <link rel="icon" href="data:,">
-<style>{_STYLE}</style>
+<style>{style}</style>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to main content</a>
@@ -1244,20 +1356,27 @@ CMS-mandated machine-readable files are read; retrieval is identified, bounded, 
 robots.txt. <a href="https://github.com/ChelseaKR/mrf-honest">Source and methodology</a>.</p>
 <p>Something here wrong about your file? <a href="{CORRECTIONS_URL}">Corrections, disputes and
 removal</a>. A removal request is honoured on request: you are not asked to prove anything.</p>
-</footer>
+{footer_analytics}</footer>
 </body>
 </html>
 """
 
 
-def write_page(out_dir: Path, page: Page, origin: str, generated_at: str, built_on: date) -> Path:
+def write_page(
+    out_dir: Path,
+    page: Page,
+    origin: str,
+    generated_at: str,
+    built_on: date,
+    ga4_id: str | None = None,
+) -> Path:
     directory = out_dir / page.path if page.path else out_dir
     directory.mkdir(parents=True, exist_ok=True)
     if page.path == "404":
         target = out_dir / "404.html"
     else:
         target = directory / "index.html"
-    target.write_text(_shell(page, origin, generated_at, built_on), encoding="utf-8")
+    target.write_text(_shell(page, origin, generated_at, built_on, ga4_id), encoding="utf-8")
     return target
 
 
@@ -1386,12 +1505,21 @@ def render_site(
     *,
     origin: str = DEFAULT_ORIGIN,
     built_on: date | None = None,
+    ga4_id: str | None = None,
 ) -> list[Path]:
     """Render the complete static site for one or more cohort comparison documents.
 
     Each comparison stays its own clearly scoped section; nothing is pooled across profiles.
     A single mapping is accepted for compatibility with single-cohort callers.
+
+    ``ga4_id`` is a Google Analytics 4 measurement ID, or ``None`` (ADR 0009). With one, every
+    page carries the guarded loader in its head and the opt-out control in its footer, and a
+    privacy page is written; the loader sends nothing anywhere but the published address.
+    Without one the render is byte-for-byte what it was. ``mrf-honest site`` passes
+    :data:`mrf_honest.analytics.GA4_MEASUREMENT_ID` unless told otherwise. A malformed ID raises
+    ``ValueError`` before anything is written.
     """
+    ga4_id = analytics.measurement_id_or_none(ga4_id)
     comparisons: list[Mapping[str, object]] = (
         [comparison] if isinstance(comparison, Mapping) else list(comparison)
     )
@@ -1416,9 +1544,10 @@ def render_site(
         index_page(comparisons, origin, when),
         methods_page(comparisons, origin),
         *(file_page(row, entry, origin, when) for entry in comparisons for row in _rows(entry)),
+        *([privacy_page(ga4_id)] if ga4_id is not None else []),
         not_found_page(),
     ]
-    written = [write_page(out_dir, page, origin, generated_at, when) for page in pages]
+    written = [write_page(out_dir, page, origin, generated_at, when, ga4_id) for page in pages]
     data_dir = out_dir / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
     for index, entry in enumerate(comparisons):
