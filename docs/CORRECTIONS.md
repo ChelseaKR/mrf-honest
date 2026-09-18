@@ -6,8 +6,8 @@ about you costs you as little as possible.
 
 Three principles hold everywhere below.
 
-**You do not have to prove anything.** A removal request is honoured on request. You are not
-asked to demonstrate that a grade is mistaken, to identify yourself as authorised, or to argue
+**You do not have to prove anything.** A removal request is honored on request. You are not
+asked to demonstrate that a grade is mistaken, to identify yourself as authorized, or to argue
 your case first. If you want a row gone, say which row; that is the whole procedure. The
 alternative, a project that keeps publishing about you until you satisfy its evidentiary
 standard, is a project that has made itself the judge of its own errors.
@@ -34,7 +34,7 @@ checks made of it:
 - the date all of that was observed.
 
 It does not publish contact details gathered during discovery, anything about care, anything
-about prices as amounts, or any comparison between organisations.
+about prices as amounts, or any comparison between organizations.
 
 ## How to raise something
 
@@ -75,13 +75,13 @@ after the fact. The withdrawal note names no reason and asks for none.
 
 Say so, and it stops. A `robots.txt` disallow already stops it in code, before any request, with
 no override flag anywhere in the project ([`src/mrf_honest/politeness.py`](../src/mrf_honest/politeness.py)),
-so the fastest route needs no involvement from this project at all. A direct request is honoured
+so the fastest route needs no involvement from this project at all. A direct request is honored
 the same way.
 
 ## What this project will not do
 
 - Ask you to prove a claim before acting on a removal request.
-- Require an identity, an affiliation, or an authorisation to accept one.
+- Require an identity, an affiliation, or an authorization to accept one.
 - Publish correspondence about a dispute.
 - Argue about a grade in public before answering privately.
 
@@ -181,5 +181,5 @@ that stopped, a format the tool did not implement, a frame that did not exist, a
 that described a subset. Each one reads, on the page, as a fact about a hospital.
 
 That is why "you retrieved the wrong document" is listed above as its own route, and why a
-removal request is honoured without argument. The class of error this project is most likely to
+removal request is honored without argument. The class of error this project is most likely to
 make is the class where the person best placed to notice it is the one it is being made about.

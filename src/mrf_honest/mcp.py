@@ -158,7 +158,7 @@ def _cohort_document_path(site_dir: Path, cohort_id: str) -> Path | None:
     what `docs/how-we-compare.md` establishes may never be published, delivered by the one
     server whose whole purpose is to refuse what the site refuses.
 
-    The containment check below is defence in depth for the case membership cannot cover: an
+    The containment check below is defense in depth for the case membership cannot cover: an
     index that itself named an id which walks out of the cohorts directory. That would mean
     this project's own render wrote something it must not, so it fails loudly rather than
     reading the file.

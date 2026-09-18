@@ -21,7 +21,7 @@ documented:
 **A URL extension is a candidate, never a determination.** ``.json`` in a path is what the
 publisher named the file, not what the server serves; the 2026-08-19 run downloaded 669,479,338
 bytes from four hospitals to learn that four extensionless targets were CSV, which is why
-``mrf-honest probe`` exists. Every profile here is labelled ``candidate``, and a URL that carries
+``mrf-honest probe`` exists. Every profile here is labeled ``candidate``, and a URL that carries
 no usable extension is ``format_not_determinable_from_the_url`` -- its own population, never
 folded into "outside the implemented profiles", because "we cannot tell from here" and "this is a
 format we do not grade" are different statements about a named hospital.
@@ -41,7 +41,7 @@ this enumerates *locations named by documents*, and the join between them does n
 neither CMS's dataset nor any other public dataset records which website hosts a given facility's
 file. Reporting "N of 3,024" would require silently treating every unresolved facility as
 something, and the honest answer is that the resolution is unknown. The frame's own numbers are
-carried alongside, labelled, with the two counts kept apart.
+carried alongside, labeled, with the two counts kept apart.
 
 **Contact details are excluded, deliberately and by construction.** ``cms-hpt.txt`` carries a
 named person and their email for each location. ``docs/CORRECTIONS.md`` promises that this
@@ -103,7 +103,7 @@ NOT_RETRIEVED_BASIS = (
 
 #: Kept strictly apart from the population above, and the separation is the point. "The server
 #: refused this request" and "the server answered 200 with a web page" are different facts about
-#: a named organisation, and the second is this portfolio's dominant defect class seen from the
+#: a named organization, and the second is this portfolio's dominant defect class seen from the
 #: outside: an HTTP 200 error page read as content. Measured on the committed registry, three
 #: origins are in this state and every one of them carries the parser's own
 #: "served HTML rather than a cms-hpt.txt document".

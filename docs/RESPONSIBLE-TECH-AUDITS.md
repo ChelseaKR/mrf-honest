@@ -170,7 +170,7 @@ as a badge background does not work as small text on the amber wash.
 
 What changed structurally is more important than either defect. The palette now lives in one
 `PALETTE` mapping with a declared table of every text-on-background pair, asserted at 4.5:1 by a
-test in `make verify`; a colour added without a declared pair fails the suite. Heading order is
+test in `make verify`; a color added without a declared pair fails the suite. Heading order is
 asserted on every generated page by the same suite. In CI, `accessibility.yml` renders the site
 from the committed comparison, enumerates every HTML file the render produced, audits each one,
 and fails when the page list is short, when a report is missing, or when a category score is
@@ -253,7 +253,7 @@ orders of magnitude, where the first cohort spanned one.
 
 **The hazard the first review looked for did not reappear, and a different one did.** The 2026-08-14
 review predicted the resource-shaped hazard would fall on small publishers and observed it falling
-on a large one. In the random stratum it fell on neither. What the grade policy actually penalised
+on a large one. In the random stratum it fell on neither. What the grade policy actually penalized
 in a small hospital was a *stale file*: NMC Health, a community hospital in Newton, Kansas,
 publishes a conforming CMS v3 document whose own `last_updated_on` is 2025-06-30, more than a year
 before the assessment date. That is a **B**, driven by a `WARNING`, and it is the correct outcome:
@@ -284,7 +284,7 @@ the drawn facility, and a failed candidate is re-checked before the failure is r
 and the cohort's two strata must not be pooled — the carry-forward stratum was chosen because it
 was known, and averaging it with a probability sample produces a number that describes neither. No
 aggregate statistic about hospitals as a class is published from this cohort, and the summary
-counts on the site are labelled as descriptions of the cohort.
+counts on the site are labeled as descriptions of the cohort.
 
 **Re-run this review** before any CSV profile ships (which would change the composition
 fundamentally), before the sample is extended past 48, and before any proportion is published as
@@ -305,7 +305,7 @@ Google Analytics 4 ([ADR 0009](adr/0009-the-published-site-counts-visits-with-go
   - scroll, outbound-click and download events;
   - a random client ID in first-party `_ga`/`_ga_57DWCFVLWQ` cookies, kept up to two years.
 
-  Retention is 14 months, and processing is in the US. Google signals and ad personalisation are
+  Retention is 14 months, and processing is in the US. Google signals and ad personalization are
   off, and the ad consent signals are denied. In the EEA, the UK and Switzerland,
   `analytics_storage` is denied by default and only cookieless pings are sent. Nothing loads under
   Global Privacy Control or Do Not Track, after the footer opt-out (a localStorage flag, never

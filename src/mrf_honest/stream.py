@@ -10,7 +10,7 @@ nested inside an otherwise small object. Everything outside that array (hospital
 attestation, version) is small and is captured whole; the array is yielded item by item and never
 accumulated.
 
-Standard library only, deliberately. A dependency that hides the memory behaviour would defeat the
+Standard library only, deliberately. A dependency that hides the memory behavior would defeat the
 point of measuring it.
 """
 
@@ -281,7 +281,7 @@ def _discard_scalar(reader: _Reader) -> None:
 def _discard_value(reader: _Reader) -> None:
     """Consume one JSON value without retaining it.
 
-    Sibling values can be surprisingly large (the CMS v3 modifier catalogue can precede the
+    Sibling values can be surprisingly large (the CMS v3 modifier catalog can precede the
     charge array). Calling :func:`_scan_value` for those values pins and copies the whole sibling,
     weakening the reader's memory guarantee. These consumers advance ``reader.pos`` as they scan,
     which lets each refill compact the consumed prefix.

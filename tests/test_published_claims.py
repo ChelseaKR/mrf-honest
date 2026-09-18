@@ -9,7 +9,7 @@ true. Each test here reads a published claim and re-derives it:
   it was generated from. The publish workflow renders that file and checks the HTML agrees with
   it, which is the right shape -- but nothing checked the *comparison* itself, so a change to
   ``build_comparison``, the grade policy, or the finding catalog could ship green while the
-  artifact on disk, and therefore every number on the site, described the old behaviour. The
+  artifact on disk, and therefore every number on the site, described the old behavior. The
   generator was gated; its output was not. The evidence files under
   ``data/cohorts/<date>.ingest/`` exist for this: before them, the only copy of each ingest
   result lived inside the derived artifact, so the derivation had no inputs to be re-run
@@ -85,7 +85,7 @@ def test_committed_comparison_is_reproducible_from_committed_inputs(
     assert _canonical(rebuilt) == _canonical(committed), (
         f"{comparison_path.name} is not what the current code derives from "
         f"{prefix}.assessments.jsonl, {prefix}.json and {prefix}.ingest/. The published site "
-        "renders the committed file, so it is now describing behaviour the code no longer has. "
+        "renders the committed file, so it is now describing behavior the code no longer has. "
         "Regenerate it with `mrf-honest compare`."
     )
 
@@ -375,7 +375,7 @@ def test_the_random_stratum_is_the_seeded_draw_it_claims_to_be(comparison_path: 
 
     ``docs/SAMPLING-FRAME.md`` states a universe, a filter, a seed, and a sample size, and the
     honesty of every proportion computed over the random stratum rests on the recorded sample
-    being that draw rather than a list someone assembled and labelled one. The eligible identifier
+    being that draw rather than a list someone assembled and labeled one. The eligible identifier
     list is committed because CMS refreshes the dataset: a frame that cannot be reconstructed is
     not a frame.
 
@@ -1133,7 +1133,7 @@ HOW_WE_COMPARE = ROOT / "docs" / "how-we-compare.md"
 
 
 def test_adr_0007_lists_exactly_the_refusal_codes_this_build_can_emit() -> None:
-    """The ADR's table is the published catalogue of refusals; the enum is the real one."""
+    """The ADR's table is the published catalog of refusals; the enum is the real one."""
     from mrf_honest.statistics import RefusalCode
 
     text = ADR_0007.read_text(encoding="utf-8")
@@ -1405,7 +1405,7 @@ def test_a_document_that_merely_mentions_the_capability_is_not_a_finding() -> No
     assert (
         retired_blocker_finding(
             "politeness.py obeys robots.txt before the first request, holds a per-host interval, "
-            "and honours Retry-After on 429 and 503 ahead of this tool's own backoff."
+            "and honors Retry-After on 429 and 503 ahead of this tool's own backoff."
         )
         is None
     )

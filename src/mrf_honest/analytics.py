@@ -20,7 +20,7 @@ these hold, and it checks them before it does anything else:
 
 When it does load, it sets Consent Mode v2 defaults (the three ad signals denied everywhere;
 ``analytics_storage`` denied in the EEA, the UK and Switzerland, where GA sends cookieless pings,
-and granted elsewhere), turns off Google signals and ad personalisation, and sends
+and granted elsewhere), turns off Google signals and ad personalization, and sends
 ``page_location`` as the origin and path only.
 """
 

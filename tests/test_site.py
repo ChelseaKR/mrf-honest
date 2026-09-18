@@ -247,7 +247,7 @@ def test_every_indexable_page_names_itself_and_not_the_shared_origin(
         canonical = re.search(r'<link rel="canonical" href="([^"]*)">', html)
         assert canonical, f"{name} has no canonical URL"
         assert canonical.group(1) == url, (
-            f"{name} canonicalises to {canonical.group(1)!r}, not {url!r}"
+            f"{name} canonicalizes to {canonical.group(1)!r}, not {url!r}"
         )
         assert canonical.group(1).rstrip("/") != "https://chelseakr.github.io", (
             f"{name} points at the shared origin, which is a different site"
@@ -330,7 +330,7 @@ def test_no_page_requests_an_image_so_the_zero_image_budget_still_holds(
         assert '<link rel="icon" href="data:,">' in html, f"{name} lost its inert favicon"
 
 
-def test_the_error_page_canonicalises_nowhere_and_is_not_indexable(
+def test_the_error_page_canonicalizes_nowhere_and_is_not_indexable(
     tmp_path: Path,
 ) -> None:
     """The error page is written to `404.html`, but its `Page.path` is `"404"`.
@@ -425,8 +425,8 @@ def test_cli_site_renders_from_files(tmp_path: Path, capsys: pytest.CaptureFixtu
     assert '<link rel="canonical" href="https://example.test/mrf-honest/">' in index
 
 
-def test_every_palette_colour_is_covered_by_a_declared_contrast_pair() -> None:
-    """A new colour token must declare where it is read, or the gate is decorative.
+def test_every_palette_color_is_covered_by_a_declared_contrast_pair() -> None:
+    """A new color token must declare where it is read, or the gate is decorative.
 
     Without this the contrast test would only ever check the pairs someone remembered to add,
     which is the failure mode it exists to prevent.
@@ -449,7 +449,7 @@ def test_declared_text_pairs_meet_wcag_aa(foreground: str, background: str, wher
 
 
 def test_contrast_ratio_matches_known_wcag_values() -> None:
-    """Anchor the maths, so a broken formula cannot quietly pass every pair above."""
+    """Anchor the math, so a broken formula cannot quietly pass every pair above."""
     assert contrast_ratio("#000000", "#ffffff") == pytest.approx(21.0)
     assert contrast_ratio("#ffffff", "#ffffff") == pytest.approx(1.0)
     # The exact combination that shipped: --c on the amber wash, measured by axe at 4.28.
@@ -458,15 +458,15 @@ def test_contrast_ratio_matches_known_wcag_values() -> None:
 
 
 def test_stylesheet_is_generated_from_the_palette(tmp_path: Path) -> None:
-    """The audited page must embed the same colours the test above checks."""
+    """The audited page must embed the same colors the test above checks."""
     out = _render(tmp_path, _comparison(tmp_path))
     index = (out / "index.html").read_text(encoding="utf-8")
     for token, value in PALETTE.items():
         assert f"--{token}: {value};" in index
-    # and no colour is hard-coded past the token layer
+    # and no color is hard-coded past the token layer
     hexes = set(re.findall(r"#[0-9a-fA-F]{6}", index.split("<style>")[1].split("</style>")[0]))
     assert hexes <= set(PALETTE.values()), (
-        f"stylesheet hard-codes colours: {hexes - set(PALETTE.values())}"
+        f"stylesheet hard-codes colors: {hexes - set(PALETTE.values())}"
     )
 
 

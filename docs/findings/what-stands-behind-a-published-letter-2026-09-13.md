@@ -28,7 +28,7 @@ Restricted to the two cohorts the published site actually renders (2026-09-12, b
 attempt.** After: **36 letters published, 0 attributed to a failed retrieval.**
 
 The second row of that table is the finding. Not one of the five strongest sentences this project
-had published about a named organisation had been observed more than once.
+had published about a named organization had been observed more than once.
 
 ## Why the count was one, and why nobody chose that
 

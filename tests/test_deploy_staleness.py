@@ -16,7 +16,7 @@ Two of these are about this repository in particular:
 module reads the deployment record instead of ``pages.yml``'s run history. The
 publisher here fires on every push to ``master`` -- the trigger is fine -- and the
 failure being caught is a firing that produced nothing: red in the re-derivation
-step, cancelled, or evicted from its pending slot under
+step, canceled, or evicted from its pending slot under
 ``concurrency: {group: pages, cancel-in-progress: false}``. Those runs exist in
 the run list and create no deployment. A run-history sentinel would call each of
 them a fresh publish.
@@ -105,7 +105,7 @@ def test_the_newest_deployment_wins_over_an_older_one() -> None:
 def test_a_pages_run_that_uploaded_nothing_is_not_a_deploy() -> None:
     """The trap this module exists for, and the reason it reads deployments.
 
-    `pages.yml` fires on every push to `master`. A push whose run is cancelled,
+    `pages.yml` fires on every push to `master`. A push whose run is canceled,
     goes red in the re-derivation step, or loses its pending slot to the next
     push leaves a finished run in the run list and creates no deployment. The
     deployment list is therefore still the August one and the answer stays the

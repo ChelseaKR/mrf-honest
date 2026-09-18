@@ -82,7 +82,7 @@ that test must exist and must fail against the pre-change tree.
 
 **Stop condition:** if the committed frames turn out not to identify their strata mechanically,
 stop and fix the frame record first. A statistic derived from a stratum assignment that a human
-inferred at render time is exactly the fragility this project criticises elsewhere.
+inferred at render time is exactly the fragility this project criticizes elsewhere.
 
 ---
 
@@ -145,7 +145,7 @@ answered approximately.
 
 *Goal: phase 5's last two bullets.*
 
-- [x] A claim and correction flow, non-adversarial, honouring a removal request without demanding
+- [x] A claim and correction flow, non-adversarial, honoring a removal request without demanding
       proof
 - [x] A write-up in the pattern of the findings documents, including a section on what this
       project got wrong
