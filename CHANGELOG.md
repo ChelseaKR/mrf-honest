@@ -9,7 +9,7 @@ they are left as they were written rather than retrofitted into versions that ne
 
 ### Added
 
-- **Whether cheap revalidation generalises beyond the one origin PR #113 measured, checked at
+- **Whether cheap revalidation generalizes beyond the one origin PR #113 measured, checked at
   ten more.** [docs/findings/cross-origin-conditional-revalidation-2026-09-14.md](docs/findings/cross-origin-conditional-revalidation-2026-09-14.md)
   sends a real conditional `GET` at ten more real hospital origins, spanning the gzip/plain
   encoding split. **9 of 10 measurable origins answered `304` and moved no body** — `chihealth.com`
@@ -18,6 +18,34 @@ they are left as they were written rather than retrofitted into versions that ne
   class of finding as #99 at a different origin; the other's committed `mrf_url`
   (`hospitalpricedisclosure.com`) now redirects to an error page, meaning a refresh there needs
   re-discovery before it needs a conditional request.
+
+- **The published site counts visits with Google Analytics 4**, by the owner's decision of
+  2026-09-17 ([ADR 0009](docs/adr/0009-the-published-site-counts-visits-with-google-analytics.md)).
+  `src/mrf_honest/analytics.py` holds the ID, `G-57DWCFVLWQ`, and renders one inline loader
+  that `mrf-honest site` puts in the head of every page by default (`--ga4-id ""` turns it off;
+  `render_site()` without an ID is byte-for-byte what it was). The loader loads nothing off
+  `https://chelseakr.github.io/mrf-honest/`, under Global Privacy Control or Do Not Track, or
+  after the new footer "Opt out of analytics" button (localStorage key
+  `mrf-honest:analytics-opt-out`). Google signals and ad personalisation are off, the ad consent
+  signals are denied, `analytics_storage` is denied by default in the EEA, the UK and
+  Switzerland, and `page_location` is the origin and path only. Every footer says so and links a
+  new `privacy/` page, which says plainly that a page's address names the hospital file being
+  read. `tests/test_analytics.py` runs the loader under Node, with negative controls. The README,
+  the metrics ledger and `perf/resource-budget.json` no longer say the site has no script, and
+  `docs/RESPONSIBLE-TECH-AUDITS.md` carries a dated appendix.
+
+### Fixed
+
+- **`v0.1.0` is now an actual GitHub Release, and the README's "there is no release yet" line
+  was left behind when it was cut.** `release.yml` verifies the signed tag, re-runs `make verify`
+  at the tagged commit, builds the distributions and uploads them as a run artifact for the
+  maintainer to inspect — by design it stops there and does not call the Releases API, so the tag
+  existing and being signed was not the same claim as a release existing
+  (`gh api repos/.../releases` returned zero after the tag push). The two wheel/sdist files
+  attached to the release are byte-identical to the ones that artifact held, verified against the
+  sha256 digests the workflow itself printed. Nothing here is published to PyPI or to any MCP
+  registry, which is a different, still-true claim the README now states separately from the
+  release one.
 
 ## [0.1.0] - 2026-09-13
 

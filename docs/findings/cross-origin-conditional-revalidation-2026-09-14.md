@@ -1,4 +1,4 @@
-# Whether a cheap refresh generalises: conditional revalidation across a wider sample of origins
+# Whether a cheap refresh generalizes: conditional revalidation across a wider sample of origins
 
 *An engineering finding about how the real hospital-hosted origins this project's cohorts grade
 respond to conditional GET, measured 2026-09-14 against 12 real origins drawn from the committed
@@ -15,7 +15,7 @@ pass." That was one origin, three observations of the same origin, and its own "
 unmeasured" section said so: *"None of this was observed on a GitHub-hosted runner... whether the
 revalidation behaviour generalises"* was left open. A portfolio-wide monetization review read that
 single result as the reason a recurring refresh SKU might not be priceable at gtfs's $49/mo
-(`monetization-ranking-2026-09-13.md` §3.3). Generalising a per-origin cost from one origin is
+(`monetization-ranking-2026-09-13.md` §3.3). Generalizing a per-origin cost from one origin is
 exactly the error the same review's own §2.4 the-cheap-refresh-premise correction names elsewhere
 in the portfolio — a number measured on unrelated subjects does not price a thing sold per
 subject. This measures more subjects.
@@ -43,7 +43,7 @@ gigabyte, and RFC 9110 §9.3.2 defines conditional-request evaluation identicall
 downloaded) followed by a conditional `GET` using the `ETag` the full `GET` itself returned gave
 the same result (304) as the `HEAD`-primed version. The conditional `GET` in step 2 was capped at
 20 MB (`curl --max-filesize`) so that an origin answering 200 instead of 304 could not turn this
-measurement into an uncapped download of another organisation's bandwidth; the cap stops the
+measurement into an uncapped download of another organization's bandwidth; the cap stops the
 transfer after the status line and headers are already in hand, which is all this measurement
 reads. One host (`www.grmedcenter.com`, 113 MB) and one (`mindenmedicalcenter.com`, 960 MB) would
 have exceeded it had they answered 200; both answered 304, so the cap was never exercised in
@@ -90,7 +90,7 @@ not, are cheap, and a minority are not, for reasons specific to that origin."
 day (`Sat, 12 Sep 2026 09:45:43 GMT` in an earlier probe, `Sat, 12 Sep 2026 06:25:48 GMT` in the
 timed pair reported above), despite being sent back as the *exact string this script had just
 received* in its own `If-Modified-Since` header. That is not a validator the origin is failing to
-honour; it is a header that does not describe a stable fact about the file, so no conditional
+honor; it is a header that does not describe a stable fact about the file, so no conditional
 request could ever match it. This is a different failure mode from `chihealth.com`, where PR #113
 sent a validator the server itself had issued and verified matched the cached blob, and still got
 200 three times — there the header *was* stable and the server still ignored it. Two different
@@ -146,7 +146,7 @@ re-discovery, not just a conditional request, before a refresh can run at all.
 - **This measurement did not go through `mrf-honest`'s own `Politeness`-gated fetcher** — it used
   a one-off script with an identifying User-Agent and manual pacing, the same shortcut
   `truncated-transfer-attribution-2026-08-18.md` took for its own cross-origin `HEAD` measurement.
-  A scheduled refresh job would want this behaviour built into `probe` or `fetch` itself (record
+  A scheduled refresh job would want this behavior built into `probe` or `fetch` itself (record
   `ETag`/`Last-Modified` on every fetch, already true; compare against the previous cycle's
   recorded validator before deciding to download, not yet built) rather than repeated as an
   external check.

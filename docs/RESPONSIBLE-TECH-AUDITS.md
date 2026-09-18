@@ -289,3 +289,31 @@ counts on the site are labelled as descriptions of the cohort.
 **Re-run this review** before any CSV profile ships (which would change the composition
 fundamentally), before the sample is extended past 48, and before any proportion is published as
 an estimate rather than a count.
+
+## Appendix, 2026-09-17: the published site counts visits with Google Analytics 4
+
+Appended, not edited. Section C said "There are no accounts or telemetry". The 2026-08-16 appendix
+said the site has "no telemetry, and no analytics of any kind". Both stay as written, and this
+appendix is the current statement. The owner decided on 2026-09-17 that every public site gets
+Google Analytics 4 ([ADR 0009](adr/0009-the-published-site-counts-visits-with-google-analytics.md)).
+
+- **C Privacy, for the site.** There are still no accounts. The published pages now send Google,
+  acting as the site's analytics processor:
+  - the page path, which names the hospital file a reader opened;
+  - the referrer, browser, device and language, and a coarse location Google derives from the IP
+    address (GA4 does not store the IP address);
+  - scroll, outbound-click and download events;
+  - a random client ID in first-party `_ga`/`_ga_57DWCFVLWQ` cookies, kept up to two years.
+
+  Retention is 14 months, and processing is in the US. Google signals and ad personalisation are
+  off, and the ad consent signals are denied. In the EEA, the UK and Switzerland,
+  `analytics_storage` is denied by default and only cookieless pings are sent. Nothing loads under
+  Global Privacy Control or Do Not Track, after the footer opt-out (a localStorage flag, never
+  sent), or anywhere but the published address. Nothing about a reader's own health or care is
+  asked for or sent: the site has no form and no search box. The visitor-facing account is the
+  site's `privacy/` page, linked from every footer.
+- **Unchanged.** The retrieval, grading, comparison and export paths, and the published JSON and
+  CSV files, carry no analytics. So do the CLI, the GitHub Action, the MCP server and the
+  pre-commit hook. The standing rule on individual-level data in fetched files is untouched.
+- **E Accessibility.** The opt-out is a real `<button>` with a 24px target. The privacy page is
+  one more page the Lighthouse job audits, because that job audits every rendered HTML file.
