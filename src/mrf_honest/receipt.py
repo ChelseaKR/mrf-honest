@@ -45,7 +45,7 @@ from mrf_honest.inspect_csv import CsvFileInspection, inspect_hospital_csv_file
 from mrf_honest.types import PublisherRef
 
 #: Bumped when the receipt document's shape changes. A verifier that does not know a version
-#: refuses rather than reading the fields it recognises out of a document it does not.
+#: refuses rather than reading the fields it recognizes out of a document it does not.
 RECEIPT_VERSION = 1
 
 #: Reproduced fully.

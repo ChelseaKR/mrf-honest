@@ -29,7 +29,7 @@ floor to make a change pass; fix the change.
 ## House rules
 
 - Standard library only for streaming, discovery, retrieval, registry, and inspection: a dependency
-  that hides memory behaviour defeats the point of measuring it
+  that hides memory behavior defeats the point of measuring it
   (`docs/adr/0002-stdlib-only-streaming-core.md`). DuckDB begins at the optional lakehouse boundary
   (`docs/adr/0003-local-lakehouse-duckdb-parquet.md`).
 - Every number that appears in a doc or README is measured, never estimated. If you did not run

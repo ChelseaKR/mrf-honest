@@ -2,7 +2,7 @@
 #
 # `pages.yml` fires on every push to `master` and on dispatch, and that trigger is correct.
 # This workflow does not change it and does not need to. What was missing is anyone noticing
-# when a firing produced nothing: a run that goes red in the re-derivation step, is cancelled,
+# when a firing produced nothing: a run that goes red in the re-derivation step, is canceled,
 # or loses its pending slot under `concurrency: {group: pages, cancel-in-progress: false}`
 # leaves the published site on the previous commit while every gate here stays green -- because
 # the gates are green. `make verify` re-derives the committed comparisons, `accessibility.yml`

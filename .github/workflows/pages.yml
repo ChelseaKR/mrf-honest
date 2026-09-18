@@ -149,7 +149,7 @@ jobs:
                   continue
               url = canonical.group(1)
               if not url.startswith(origin + "/"):
-                  problems.append(f"{where} canonicalises to {url}")
+                  problems.append(f"{where} canonicalizes to {url}")
               og_url = re.search(r'<meta property="og:url" content="([^"]*)">', html)
               if not og_url or og_url.group(1) != url:
                   problems.append(f"{where} og:url disagrees with its canonical")

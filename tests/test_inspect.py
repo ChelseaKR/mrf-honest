@@ -7,7 +7,7 @@ from datetime import date
 from pathlib import Path
 
 import pytest
-from catalog_coverage import MINIMUM_CATALOGS, catalogued_codes, discover_catalogs
+from catalog_coverage import MINIMUM_CATALOGS, cataloged_codes, discover_catalogs
 
 from mrf_honest.inspect import (
     FINDING_CATALOG,
@@ -373,12 +373,12 @@ def test_grading_document_covers_the_authoritative_catalogs() -> None:
     document = Path("docs/how-we-grade.md").read_text(encoding="utf-8")
     documented = set(re.findall(r"^\| `([A-Z0-9_]+)` \|", document, flags=re.MULTILINE))
 
-    assert documented == set(catalogued_codes(catalogs))
+    assert documented == set(cataloged_codes(catalogs))
 
 
 # --- rules the suite did not execute ---------------------------------------------------------
 #
-# These six ERROR rules were catalogued, documented, and tripped by nothing. Four of them --
+# These six ERROR rules were cataloged, documented, and tripped by nothing. Four of them --
 # CMS_V3_CHARGE_GROUP_NOT_OBJECT, CMS_V3_CHARGE_VALUE_MISSING, CMS_V3_PAYERS_INFORMATION_INVALID
 # and CMS_V3_PAYER_RATE_NOT_OBJECT -- appeared in exactly two files each on origin/master: their
 # emit site and their row in docs/how-we-grade.md. All four decide `--fail-on error` for a

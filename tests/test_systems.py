@@ -3,7 +3,7 @@
 The graded side of every fixture is a **committed** assessment record, read through
 ``AssessmentRegistry`` exactly as the tool reads it, so a shape change in the assessment artifact
 cannot leave these tests exercising a record the project no longer writes. Only the discovery side
-is synthesised, because that is the side with branches to cover -- and because the local discovery
+is synthesized, because that is the side with branches to cover -- and because the local discovery
 registry is deliberately not committed (`.gitignore`: ``data/registry*.jsonl``), which is itself
 the reason this reconciliation is a command rather than published output.
 
@@ -490,7 +490,7 @@ def test_a_template_version_disagreement_is_counted_and_names_both_files() -> No
 def test_a_per_location_element_is_published_as_a_difference_and_never_counted() -> None:
     """#74 asked for ``license_information`` among the counted elements. Measured on the
     committed cohort that produces one row -- two separately licensed hospitals in one system
-    publishing correctly -- so it is published, labelled, and not counted."""
+    publishing correctly -- so it is published, labeled, and not counted."""
     document = reconcile(_rows(STANFORD, TRI_VALLEY), [_stanford_system()])
     system = _system(document)
     rows = {

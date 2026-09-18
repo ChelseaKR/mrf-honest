@@ -43,7 +43,7 @@ When it does load:
 - Consent Mode v2 defaults deny the three ad signals everywhere.
 - `analytics_storage` is denied in the EEA, the UK and Switzerland, where GA sends cookieless
   pings, and granted elsewhere.
-- Google signals and ad personalisation are off.
+- Google signals and ad personalization are off.
 - `page_location` is the origin and path only.
 
 The site sets no Content-Security-Policy, so none changes.

@@ -28,7 +28,7 @@ Z_95 = 1.959963984540054
 CONFIDENCE = 0.95
 
 #: A proportion is not representable below this denominator. See ADR 0007: at n = 20 a 95
-#: percent Wilson interval at the least favourable point still spans 0.401 of the scale, and
+#: percent Wilson interval at the least favorable point still spans 0.401 of the scale, and
 #: the width grows quickly below that (0.410 at 19, 0.452 at 15, 0.527 at 10).
 SUPPRESSION_THRESHOLD = 20
 
@@ -73,7 +73,7 @@ _REFUSAL_TEXT = {
     ),
     RefusalCode.INCOMPLETE_ACCOUNTING: (
         "this cohort accounts for only part of its stratum, so a proportion computed here would "
-        "have a denominator the frame does not recognise"
+        "have a denominator the frame does not recognize"
     ),
 }
 

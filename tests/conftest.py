@@ -23,7 +23,7 @@ from catalog_coverage import (
     NOT_EXERCISED_HERE,
     EmissionCensus,
     assess,
-    catalogued_codes,
+    cataloged_codes,
     discover_catalogs,
 )
 from frame_coverage import census_lines as frame_census_lines
@@ -120,7 +120,7 @@ def whole_run(config: pytest.Config) -> tuple[bool, str]:
 
 def census(config: pytest.Config, *, failures: int) -> EmissionCensus:
     catalogs = discover_catalogs()
-    catalogued = frozenset(catalogued_codes(catalogs))
+    cataloged = frozenset(cataloged_codes(catalogs))
     ran_all, reason = whole_run(config)
     if ran_all and failures:
         ran_all, reason = (
@@ -132,7 +132,7 @@ def census(config: pytest.Config, *, failures: int) -> EmissionCensus:
         )
     return assess(
         emitted=frozenset(EMITTED),
-        catalogued=catalogued,
+        cataloged=cataloged,
         reasons=NOT_EXERCISED_HERE,
         whole_run=ran_all,
         whole_run_reason=reason,

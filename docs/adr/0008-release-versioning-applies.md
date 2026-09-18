@@ -81,5 +81,5 @@ that cannot.
 ## Revisit if
 
 The project publishes to an index (that needs a trusted-publisher decision and a credential
-policy, neither of which exists), or the grading policy stabilises enough that a `1.0` would mean
+policy, neither of which exists), or the grading policy stabilizes enough that a `1.0` would mean
 something a `0.x` does not.

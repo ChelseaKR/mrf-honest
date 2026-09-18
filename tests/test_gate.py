@@ -208,7 +208,7 @@ def test_the_gate_prints_the_same_policy_fingerprint_the_site_publishes(tmp_path
 
 
 def test_an_unknown_profile_name_is_an_error_not_a_json_default() -> None:
-    """Substituting the JSON policy for an unrecognised profile is the defect class this repo
+    """Substituting the JSON policy for an unrecognized profile is the defect class this repo
     keeps finding: a failed lookup rendered as a specific, plausible value."""
     scorecard = {
         name: {"name": name, "status": "OBSERVED", "findings": []}
@@ -382,7 +382,7 @@ def test_the_summary_never_calls_a_cleared_file_compliant(tmp_path: Path) -> Non
         assert word not in body, word
 
 
-def test_a_refused_file_is_summarised_as_not_an_f(tmp_path: Path) -> None:
+def test_a_refused_file_is_summarized_as_not_an_f(tmp_path: Path) -> None:
     target = tmp_path / "truncated.json"
     target.write_text('{"standard_charge_information": [{', "utf-8")
     summary = gate.job_summary(_run(target))

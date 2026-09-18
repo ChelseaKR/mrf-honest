@@ -140,7 +140,7 @@ NOT_GRADED = "NOT_GRADED"
 #: Media types whose whole purpose is to be rendered for a person to look at. When a URL that
 #: was asked for a machine-readable file answers with one of these *and* the document did not
 #: parse, the response was a web page rather than the file — a closed list of server
-#: declarations, not a judgement about what the bytes look like.
+#: declarations, not a judgment about what the bytes look like.
 #:
 #: This list is consulted only after a document has already failed to stream, and never decides
 #: a grade. A conforming MRF served as ``text/html`` is a conforming MRF: one of the six files
@@ -469,7 +469,7 @@ def grade_local_evidence(scorecard: Mapping[str, object], *, profile: str) -> Fi
     published one would be comparing a four-dimension reading with a five-dimension one.
 
     ``profile`` is the assessment profile *name* and an unknown one is an error, not a default.
-    Substituting the JSON policy for an unrecognised profile is exactly how a CSV file would come
+    Substituting the JSON policy for an unrecognized profile is exactly how a CSV file would come
     to be graded under the JSON dictionary and the result published as the file's own defects.
     """
     policy = _GRADE_POLICIES.get(profile)

@@ -767,7 +767,7 @@ def test_an_ordinary_network_error_is_still_a_network_error(tmp_path: Path) -> N
     assert outcome.status is FetchStatus.NETWORK_ERROR
 
 
-def test_a_rewrapped_certificate_error_is_still_recognised(tmp_path: Path) -> None:
+def test_a_rewrapped_certificate_error_is_still_recognized(tmp_path: Path) -> None:
     """Some layers flatten the cause to a message; the distinction must survive that."""
     outcome = fetch_url(
         "https://example.test/prices.json",

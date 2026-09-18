@@ -381,7 +381,7 @@ def test_a_single_attempt_access_barrier_does_not_publish_a_letter() -> None:
     """The defect #99 was filed for, pinned as a rule rather than as a sentence.
 
     HTTP 403 is absent from ``fetch._RETRYABLE_HTTP_STATUSES``, so the fetcher asks once and
-    stops. That is correct fetcher behaviour and it is not an evidential standard: one refusal,
+    stops. That is correct fetcher behavior and it is not an evidential standard: one refusal,
     from one client, on one date, is not distinguishable from a WAF that declines this address
     range. The finding is still published; the letter is not.
     """

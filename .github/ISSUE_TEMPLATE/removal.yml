@@ -1,5 +1,5 @@
 name: Removal request
-description: Remove a published row. Honoured on request, no reason needed.
+description: Remove a published row. Honored on request, no reason needed.
 title: "Removal: "
 labels: ["removal"]
 body:
@@ -8,7 +8,7 @@ body:
       value: |
         Say which row. That is the whole procedure.
 
-        You are not asked to prove that a grade is mistaken, to identify yourself as authorised,
+        You are not asked to prove that a grade is mistaken, to identify yourself as authorized,
         or to argue a case first. See
         [docs/CORRECTIONS.md](https://github.com/ChelseaKR/mrf-honest/blob/master/docs/CORRECTIONS.md).
 
@@ -19,7 +19,7 @@ body:
     id: row
     attributes:
       label: Which row
-      description: A page URL, a slug, or the organisation and location names.
+      description: A page URL, a slug, or the organization and location names.
     validations:
       required: true
   - type: markdown
@@ -31,5 +31,5 @@ body:
         reason and asks for none.
 
         To stop retrieval as well as publication, a `robots.txt` disallow stops this project in
-        code before any request, with no override flag anywhere in it. A request here is honoured
+        code before any request, with no override flag anywhere in it. A request here is honored
         the same way.

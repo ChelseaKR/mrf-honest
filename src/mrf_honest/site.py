@@ -55,7 +55,7 @@ SOCIAL_CARD_ALT = (
     "'graded per file, not per hospital'."
 )
 
-# Every colour the stylesheet uses, in one place, so the contrast of each text-on-background
+# Every color the stylesheet uses, in one place, so the contrast of each text-on-background
 # combination is asserted by a test instead of hoped for. `--c-ink` exists because the amber
 # that reads well as a badge background does not clear 4.5:1 as small bold text on the amber
 # wash: axe measured 4.28:1, and that is what shipped on every file page carrying a warning
@@ -80,7 +80,7 @@ PALETTE: dict[str, str] = {
 }
 
 # Border-only tokens carry no text and so have no contrast pair to declare. Naming them is
-# what lets the test insist every *other* token is accounted for: a colour added to PALETTE
+# what lets the test insist every *other* token is accounted for: a color added to PALETTE
 # and used nowhere in the table below fails the suite rather than shipping unchecked.
 NON_TEXT_TOKENS: frozenset[str] = frozenset({"line"})
 
@@ -118,14 +118,14 @@ def _channel(value: int) -> float:
 
 
 def relative_luminance(color: str) -> float:
-    """WCAG 2.x relative luminance of a ``#rrggbb`` colour."""
+    """WCAG 2.x relative luminance of a ``#rrggbb`` color."""
     digits = color.lstrip("#")
     red, green, blue = (int(digits[index : index + 2], 16) for index in (0, 2, 4))
     return 0.2126 * _channel(red) + 0.7152 * _channel(green) + 0.0722 * _channel(blue)
 
 
 def contrast_ratio(foreground: str, background: str) -> float:
-    """WCAG 2.x contrast ratio between two ``#rrggbb`` colours."""
+    """WCAG 2.x contrast ratio between two ``#rrggbb`` colors."""
     first, second = relative_luminance(foreground), relative_luminance(background)
     lighter, darker = max(first, second), min(first, second)
     return (lighter + 0.05) / (darker + 0.05)
@@ -1171,7 +1171,7 @@ def privacy_page(measurement_id: str) -> Page:
         "apart from a new one. <code>_ga</code> is shared by every site under "
         "chelseakr.github.io</li>"
         "</ul>"
-        "<p>Google signals and ad personalisation are off, and the advertising consent signals "
+        "<p>Google signals and ad personalization are off, and the advertising consent signals "
         "are denied, so nothing here is used for advertising. No name, email address or account "
         "is involved, and nothing about your own health or care is asked for or sent.</p>"
         "<p>In the European Economic Area, the UK and Switzerland, analytics cookies are off by "
@@ -1247,7 +1247,7 @@ def _discovery_tags(page: Page, origin: str) -> str:
 
     The error page is written to `404.html` but its `Page.path` is `"404"`, so the canonical
     this function used to build for it was `{origin}/404/` — an address that does not exist
-    and itself returns 404. An error page should not canonicalise anywhere, and should not
+    and itself returns 404. An error page should not canonicalize anywhere, and should not
     be indexed at all; it now says so instead of pointing at nothing.
 
     For every real page the canonical is ABSOLUTE and carries the `/mrf-honest/` path
@@ -1355,7 +1355,7 @@ grades themselves were collected on the dates each cohort and each file page sta
 CMS-mandated machine-readable files are read; retrieval is identified, bounded, and respects
 robots.txt. <a href="https://github.com/ChelseaKR/mrf-honest">Source and methodology</a>.</p>
 <p>Something here wrong about your file? <a href="{CORRECTIONS_URL}">Corrections, disputes and
-removal</a>. A removal request is honoured on request: you are not asked to prove anything.</p>
+removal</a>. A removal request is honored on request: you are not asked to prove anything.</p>
 {footer_analytics}</footer>
 </body>
 </html>
@@ -1411,8 +1411,8 @@ def badge_svg(receipt: Mapping[str, object]) -> str:
     """An accessible SVG badge for one receipt.
 
     ``role="img"`` plus a ``<title>`` is what makes this readable to a screen reader; an SVG
-    with neither is an unlabelled graphic. The title carries the whole claim -- the grade, the
-    policy version, the date, and that it certifies nothing -- because a badge is the artefact
+    with neither is an unlabeled graphic. The title carries the whole claim -- the grade, the
+    policy version, the date, and that it certifies nothing -- because a badge is the artifact
     most likely to be seen with no page around it.
     """
     grade = str(receipt.get("grade"))

@@ -12,7 +12,7 @@ The publisher is not the problem and this module does not change it.
 ``pages.yml`` fires on every push to ``master`` with no path filter, plus
 ``workflow_dispatch``; the trigger is right. What is missing is anyone noticing
 when a firing produced nothing. A run that fails in the re-derivation step, is
-cancelled, or loses its pending slot to the next push under
+canceled, or loses its pending slot to the next push under
 ``concurrency: {group: pages, cancel-in-progress: false}`` leaves the site on
 the previous commit with every gate in this repository green, because the gates
 are green -- the tree is fine. It is the deploy that did not happen.
@@ -42,7 +42,7 @@ Why the deployment record and not ``pages.yml``'s run history
 A workflow run is an attempt. A ``github-pages`` deployment exists only because
 bytes were uploaded and accepted, and it names the commit they were built from.
 The failure this module exists to catch is precisely a run that finished without
-publishing -- cancelled, evicted from its concurrency pending slot, or red in the
+publishing -- canceled, evicted from its concurrency pending slot, or red in the
 build job -- and run history is the one source that cannot tell those apart from
 a deploy. Counting runs would report the site as fresh on the strength of the
 run that failed to update it.
@@ -74,7 +74,7 @@ copied into the output), and the modules it executes. Hence:
   (``NOT_GRADED``, ``INGEST_REFUSED``, ``INGEST_CONTRACT_FAILED``,
   ``LOCAL_DIMENSIONS``) that ``site.py`` prints onto every page.
 * ``src/mrf_honest/inspect.py``, ``src/mrf_honest/inspect_csv.py``,
-  ``src/mrf_honest/scorecard.py`` -- the three finding catalogues whose text is
+  ``src/mrf_honest/scorecard.py`` -- the three finding catalogs whose text is
   rendered onto the file pages and into ``how-we-grade``.
 * ``src/mrf_honest/cli.py`` -- the ``site`` subcommand: the origin, the output
   layout, which documents are handed to the renderer.
@@ -312,7 +312,7 @@ def require_comparable(deployed_sha: str, head: str) -> None:
     so the refusal still happens. What is lost is the diagnosis -- it then reads
     ``git merge-base aaaa... failed: fatal: Not a valid commit name`` and names
     git rather than the shallow checkout that caused it -- and the guarantee
-    stops being this function's and becomes an accident of what a neighbouring
+    stops being this function's and becomes an accident of what a neighboring
     command happens to do on bad input. Worth keeping, not worth overclaiming.
     """
     if not _SHA.match(deployed_sha):
