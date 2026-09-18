@@ -14,7 +14,11 @@ manifest that attests exactly that, and refuses to proceed without it.
 
 Fail-closed rules, in one place:
 
-- a failed download attempt is a stated ``F`` with the dated reason, never a missing row;
+- a failed download attempt is a stated ``F`` with the dated reason, never a missing row --
+  but only once the attempt count behind it meets
+  :data:`RETRIEVAL_FAILURE_MINIMUM_ATTEMPTS`; below that floor the finding is still published
+  and the *letter* is withheld, because one request from one client on one date is a fact about
+  this request and not about a hospital (#99);
 - retrievability that was ``NOT_ASSESSED`` (invalid input, a project size ceiling, local cache
   trouble) is ``NOT_GRADED`` with the reason, because attributing local limits to the publisher
   would be wrong, and silently conflating it with ``F`` would be worse;
@@ -82,7 +86,15 @@ CSV_GRADE_POLICY_VERSION = "cms-hospital-csv-v3-file-grade-v1"
 #: Version 4 added the ``contract_failed`` branch of ``files[].lakehouse``: a consumer reading
 #: version 3 could assume that a present record whose status is not ``refused`` describes a
 #: completed load, and a contract failure is neither of those.
-COMPARISON_VERSION = 4
+#:
+#: Version 5 added ``files[].grade.retrieval_attempts``: how many recorded retrieval attempts
+#: stand behind this letter, or ``null`` when the letter was derived without a retrieval at
+#: all. A consumer reading version 4 had no way to tell a letter resting on one observation
+#: from one resting on several, which is the whole subject of #99. It is *not* a grading input
+#: on the success side -- one successful retrieval is complete evidence that the bytes arrived,
+#: and the digest beside it says which bytes -- so publishing the count neither adds nor
+#: removes a claim; it makes the existing one checkable.
+COMPARISON_VERSION = 5
 
 #: ``status`` of an ingest attempt the warehouse declined for scope reasons.
 INGEST_REFUSED = "refused"
@@ -96,6 +108,30 @@ INGEST_REFUSED = "refused"
 #: publishes a project's silence as a hospital's.
 INGEST_CONTRACT_FAILED = "contract_failed"
 
+#: How many recorded retrieval attempts an ``F`` attributed to the publisher needs behind it.
+#:
+#: A *successful* retrieval needs exactly one. The bytes arrived, they were hashed, and the
+#: digest is in the record, so the claim is checkable against the file itself. A *failed*
+#: retrieval is not the mirror image of that. One request, from one client, on one date, is not
+#: distinguishable from this vantage point's own trouble -- which is precisely why
+#: ``scorecard.py`` already refuses to attribute a single-client TLS failure to a publisher:
+#: "From one attempt that is not distinguishable from this machine's trust store missing a
+#: root". Nothing said the same of an HTTP barrier, and the reason was an accident of layering
+#: rather than a decision: 401, 403, 404 and 409 are absent from
+#: ``fetch._RETRYABLE_HTTP_STATUSES`` -- a fetcher-efficiency list, chosen so a client does not
+#: hammer a host that has answered definitively -- so retrieval stopped after one attempt, and
+#: nothing downstream ever asked how many attempts there had been. An efficiency list was
+#: setting the evidential standard for the strongest sentence this project publishes about a
+#: named hospital (#99).
+#:
+#: Below this floor the finding itself is still published, with its status, its HTTP code, its
+#: date and its attempt count: nothing is hidden and no absence is invented. What is withheld
+#: is the *letter*, which becomes ``NOT_GRADED`` with the reason -- the same disposition a
+#: robots disallow, a TLS trust failure and this project's own size ceiling already get, and
+#: for the same reason. Raising this floor can only ever withhold a letter; it can never mint
+#: one, and it never changes a letter derived from a body that arrived.
+RETRIEVAL_FAILURE_MINIMUM_ATTEMPTS = 2
+
 #: The four dimensions the local inspector can evidence; retrievability is handled separately.
 LOCAL_DIMENSIONS = ("conformance", "completeness", "interpretability", "freshness")
 
@@ -104,7 +140,7 @@ NOT_GRADED = "NOT_GRADED"
 #: Media types whose whole purpose is to be rendered for a person to look at. When a URL that
 #: was asked for a machine-readable file answers with one of these *and* the document did not
 #: parse, the response was a web page rather than the file — a closed list of server
-#: declarations, not a judgement about what the bytes look like.
+#: declarations, not a judgment about what the bytes look like.
 #:
 #: This list is consulted only after a document has already failed to stream, and never decides
 #: a grade. A conforming MRF served as ``text/html`` is a conforming MRF: one of the six files
@@ -121,6 +157,8 @@ def _grade_rules(version: str) -> dict[str, object]:
     return {
         "version": version,
         "retrievability_findings": "F",
+        "retrievability_findings_minimum_attempts": RETRIEVAL_FAILURE_MINIMUM_ATTEMPTS,
+        "retrievability_findings_below_minimum_attempts": NOT_GRADED,
         "retrievability_not_assessed": NOT_GRADED,
         "scan_incomplete": "F",
         "error_dimension_counts": {"0": "A or B", "1": "C", "2": "D", "3+": "F"},
@@ -195,6 +233,13 @@ class FileGrade:
     info_findings: int = 0
     policy_version: str = GRADE_POLICY_VERSION
     policy_fingerprint: str = GRADE_POLICY_FINGERPRINT
+    #: Recorded retrieval attempts standing behind this letter, or ``None`` when the letter was
+    #: derived without a retrieval at all (the pre-publication path, which has never seen a
+    #: remote and says so). Published so that a reader can tell how much observation a letter
+    #: rests on without re-reading the assessment record, and so that the two numbers #99 asks
+    #: for -- letters published, and letters whose evidence meets
+    #: :data:`RETRIEVAL_FAILURE_MINIMUM_ATTEMPTS` -- are derivable from the published document.
+    retrieval_attempts: int | None = None
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -205,6 +250,7 @@ class FileGrade:
             "info_findings": self.info_findings,
             "policy_version": self.policy_version,
             "policy_fingerprint": self.policy_fingerprint,
+            "retrieval_attempts": self.retrieval_attempts,
         }
 
 
@@ -237,7 +283,9 @@ def _severity_count(findings: Iterable[Mapping[str, object]], severity: str) -> 
     return sum(1 for finding in findings if finding.get("severity") == severity)
 
 
-def _grade_local_dimensions(scorecard: Mapping[str, object], policy: GradePolicy) -> FileGrade:
+def _grade_local_dimensions(
+    scorecard: Mapping[str, object], policy: GradePolicy, attempts: int | None = None
+) -> FileGrade:
     error_dimensions: list[str] = []
     warnings = 0
     infos = 0
@@ -256,19 +304,19 @@ def _grade_local_dimensions(scorecard: Mapping[str, object], policy: GradePolicy
                 "every assessed dimension completed with no error or warning findings; "
                 "tolerated INFO observations do not lower a grade"
             )
-            return _graded("A", reason, failed, warnings, infos, policy)
+            return _graded("A", reason, failed, warnings, infos, policy, attempts)
         reason = f"no structural errors; {warnings} warning finding(s) were recorded"
-        return _graded("B", reason, failed, warnings, infos, policy)
+        return _graded("B", reason, failed, warnings, infos, policy, attempts)
     named = ", ".join(failed)
     reason = (
         f"errors or missing evidence in {len(failed)} of {len(LOCAL_DIMENSIONS)} "
         f"local dimensions: {named}"
     )
     if len(failed) == 1:
-        return _graded("C", reason, failed, warnings, infos, policy)
+        return _graded("C", reason, failed, warnings, infos, policy, attempts)
     if len(failed) == 2:
-        return _graded("D", reason, failed, warnings, infos, policy)
-    return _graded("F", reason, failed, warnings, infos, policy)
+        return _graded("D", reason, failed, warnings, infos, policy, attempts)
+    return _graded("F", reason, failed, warnings, infos, policy, attempts)
 
 
 def _graded(
@@ -278,8 +326,11 @@ def _graded(
     warnings: int,
     infos: int,
     policy: GradePolicy,
+    attempts: int | None = None,
 ) -> FileGrade:
-    return FileGrade(grade, reason, failed, warnings, infos, policy.version, policy.fingerprint)
+    return FileGrade(
+        grade, reason, failed, warnings, infos, policy.version, policy.fingerprint, attempts
+    )
 
 
 def _media_type(declared: object) -> str | None:
@@ -324,22 +375,64 @@ def _unstreamable_reason(record: Mapping[str, object], noun: str) -> str:
     )
 
 
+def _attempt_count(record: Mapping[str, object]) -> int | None:
+    """Recorded retrieval attempts, or ``None`` when the record does not state a count.
+
+    ``None`` is deliberately not coerced to ``0`` or to ``1``. A record that never said how
+    many times it asked is a different fact from a record that says it asked once, and the
+    rule below treats both as insufficient without pretending they are the same number.
+    """
+    retrieval = record.get("retrieval")
+    if not isinstance(retrieval, Mapping):
+        return None
+    attempts = retrieval.get("attempts")
+    return attempts if isinstance(attempts, int) and not isinstance(attempts, bool) else None
+
+
+def _attempt_phrase(attempts: int | None) -> str:
+    if attempts is None:
+        return "an unrecorded number of attempts"
+    return "1 attempt" if attempts == 1 else f"{attempts} attempts"
+
+
+def _withheld_letter_reason(attempts: int | None, detail: str) -> str:
+    """The sentence published where a letter would have been, and why it is not one."""
+    reason = (
+        f"not graded: the identified download attempt did not produce a verified file, and "
+        f"{_attempt_phrase(attempts)} from one client on one date is a fact about this request "
+        f"rather than about the publisher; this policy attributes a retrieval failure only "
+        f"from {RETRIEVAL_FAILURE_MINIMUM_ATTEMPTS} or more recorded attempts"
+    )
+    return f"{reason}: {detail}" if detail else reason
+
+
 def grade_assessment(record: Mapping[str, object]) -> FileGrade:
     """Map one persisted assessment record to its deterministic presentation grade."""
     policy = _policy_for(record)
     scorecard = _required_mapping(record, "scorecard")
     retrievability = _required_mapping(scorecard, "retrievability")
     status = retrievability.get("status")
+    attempts = _attempt_count(record)
     if status == "FINDINGS":
         findings = _findings(retrievability)
         detail = str(findings[0].get("message", "")) if findings else ""
-        reason = "the identified download attempt did not produce a verified file"
+        if attempts is None or attempts < RETRIEVAL_FAILURE_MINIMUM_ATTEMPTS:
+            # The finding stays published; only the letter is withheld. See
+            # RETRIEVAL_FAILURE_MINIMUM_ATTEMPTS for why this is the same call the module
+            # already makes for a single-client TLS failure.
+            return _graded(
+                NOT_GRADED, _withheld_letter_reason(attempts, detail), (), 0, 0, policy, attempts
+            )
+        reason = (
+            f"the identified download attempt did not produce a verified file over "
+            f"{_attempt_phrase(attempts)}"
+        )
         if detail:
             reason = f"{reason}: {detail}"
-        return _graded("F", reason, (), 0, 0, policy)
+        return _graded("F", reason, (), 0, 0, policy, attempts)
     if status == "NOT_ASSESSED":
         note = str(retrievability.get("note") or "retrievability was not assessed")
-        return _graded(NOT_GRADED, note, (), 0, 0, policy)
+        return _graded(NOT_GRADED, note, (), 0, 0, policy, attempts)
     if status != "OBSERVED":
         raise CohortError(f"unrecognized retrievability status {status!r}")
     inspection = record.get("inspection")
@@ -348,11 +441,16 @@ def grade_assessment(record: Mapping[str, object]) -> FileGrade:
         # to guess rather than mint a grade from a record this module cannot explain.
         raise CohortError("retrievability is OBSERVED but no inspection evidence is present")
     if inspection.get("scan_completed") is not True:
-        return _graded("F", _unstreamable_reason(record, policy.unread_noun), (), 0, 0, policy)
+        # Not subject to the attempt floor: the bytes arrived and this project read them. What
+        # failed is the document, which is evidence one observation is entirely capable of
+        # carrying -- and the digest beside the letter says exactly which bytes it read.
+        return _graded(
+            "F", _unstreamable_reason(record, policy.unread_noun), (), 0, 0, policy, attempts
+        )
     # Reached only when the document streamed to completion, which is why the declared media
     # type is not read here: a file that parses has answered the question the header could only
     # have hinted at.
-    return _grade_local_dimensions(scorecard, policy)
+    return _grade_local_dimensions(scorecard, policy, attempts)
 
 
 def grade_local_evidence(scorecard: Mapping[str, object], *, profile: str) -> FileGrade:
@@ -371,7 +469,7 @@ def grade_local_evidence(scorecard: Mapping[str, object], *, profile: str) -> Fi
     published one would be comparing a four-dimension reading with a five-dimension one.
 
     ``profile`` is the assessment profile *name* and an unknown one is an error, not a default.
-    Substituting the JSON policy for an unrecognised profile is exactly how a CSV file would come
+    Substituting the JSON policy for an unrecognized profile is exactly how a CSV file would come
     to be graded under the JSON dictionary and the result published as the file's own defects.
     """
     policy = _GRADE_POLICIES.get(profile)

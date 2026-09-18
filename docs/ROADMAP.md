@@ -14,7 +14,7 @@ publisher type and URL provenance are explicit, missing bodies leave four dimens
 Both halves of the sentence that stood here -- "no real multi-publisher grade distribution or
 hosted scorecard surface is claimed yet" -- have been false since the committed cohorts landed.
 Five comparison documents now publish **90 graded files across 39 distinct real publishers**
-(A 53, B 6, C 13, D 5, F 5, and 8 recorded not graded with the reason stated), the four dated
+(A 53, B 6, C 13, D 5, F 0, and 13 recorded not graded with the reason stated), the four dated
 cohorts carry a stated sampling frame and Wilson intervals over their probability stratum, and the
 site is published at <https://chelseakr.github.io/mrf-honest/>. The figures in this paragraph are
 not hand-maintained: `test_the_roadmap_does_not_deny_the_distribution_it_publishes` derives every
@@ -75,14 +75,14 @@ a complete header rather than a sliver of it.
 
 What to do about it -- recover automatically by removing a file this tool did not finish writing,
 or refuse with a named, actionable error and leave the removal to an operator -- is a durability
-judgement rather than a detail, and it is open at #80.
+judgment rather than a detail, and it is open at #80.
 
 **Sampled kills are evidence, not proof**, and that was measured too: reordering the catalog
 commit ahead of artifact promotion left every marker green, because the window between them is too
 narrow for a kill to land in. Three deterministic fault injections cover it, at promotion, at the
 Parquet write, and at the manifest write, and the reordering fails them.
 
-Still open, and named rather than implied: historical warehouse migrations; fsync behaviour, which
+Still open, and named rather than implied: historical warehouse migrations; fsync behavior, which
 needs a filesystem-level fault injector rather than a signal; and the one-statement window between
 promotion and the catalog commit that `_clean_promoted` guards, which no fault this suite can
 inject lands inside (`tests/test_durability.py::test_one_window_this_suite_does_not_reach`).
@@ -124,15 +124,15 @@ README quotes a ledger figure, this table is the source and the README follows i
 
 | Metric | Target | Measured by | Gate | Last measured |
 |---|---|---|---|---|
-| Branch coverage | >= 85% | `pytest --cov` (branch mode, `fail_under = 85`) | AUTO (`make verify`) | 93.15%, 997 tests passing and 4 skipped, 2026-09-13 || Lint findings (ruff `E,F,I,B,S,C90,UP,RUF`, `max-complexity=10`) | 0 | `ruff check src tests perf tools` | AUTO (`make verify`) | 0, 2026-08-16 |
+| Branch coverage | >= 85% | `pytest --cov` (branch mode, `fail_under = 85`) | AUTO (`make verify`) | 93.20%, 1122 tests passing and 4 skipped, 2026-09-18 || Lint findings (ruff `E,F,I,B,S,C90,UP,RUF`, `max-complexity=10`) | 0 | `ruff check src tests perf tools` | AUTO (`make verify`) | 0, 2026-08-16 |
 | Formatting findings | 0 | `ruff format --check src tests perf tools` | AUTO (`make verify`) | 0, 2026-08-16 |
 | `mypy --strict` errors | 0 | `mypy` over `src`, `perf` and `tools` | AUTO (`make verify`) | 0, 2026-08-16 |
 | Lockfile drift | none | `uv lock --check` (**not** `uv sync --frozen`, which cannot see drift) | AUTO (`make verify`, CI `uv sync --locked`) | in sync, 2026-08-16 |
 | Known vulnerabilities in the locked dependency set | 0, no ignore list | `pip-audit --strict --no-deps` over `uv export --all-extras` (71 pinned distributions; `uv.lock` resolves 72 packages and `--no-emit-project` drops this one; 20 of them arrive with the optional `ai` extra) | AUTO (`make verify`) | 0, 2026-08-16 |
 | Lighthouse accessibility, best-practices and SEO, every rendered page | 1.0 (a declared floor above the standard's 0.90) | `perf/score_lighthouse.py` over Lighthouse 12 reports for every HTML file the render produced | AUTO (`.github/workflows/accessibility.yml`) | 1.0 / 1.0 / 1.0 on all 20 pages, 2026-08-19; the 45-page two-cohort surface re-audits on the same job at the next push |
 | Lighthouse performance, every rendered page | >= 0.95 absolute, and no worse than 10% off `perf/baseline.json` | same job | AUTO (`.github/workflows/accessibility.yml`) | 1.0 on all 20 pages, 2026-08-19; 45-page re-audit on the next push |
-| Page weight and request count | 0 bytes of script, stylesheet, font, image and third party; 1 request; <= 60 KB document | `perf/resource-budget.json` asserted against Lighthouse's `resource-summary` audit (**not** `--budget-path`, which does not exist in Lighthouse 12) | AUTO (`.github/workflows/accessibility.yml`) | heaviest page (the two-cohort index) 52,404 bytes in 1 request, 2026-08-19 |
-| Design-token contrast, every declared text/background pair | >= 4.5:1 (WCAG 2.2 SC 1.4.3), no large-text exemptions claimed | `tests/test_site.py`, which also fails on a palette colour with no declared pair | AUTO (`make verify`) | 16 pairs, minimum 4.97:1, 2026-08-15 |
+| Page weight and request count | 0 bytes of script, stylesheet, font, image and third party; 1 request; <= 64 KiB document (60 KiB until the analytics loader of ADR 0009 added 2,647 bytes to every page; the reason is in the budget file) (as served to the audit on 127.0.0.1, where the inline analytics loader of ADR 0009 fetches nothing; on the published address it adds gtag.js, outside the budget by decision) | `perf/resource-budget.json` asserted against Lighthouse's `resource-summary` audit (**not** `--budget-path`, which does not exist in Lighthouse 12) | AUTO (`.github/workflows/accessibility.yml`) | heaviest page (the two-cohort index) 52,404 bytes in 1 request, 2026-08-19 |
+| Design-token contrast, every declared text/background pair | >= 4.5:1 (WCAG 2.2 SC 1.4.3), no large-text exemptions claimed | `tests/test_site.py`, which also fails on a palette color with no declared pair | AUTO (`make verify`) | 16 pairs, minimum 4.97:1, 2026-08-15 |
 | Heading order, every generated page | no skipped level, exactly one h1 | `tests/test_site.py` | AUTO (`make verify`) | 0 violations, 2026-08-15 |
 | robots.txt obeyed, no override path | a disallow or an unreadable robots.txt stops the fetch before any request for the file | `tests/test_politeness.py` against a real `http.server` on loopback, plus a signature assertion that no `ignore_robots`/`force` parameter exists | AUTO (`make verify`) | 22 cases, 0 failures, 2026-08-15 |
 | Per-host interval and `Retry-After` | interval held across a run; `Crawl-delay` lengthens only; 429/503 `Retry-After` outranks local backoff | same suite | AUTO (`make verify`) | default floor 2.0 s; measured 3.0 s waited on a `Retry-After: 3` against a 100 s configured backoff, 2026-08-15 |
@@ -163,11 +163,11 @@ interval method it measures against.
 
 Retrieval politeness is no longer an operator procedure. `src/mrf_honest/politeness.py` fetches
 and obeys `robots.txt` before the first request with no override flag, holds a per-host minimum
-interval across a whole run that a `Crawl-delay` can only lengthen, and honours `Retry-After` on
+interval across a whole run that a `Crawl-delay` can only lengthen, and honors `Retry-After` on
 429 and 503 ahead of this tool's own backoff. Every decision and every wait is retained as
 JSON-safe evidence. What that unblocked was the second cohort, published 2026-08-19 with a stated
 sampling frame (`docs/SAMPLING-FRAME.md`) rather than a convenience list; what it does not by
-itself authorise is a *scheduled* job, which still needs a service/job tier declaration before
+itself authorize is a *scheduled* job, which still needs a service/job tier declaration before
 it ships.
 
 **Closed on the same day it was measured: the fetcher now has a cheap way to learn a file's

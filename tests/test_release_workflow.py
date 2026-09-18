@@ -242,7 +242,7 @@ class TestSupplyChain:
         assert re.fullmatch(r"[0-9a-f]{40}", reference), f"{uses} is not SHA-pinned"
 
     def test_the_workflow_uses_at_least_one_action(self) -> None:
-        """An empty parametrisation above would make the pinning check vacuous."""
+        """An empty parametrization above would make the pinning check vacuous."""
 
         assert "uses:" in TEXT
 

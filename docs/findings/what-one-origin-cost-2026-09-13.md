@@ -8,6 +8,12 @@ wall clock, pacing, robots and process memory from
 [`data/origins/2026-09-13-chihealth-com.cost.json`](../../data/origins/2026-09-13-chihealth-com.cost.json),
 which records only what an assessment row cannot carry.*
 
+*The letters below are file-level presentation grades for one dated retrieval, not a ranking of
+hospitals or a determination of compliance with 45 CFR part 180. What a letter does and does not mean is in
+[how-we-compare.md](../how-we-compare.md), how each dimension is assessed is in
+[how-we-grade.md](../how-we-grade.md), and how to dispute a letter or have a row removed is in
+[CORRECTIONS.md](../CORRECTIONS.md).*
+
 Everything the project knew about the cost of collection came from operator-invoked runs over
 *sampled* targets: 42 files drawn from 40-odd unrelated origins. Nothing had ever collected one
 origin's whole publication set in one pass, which is the shape any origin-scoped request would
@@ -73,10 +79,14 @@ The prediction for chihealth.com was ~99 MB. **The measurement was 96,766,261 by
 Four origins were excluded on grounds that are not cost:
 
 - **`northside.com`** (5 locations) answered HTTP 403 from `assets.northside.com` on both
-  2026-08-19 and 2026-09-12. Collecting it would publish **five** F letters on named hospitals
-  from one client's 403 — which is the open defect in
-  [#99](https://github.com/ChelseaKR/mrf-honest/issues/99), multiplied by five. It was not
-  collected, and no origin whose file host has a recorded HTTP barrier was.
+  2026-08-19 and 2026-09-12. Under the grading rule in force when this run was planned,
+  collecting it would have published **five** F letters on named hospitals from one client's
+  403 — the defect in [#99](https://github.com/ChelseaKR/mrf-honest/issues/99), multiplied by
+  five. It was not collected, and no origin whose file host has a recorded HTTP barrier was.
+  (#99 was fixed later the same day by
+  [#120](https://github.com/ChelseaKR/mrf-honest/pull/120): a retrieval failure now carries a
+  letter only from two or more recorded attempts, and below that its finding is published with
+  the letter withheld as `NOT_GRADED`.)
 - **`centura.org`** (20 locations) is `robots.txt`-disallowed at `csdam.widen.net`: 20 requests
   for 20 `NOT_GRADED` rows and no letters.
 - **`texashealth.org`** and **`hackensackmeridianhealth.org`** each have a measured `too_large`
@@ -141,7 +151,9 @@ body that had not changed returned the whole body, three times, at one origin, o
 
 **This is the most expensive finding here for the product.** A monthly refresh of these 17
 locations would move the full 96.8 MB again to learn that nothing changed. Whatever a refresh
-costs at this origin, it is not "7% of a cold pass".
+costs at this origin, it is not "7% of a cold pass". (A later measurement at ten more origins,
+[cross-origin-conditional-revalidation-2026-09-14.md](cross-origin-conditional-revalidation-2026-09-14.md),
+found `chihealth.com` to be the outlier rather than the rule.)
 
 ### 3. `probe` cannot price an order here
 
@@ -172,7 +184,7 @@ every request, allowed each one, and declares no `Crawl-delay`.
 
 Peak RSS for the whole process — 17 streamed downloads, 17 gzip decodes, 17 complete inspections
 of files up to 227 MB — was **76,955,648 bytes**. The disk high-water mark is the cache, 2.3 GiB,
-and only because this run retained every body; a fulfilment path that deleted each body after
+and only because this run retained every body; a fulfillment path that deleted each body after
 writing its record would peak at the largest single file.
 
 ## What this says about the thing it was run to test
@@ -195,9 +207,13 @@ already knows which kind each origin is before anyone pays.
 
 What is *not* settled: none of this was observed on a GitHub-hosted runner, the two ends of the
 distribution (a 72-location origin and a 114-location identity-encoded one) are still unmeasured,
-and issue [#99](https://github.com/ChelseaKR/mrf-honest/issues/99) is unchanged — this run stayed
-away from the origins that would have multiplied it, which is a choice about what to collect and
-not a fix.
+and this run did nothing about issue [#99](https://github.com/ChelseaKR/mrf-honest/issues/99) — it
+stayed away from the origins that would have multiplied it, which is a choice about what to
+collect and not a fix. The fix landed separately in
+[#120](https://github.com/ChelseaKR/mrf-honest/pull/120). The comparison committed here is derived
+under that rule (comparison version 5): each of the 17 letters records `retrieval_attempts: 1`,
+and the two-attempt floor does not apply to any of them, because every one rests on a body that
+arrived, was hashed and was read to the end.
 
 ## What this run did not do, deliberately
 

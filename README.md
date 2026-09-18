@@ -7,7 +7,9 @@ Two graded cohorts are live, one per CMS file format, side by side and never poo
 collected 2026-09-12**. The JSON cohort covers 17 machine-readable files across 15 publishers,
 discovered from CMS-conventional `cms-hpt.txt` documents, retrieved in one identified run,
 streamed without loading into memory, and graded fail-closed. The distribution is 13 **A**,
-1 **B**, 2 **C**, 1 **F**, and 0 not graded. Every grade, count, and finding on the
+1 **B**, 2 **C**, 0 **F**, and 1 not graded — the seventeenth answered HTTP 403 to one
+identified request, which this project publishes as a dated observation and no longer converts
+into a letter under a hospital's name. Every grade, count, and finding on the
 [site](https://chelseakr.github.io/mrf-honest/) is generated from the committed comparison
 documents ([JSON cohort](data/cohorts/2026-09-12.comparison.json),
 [CSV cohort](data/cohorts/2026-09-12-csv.comparison.json)), never typed in, and each finding
@@ -16,6 +18,14 @@ cites the CMS rule ([45 CFR § 180.50]) or
 Every grade carries the date it was measured, and every page that publishes one states how old
 that measurement is on the day the page was built — a date a reader has to subtract from a
 "today" the page never states is not an answer to "is this still true?"
+
+The site counts visits with Google Analytics 4
+([ADR 0009](docs/adr/0009-the-published-site-counts-visits-with-google-analytics.md)): only on
+the published address, not at all under Global Privacy Control or Do Not Track or after the
+footer's "Opt out of analytics", with Google signals and ad personalization off. Its
+[privacy page](https://chelseakr.github.io/mrf-honest/privacy/) says what Google receives,
+including that a page's address names the hospital file being read. The CLI, the GitHub Action,
+the pre-commit hook and the published data files carry no analytics.
 
 **The cohorts have a stated sampling frame**, which the first one did not
 ([docs/SAMPLING-FRAME.md](docs/SAMPLING-FRAME.md)). Eleven of the seventeen JSON files come from
@@ -33,8 +43,9 @@ answers `text/csv` rather than JSON; until 2026-08-19 every one was a recorded e
 the letter distribution above described hospitals that chose JSON, not hospitals. A second
 assessment profile now implements CMS's CSV v3.0.0 templates, Tall and Wide, and a sibling
 cohort grades all 25 CSV targets of the same draw. The CSV distribution is 12 **A**, 2 **B**,
-4 **C**, 2 **D**, 1 **F**, and 4 not graded — two hosts whose `robots.txt` says no, honored;
-two files over this project's own 1 GiB ceiling, stated rather than blamed on the publisher.
+4 **C**, 2 **D**, 0 **F**, and 5 not graded — two hosts whose `robots.txt` says no, honored;
+two files over this project's own 1 GiB ceiling, stated rather than blamed on the publisher; and
+one HTTP 404 observed once, recorded rather than attributed.
 What remains outside both profiles stays recorded: 7 ZIP archives, 4 origins whose
 `cms-hpt.txt` could not be retrieved, and 1 whose location entry did not resolve.
 
@@ -214,8 +225,11 @@ Asking for a grade filter without naming a cohort returns a stated refusal rathe
 count, because a letter counted across cohorts pools rows produced under different profiles and
 policies. `grading_method` reads the rule table from the policy the published grades were minted
 under, not from a summary that could drift from it. There is no tool that retrieves a hospital's
-file. The server is not registered with any MCP registry: that would name a released package, and
-there is no release yet.
+file. The server is not registered with any MCP registry: `v0.1.0` is
+[a signed, released tag](https://github.com/ChelseaKR/mrf-honest/releases/tag/v0.1.0), but
+[ADR 0008](docs/adr/0008-release-versioning-applies.md) is explicit that a GitHub Release is not
+an index listing — nothing here is published to PyPI or to any MCP registry, so there is nothing
+yet to name in a registry entry.
 
 Re-running that command over the committed inputs reproduces
 [the committed comparison](data/cohorts/2026-08-19.comparison.json) byte for byte, and both
@@ -244,7 +258,11 @@ limits prevented assessing is **not graded** — stated, never silently dropped,
 conflated with a publisher failure. That boundary is enforced by a status matrix rather than by
 care: a certificate that will not verify, a `robots.txt` that says no, and this project's own
 size ceiling are all **not graded**, because from one attempt none of them is distinguishable
-from a problem on this end. An **A** means the implemented checks emitted nothing; it is
+from a problem on this end. **An HTTP barrier is now held to the same standard**: a download
+failure carries a letter only from two or more recorded attempts, so a 401, 403, 404 or 409 seen
+once — statuses this project's fetcher deliberately does not retry — is published as the dated
+observation it is, with its status and its attempt count, and not as an **F**. Every published
+letter states how many identified requests stand behind it. An **A** means the implemented checks emitted nothing; it is
 not the official CMS validator and not a certificate of validity.
 
 ## Why this shape
@@ -339,7 +357,7 @@ Still open:
   the one document inside it, and refuses rather than choosing when there is not exactly one.
   The seven ZIP publications of the committed draw remain recorded exclusions until an operator
   retrieves their bodies, because those bodies are not committed;
-- supported warehouse migrations, fsync behaviour, and the one-statement window between artifact
+- supported warehouse migrations, fsync behavior, and the one-statement window between artifact
   promotion and the catalog commit. Crash and concurrency durability is now measured rather than
   disclaimed: an ingest is killed with SIGKILL at six named progress markers and the catalog is
   required never to report a snapshot it does not hold, three deterministic fault injections cover
@@ -378,7 +396,7 @@ ADR in [docs/adr/](docs/adr/). No blank rows, no silent skips.
 
 | Standard | State |
 |---|---|
-| Code Quality | Applies: `make verify` runs six gates — `ruff check` (security `S` rules, `max-complexity=10`), `ruff format --check`, `mypy --strict`, pytest with a branch-coverage floor of 85, `uv lock --check`, and `pip-audit --strict` over the exported lockfile. Current: 997 tests passing and 4 skipped, 93.15% branch coverage, zero lint/format/type findings, lockfile in sync, zero known vulnerabilities (2026-09-13). Floors: Python >= 3.12 (`.python-version` pins 3.14), ruff >= 0.15, mypy >= 1.18, locked in `uv.lock`. Dev tooling is a PEP 735 `[dependency-groups]` group, so `uv sync` installs it and a published wheel never carries it. || Security & Supply-Chain | Applies: the streaming, inspection, discovery, fetch, registry, comparison, and site path is standard-library-only; DuckDB is an optional lakehouse dependency ([ADRs 0002-0003](docs/adr/)) and the `anthropic` SDK an optional `ai` extra that only the narration layer imports ([ADR 0006](docs/adr/0006-ai-narration-outside-the-graded-path.md)). The lockfile, ruff `S` gate, HTTPS/redirect validation, bounded downloads, and SHA-pinned CI actions reduce the current surface. Hosted CodeQL (Python and Actions) and a checksum-pinned full-history gitleaks scan run on push, PR, and weekly schedule (`.github/workflows/security.yml`). `make verify` runs `pip-audit --strict` against the whole exported lockfile — every extra and the dev group — with no ignore list, so the audit runs on a laptop and in CI rather than only in CI. The lockfile-drift gate is `uv lock --check`, not `uv sync --frozen`: measured on a deliberately drifted project under uv 0.12.1, `uv lock --check` and `uv sync --locked` exit 1 and `uv sync --frozen` exits 0, because `--frozen` installs from the lockfile without reading `pyproject.toml` and so cannot see the two disagree. |
+| Code Quality | Applies: `make verify` runs six gates — `ruff check` (security `S` rules, `max-complexity=10`), `ruff format --check`, `mypy --strict`, pytest with a branch-coverage floor of 85, `uv lock --check`, and `pip-audit --strict` over the exported lockfile. Current: 1122 tests passing and 4 skipped, 93.20% branch coverage, zero lint/format/type findings, lockfile in sync, zero known vulnerabilities (2026-09-18). Floors: Python >= 3.12 (`.python-version` pins 3.14), ruff >= 0.15, mypy >= 1.18, locked in `uv.lock`. Dev tooling is a PEP 735 `[dependency-groups]` group, so `uv sync` installs it and a published wheel never carries it. || Security & Supply-Chain | Applies: the streaming, inspection, discovery, fetch, registry, comparison, and site path is standard-library-only; DuckDB is an optional lakehouse dependency ([ADRs 0002-0003](docs/adr/)) and the `anthropic` SDK an optional `ai` extra that only the narration layer imports ([ADR 0006](docs/adr/0006-ai-narration-outside-the-graded-path.md)). The lockfile, ruff `S` gate, HTTPS/redirect validation, bounded downloads, and SHA-pinned CI actions reduce the current surface. Hosted CodeQL (Python and Actions) and a checksum-pinned full-history gitleaks scan run on push, PR, and weekly schedule (`.github/workflows/security.yml`). `make verify` runs `pip-audit --strict` against the whole exported lockfile — every extra and the dev group — with no ignore list, so the audit runs on a laptop and in CI rather than only in CI. The lockfile-drift gate is `uv lock --check`, not `uv sync --frozen`: measured on a deliberately drifted project under uv 0.12.1, `uv lock --check` and `uv sync --locked` exit 1 and `uv sync --frozen` exits 0, because `--frozen` installs from the lockfile without reading `pyproject.toml` and so cannot see the two disagree. |
 | CI/CD | Applies: SHA-pinned workflows mirror `make verify` on Python 3.12 and 3.14, build distributions, and publish the site from committed data only. The publish job first re-derives the newest comparison from its committed assessments, manifest, and ingest evidence and requires a byte-for-byte match, then requires one rendered page per row in it; a generator that no longer reproduces its own published artifact cannot deploy. `make verify` runs the same derivation, but that is a separate workflow whose failure would not by itself stop a deploy, which is why the check is on both paths. |
 | Observability | Applies to the local batch shape plus a static published artifact: finalized run manifests and DuckDB `model_metric` rows retain counts, bytes, and wall time; the site is rebuilt from committed data with no availability objective declared. See [docs/ROADMAP.md](docs/ROADMAP.md). |
 | Accessibility | Applies as of the site, and now gated. `.github/workflows/accessibility.yml` runs Lighthouse over **every** page the render produced — enumerated from the build, not typed into the workflow — and requires 1.0 on accessibility, best-practices and SEO, a declared floor above the standard's 0.90. `make verify` runs the parts that need no browser: a contrast assertion over every declared text/background pair in the design tokens, and a heading-order check on every generated page. Two real defects were found and fixed when the gate was first pointed at the live site (`heading-order` on the index; a 4.28:1 finding chip on every file page with a warning). The remaining open obligation is the manual screen-reader pass, stated in [docs/RESPONSIBLE-TECH-AUDITS.md](docs/RESPONSIBLE-TECH-AUDITS.md). |
@@ -387,10 +405,10 @@ ADR in [docs/adr/](docs/adr/). No blank rows, no silent skips.
 | Quality & Metrics | Applies: metrics ledger in [docs/ROADMAP.md](docs/ROADMAP.md); every published number is measured or generated from committed data, never estimated. |
 | AI Development Measurement | Applies: this project is built AI-assisted and says so (see Provenance below). The outcome side is the metrics ledger in [docs/ROADMAP.md](docs/ROADMAP.md), where every published number is measured or generated from committed data rather than estimated. The diagnostic counters the standard names — sessions, tokens, share of generated code, acceptance rate — are not instrumented in this repository, and by the standard's own rule they would be observe-only if they were: they never gate a merge and they never rank a person. |
 | Documentation | Applies: README, `CHANGELOG.md`, `CONTRIBUTING.md`, `SECURITY.md`, `CITATION.cff`, ADR log ([docs/adr/](docs/adr/)), findings log ([docs/findings/](docs/findings/)). |
-| Incident Response | Applies: [SECURITY.md](SECURITY.md) names a private reporting channel, dated response targets (acknowledgement within 72 hours, triage and severity within 7 days), and the one operational incident this project can actually have — a fetched file found to contain individual-level data, which is reported to the publisher rather than analyzed. There is no deployed service and no on-call rotation. [docs/incidents/](docs/incidents/) carries the postmortem template, the four incident classes this project can actually have, and the severity meanings behind the `incident` / `sev1`-`sev4` labels; zero incidents to date is a count, not an exemption. |
+| Incident Response | Applies: [SECURITY.md](SECURITY.md) names a private reporting channel, dated response targets (acknowledgment within 72 hours, triage and severity within 7 days), and the one operational incident this project can actually have — a fetched file found to contain individual-level data, which is reported to the publisher rather than analyzed. There is no deployed service and no on-call rotation. [docs/incidents/](docs/incidents/) carries the postmortem template, the four incident classes this project can actually have, and the severity meanings behind the `incident` / `sev1`-`sev4` labels; zero incidents to date is a count, not an exemption. |
 | Data Governance | Applies: every input is a file its publisher is legally required to post publicly, and it carries prices, not patients. Retrieval records the source URL, provenance tag, fetch time, byte count, and content SHA-256, so a published grade traces back to the exact bytes it graded and the comparison is re-derivable from committed assessments, manifest, and ingest evidence. The datasets and their schemas are documented in [docs/DATA-LANDSCAPE.md](docs/DATA-LANDSCAPE.md), and the handling rule for a file that turns out to contain individual-level data is in [SECURITY.md](SECURITY.md). [docs/DATA-CARD.md](docs/DATA-CARD.md) is the standalone card, and [docs/RETENTION.md](docs/RETENTION.md) is the retention policy for the local blob cache, including the destroy-on-discovery order and the backups it explicitly cannot reach. |
 | Responsible-Tech Framework | Applies: [docs/RESPONSIBLE-TECH-AUDITS.md](docs/RESPONSIBLE-TECH-AUDITS.md) (grades files, never organizations or care; dated appendices for the grade-bias review, the site's accessibility scope, and a 2026-08-16 sweep that found three declarations the later work had made false and left published). |
-| Performance | Applies as of the site. The same Lighthouse job asserts a performance floor and a resource budget in which every non-document resource type is zero: no scripts, no external stylesheets, no fonts, no images, no third parties. Measured 2026-08-19 across all 45 pages: 1.0 performance, 52,404 bytes and one request on the heaviest page ([perf/baseline.json](perf/baseline.json)). The repository does contain one image, the Open Graph card in `assets/`, and it is outside this budget by construction rather than by exemption: no page references it, so no page load requests it, and the budget is asserted against Lighthouse's `resource-summary` audit, which counts what a page actually loads. The k6 latency rows of the performance standard are N/A: there is no server, only static files, and that reason is recorded in the baseline. |
+| Performance | Applies as of the site. The same Lighthouse job asserts a performance floor and a resource budget in which every non-document resource type is zero: no script files, no external stylesheets, no fonts, no images, no third parties. The one script on the pages is the inline Google Analytics 4 loader ([ADR 0009](docs/adr/0009-the-published-site-counts-visits-with-google-analytics.md)): it is not a request, it fetches nothing on the 127.0.0.1 the job audits, and on the published address it adds Google's gtag.js and GA's requests, outside the budget by the owner's decision. Measured 2026-08-19 across all 45 pages: 1.0 performance, 52,404 bytes and one request on the heaviest page ([perf/baseline.json](perf/baseline.json)). The repository does contain one image, the Open Graph card in `assets/`, and it is outside this budget by construction rather than by exemption: no page references it, so no page load requests it, and the budget is asserted against Lighthouse's `resource-summary` audit, which counts what a page actually loads. The k6 latency rows of the performance standard are N/A: there is no server, only static files, and that reason is recorded in the baseline. |
 | Release & Versioning | Applies: `v0.1.0` is the first signed tag. `.github/workflows/release.yml` verifies the tag's SSH signature against the committed `.github/allowed_signers`, requires the tag and `pyproject.toml` to agree and to be a non-pre-release version, requires a `CHANGELOG.md` entry for it, re-runs `make verify` at the tagged commit, and builds and hashes the distributions; it holds no signing key and no registry credential and creates no tag. The site remains a continuously rebuilt artifact and is not versioned with the package. [docs/adr/0008-release-versioning-applies.md](docs/adr/0008-release-versioning-applies.md) supersedes [0001](docs/adr/0001-release-versioning-na.md). |
 
 ## Provenance

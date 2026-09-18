@@ -155,6 +155,60 @@ def test_not_graded_target_stays_visible_with_its_reason(tmp_path: Path) -> None
     assert "no item, charge, or rate counts exist" in page
 
 
+def test_every_file_page_states_the_requests_behind_its_grade(tmp_path: Path) -> None:
+    """#99: the evidence behind a letter is on the page, and a withheld letter reads as withheld.
+
+    Three rows that differ in what their letter rests on: a body that arrived after one request,
+    a 403 seen once, and a 500 the fetcher retried to exhaustion. Only the last may carry an
+    ``F`` for a retrieval, and every one of them has to say how many requests stand behind it.
+    """
+    records = [
+        _success_record(tmp_path / "bodies", subject=_subject("alpha-health", "main")),
+        _failure_record(
+            FetchStatus.HTTP_ERROR,
+            http_status=403,
+            attempts=1,
+            subject=_subject("gamma-health", "main"),
+        ),
+        _failure_record(
+            FetchStatus.HTTP_ERROR,
+            http_status=500,
+            attempts=3,
+            subject=_subject("delta-health", "main"),
+        ),
+    ]
+    comparison = build_comparison(records, _manifest(), generated_at=GENERATED_AT)
+    out = _render(tmp_path, comparison)
+
+    def page(publisher: str) -> str:
+        return (out / "hospital" / publisher / "main" / "index.html").read_text(encoding="utf-8")
+
+    label = "Retrieval attempts behind this grade</dt><dd>"
+    alpha = page("alpha-health")
+    assert f"{label}1 identified request</dd>" in alpha
+
+    once = page("gamma-health")
+    assert f"{label}1 identified request</dd>" in once
+    assert ">F<" not in once
+    assert "is a fact about this request rather than about the publisher" in once
+
+    confirmed = page("delta-health")
+    assert f"{label}3 identified requests</dd>" in confirmed
+    assert ">F<" in confirmed
+
+
+def test_an_unrecorded_attempt_count_is_never_rendered_as_one(tmp_path: Path) -> None:
+    """ "We did not record how many times we asked" must not print as "we asked once"."""
+    comparison = _comparison(tmp_path)
+    rows = cast(list[dict[str, object]], comparison["files"])
+    del cast(dict[str, object], rows[0]["grade"])["retrieval_attempts"]
+    out = _render(tmp_path, comparison)
+    slug = str(rows[0]["slug"])
+    page = (out / "hospital" / slug / "index.html").read_text(encoding="utf-8")
+    assert "Retrieval attempts behind this grade</dt><dd>not recorded for this row</dd>" in page
+    assert "1 identified request" not in page
+
+
 def test_methods_page_documents_the_policy_and_emitted_codes(tmp_path: Path) -> None:
     out = _render(tmp_path, _comparison(tmp_path))
     methods = (out / "how-we-grade" / "index.html").read_text(encoding="utf-8")
@@ -193,7 +247,7 @@ def test_every_indexable_page_names_itself_and_not_the_shared_origin(
         canonical = re.search(r'<link rel="canonical" href="([^"]*)">', html)
         assert canonical, f"{name} has no canonical URL"
         assert canonical.group(1) == url, (
-            f"{name} canonicalises to {canonical.group(1)!r}, not {url!r}"
+            f"{name} canonicalizes to {canonical.group(1)!r}, not {url!r}"
         )
         assert canonical.group(1).rstrip("/") != "https://chelseakr.github.io", (
             f"{name} points at the shared origin, which is a different site"
@@ -276,7 +330,7 @@ def test_no_page_requests_an_image_so_the_zero_image_budget_still_holds(
         assert '<link rel="icon" href="data:,">' in html, f"{name} lost its inert favicon"
 
 
-def test_the_error_page_canonicalises_nowhere_and_is_not_indexable(
+def test_the_error_page_canonicalizes_nowhere_and_is_not_indexable(
     tmp_path: Path,
 ) -> None:
     """The error page is written to `404.html`, but its `Page.path` is `"404"`.
@@ -371,8 +425,8 @@ def test_cli_site_renders_from_files(tmp_path: Path, capsys: pytest.CaptureFixtu
     assert '<link rel="canonical" href="https://example.test/mrf-honest/">' in index
 
 
-def test_every_palette_colour_is_covered_by_a_declared_contrast_pair() -> None:
-    """A new colour token must declare where it is read, or the gate is decorative.
+def test_every_palette_color_is_covered_by_a_declared_contrast_pair() -> None:
+    """A new color token must declare where it is read, or the gate is decorative.
 
     Without this the contrast test would only ever check the pairs someone remembered to add,
     which is the failure mode it exists to prevent.
@@ -395,7 +449,7 @@ def test_declared_text_pairs_meet_wcag_aa(foreground: str, background: str, wher
 
 
 def test_contrast_ratio_matches_known_wcag_values() -> None:
-    """Anchor the maths, so a broken formula cannot quietly pass every pair above."""
+    """Anchor the math, so a broken formula cannot quietly pass every pair above."""
     assert contrast_ratio("#000000", "#ffffff") == pytest.approx(21.0)
     assert contrast_ratio("#ffffff", "#ffffff") == pytest.approx(1.0)
     # The exact combination that shipped: --c on the amber wash, measured by axe at 4.28.
@@ -404,15 +458,15 @@ def test_contrast_ratio_matches_known_wcag_values() -> None:
 
 
 def test_stylesheet_is_generated_from_the_palette(tmp_path: Path) -> None:
-    """The audited page must embed the same colours the test above checks."""
+    """The audited page must embed the same colors the test above checks."""
     out = _render(tmp_path, _comparison(tmp_path))
     index = (out / "index.html").read_text(encoding="utf-8")
     for token, value in PALETTE.items():
         assert f"--{token}: {value};" in index
-    # and no colour is hard-coded past the token layer
+    # and no color is hard-coded past the token layer
     hexes = set(re.findall(r"#[0-9a-fA-F]{6}", index.split("<style>")[1].split("</style>")[0]))
     assert hexes <= set(PALETTE.values()), (
-        f"stylesheet hard-codes colours: {hexes - set(PALETTE.values())}"
+        f"stylesheet hard-codes colors: {hexes - set(PALETTE.values())}"
     )
 
 

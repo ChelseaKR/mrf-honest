@@ -303,12 +303,12 @@ make candidate selection byte-based or soften the CHANGELOG claim to match the c
 
 ---
 
-## #37 — Phase 10: a removal is honoured on request, and here is what went wrong
+## #37 — Phase 10: a removal is honored on request, and here is what went wrong
 - **Base:** `master`. **Head:** `feat/phase-10-corrections`. **State:** CLEAN, all checks green.
 - **Unique contribution:** `docs/CORRECTIONS.md`, two issue-form templates, `tests/test_corrections.py`, `ci.yml` fetch-depth, `pyyaml` promoted to the dev group.
 
 **What it does.** Publishes a corrections and removal page whose load-bearing promise is
-that a removal is honoured on request with no proof required, wires it into every rendered
+that a removal is honored on request with no proof required, wires it into every rendered
 page's footer, and writes up ten things this project has already got wrong, each naming the
 commit that fixed it.
 
@@ -667,7 +667,7 @@ data-element table, independent of whether the row's code columns are populated.
 
 `_check_item_completeness` now dispatches to three named helpers instead of one nested
 chain, and gains a branch for charged rows that are neither items nor modifier rows.
-The modifier branch is reached first and is unchanged, so every behaviour PR #31 broke
+The modifier branch is reached first and is unchanged, so every behavior PR #31 broke
 stays intact. The refactor was required, not cosmetic: adding the branch inline pushed the
 function to McCabe 11 against the repo's `max-complexity=10`, and CONTRIBUTING says to fix
 the change rather than the floor.

@@ -7,7 +7,7 @@ request was made to produce this document. Every figure below is re-derived by
 This exists because the cost of keeping grades current was being estimated rather than measured,
 and the estimate was wrong in the direction that matters. A scheduled refresh is the thing a
 dated grade needs most, and the argument for it has to rest on what a refresh really moves
-across other organisations' servers.
+across other organizations' servers.
 
 ## The headline
 
@@ -42,7 +42,7 @@ The seven at the same URL split three ways, and only one of the three is address
 
 - **No validator existed on either date** (3 subjects, 125,633,619 bytes). The server sent
   neither `ETag` nor `Last-Modified`, so there was nothing to make the request conditional with.
-  A full download is the only correct behaviour.
+  A full download is the only correct behavior.
 - **A validator moved while the bytes did not** (2 subjects, 416,928,542 bytes). One server's
   `Last-Modified` advanced by 24 days and one server's `ETag` *and* `Last-Modified` both changed,
   and in each case the body hashed to exactly what was already cached. The server said it had
@@ -78,7 +78,7 @@ That is a proposal with a measured payoff, not a claim that it is built. It is n
 
 ## What this means for a scheduled refresh
 
-- **A monthly refresh of this 42-file cohort costs roughly 3 GB** of other organisations'
+- **A monthly refresh of this 42-file cohort costs roughly 3 GB** of other organizations'
   bandwidth to learn that four files changed.
 - **Extrapolated to a complete census it is not cheap.** A cold pass over the 3,024-hospital
   frame was estimated at roughly 350 GB from this cohort's mean file size. At the ratio measured

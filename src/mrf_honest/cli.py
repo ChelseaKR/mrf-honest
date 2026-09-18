@@ -11,6 +11,7 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import cast
 
+from mrf_honest.analytics import GA4_MEASUREMENT_ID, measurement_id_or_none
 from mrf_honest.census import build_census
 from mrf_honest.census import human_report as census_human_report
 from mrf_honest.cohort import build_comparison
@@ -563,6 +564,18 @@ def _run_mcp(args: argparse.Namespace) -> int:
     return serve_mcp(cast(Path, args.site))
 
 
+def _ga4_id(value: str) -> str | None:
+    """``--ga4-id``, refused at parse time when malformed and ``None`` when empty.
+
+    Refused before anything is read or written: a tag for an ID GA would not accept records
+    nothing, and a site carrying it would describe analytics that never happen.
+    """
+    try:
+        return measurement_id_or_none(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(str(exc)) from exc
+
+
 def _run_site(args: argparse.Namespace) -> int:
     comparisons = [
         _load_json_object(path, "comparison") for path in cast(list[Path], args.comparisons)
@@ -571,6 +584,7 @@ def _run_site(args: argparse.Namespace) -> int:
         comparisons,
         cast(Path, args.out),
         origin=cast(str, args.origin).rstrip("/"),
+        ga4_id=cast("str | None", args.ga4_id),
     )
     _emit_json({"files_written": len(written)})
     return _SUCCESS
@@ -852,6 +866,17 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     site_parser.add_argument("--out", type=Path, required=True)
     site_parser.add_argument("--origin", default=DEFAULT_ORIGIN)
+    site_parser.add_argument(
+        "--ga4-id",
+        type=_ga4_id,
+        default=GA4_MEASUREMENT_ID,
+        help=(
+            "Google Analytics 4 measurement ID (ADR 0009). Defaults to the committed one, which "
+            "is what pages.yml publishes; its loader sends nothing anywhere but the published "
+            "address. Pass an empty string for a site with no analytics, no script and no "
+            "privacy page"
+        ),
+    )
     site_parser.set_defaults(handler=_run_site)
 
     mcp_parser = commands.add_parser(

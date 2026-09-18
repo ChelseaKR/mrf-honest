@@ -3,7 +3,7 @@
 The graded side of every fixture is a **committed** assessment record, read through
 ``AssessmentRegistry`` exactly as the tool reads it, so a shape change in the assessment artifact
 cannot leave these tests exercising a record the project no longer writes. Only the discovery
-side is synthesised, because that is the side with branches to cover -- and because the local
+side is synthesized, because that is the side with branches to cover -- and because the local
 discovery registry is deliberately not committed (`.gitignore`: ``data/registry*.jsonl``), which
 is why this is a command rather than published output.
 """

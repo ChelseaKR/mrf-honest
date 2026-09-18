@@ -29,7 +29,7 @@ knows what hospital it belongs to unless you tell it.
 Nobody has approved your file because a check went green. CMS publishes its own validator; this
 is a second, independent reading, and where the two disagree the answer is in the data
 dictionary, not in either tool. The job summary says all of this in the job summary, every time,
-because a green check is exactly the artefact somebody will eventually screenshot.
+because a green check is exactly the artifact somebody will eventually screenshot.
 
 It also does not check whether your file is *reachable* — whether the URL resolves, whether the
 server sends the right content type, whether your `cms-hpt.txt` points at the right place. Those

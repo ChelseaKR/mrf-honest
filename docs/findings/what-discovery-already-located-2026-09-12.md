@@ -86,14 +86,14 @@ Each is enforced in `src/mrf_honest/census.py` and pinned by a test, not left to
 5. **No share is computed against the 3,024-hospital frame.** The frame enumerates CMS
    *facilities*; this enumerates *locations named by documents*, and the join between them does
    not exist. Publishing "550 of 3,024" would require silently treating every unresolved facility
-   as something. The frame's own numbers are printed beside the census, labelled, and the report
+   as something. The frame's own numbers are printed beside the census, labeled, and the report
    says in terms that the count *"is NOT a denominator for the counts above"*. A test asserts that
    every population is an integer, so a float — a share across a join nobody has — cannot appear.
 
 And one more, which is about people rather than counts: **contact details are never carried.** A
 `cms-hpt.txt` entry names a person and their email. `docs/CORRECTIONS.md` promises this project
 does not publish "contact details gathered during discovery", so the census reads four fields by
-name and never copies an entry wholesale. A test serialises the whole document and asserts the
+name and never copies an entry wholesale. A test serializes the whole document and asserts the
 fixture's name and address appear nowhere in it.
 
 ## The four graded rows no located file matches

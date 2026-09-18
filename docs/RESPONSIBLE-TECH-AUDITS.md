@@ -170,7 +170,7 @@ as a badge background does not work as small text on the amber wash.
 
 What changed structurally is more important than either defect. The palette now lives in one
 `PALETTE` mapping with a declared table of every text-on-background pair, asserted at 4.5:1 by a
-test in `make verify`; a colour added without a declared pair fails the suite. Heading order is
+test in `make verify`; a color added without a declared pair fails the suite. Heading order is
 asserted on every generated page by the same suite. In CI, `accessibility.yml` renders the site
 from the committed comparison, enumerates every HTML file the render produced, audits each one,
 and fails when the page list is short, when a report is missing, or when a category score is
@@ -253,7 +253,7 @@ orders of magnitude, where the first cohort spanned one.
 
 **The hazard the first review looked for did not reappear, and a different one did.** The 2026-08-14
 review predicted the resource-shaped hazard would fall on small publishers and observed it falling
-on a large one. In the random stratum it fell on neither. What the grade policy actually penalised
+on a large one. In the random stratum it fell on neither. What the grade policy actually penalized
 in a small hospital was a *stale file*: NMC Health, a community hospital in Newton, Kansas,
 publishes a conforming CMS v3 document whose own `last_updated_on` is 2025-06-30, more than a year
 before the assessment date. That is a **B**, driven by a `WARNING`, and it is the correct outcome:
@@ -284,8 +284,36 @@ the drawn facility, and a failed candidate is re-checked before the failure is r
 and the cohort's two strata must not be pooled — the carry-forward stratum was chosen because it
 was known, and averaging it with a probability sample produces a number that describes neither. No
 aggregate statistic about hospitals as a class is published from this cohort, and the summary
-counts on the site are labelled as descriptions of the cohort.
+counts on the site are labeled as descriptions of the cohort.
 
 **Re-run this review** before any CSV profile ships (which would change the composition
 fundamentally), before the sample is extended past 48, and before any proportion is published as
 an estimate rather than a count.
+
+## Appendix, 2026-09-17: the published site counts visits with Google Analytics 4
+
+Appended, not edited. Section C said "There are no accounts or telemetry". The 2026-08-16 appendix
+said the site has "no telemetry, and no analytics of any kind". Both stay as written, and this
+appendix is the current statement. The owner decided on 2026-09-17 that every public site gets
+Google Analytics 4 ([ADR 0009](adr/0009-the-published-site-counts-visits-with-google-analytics.md)).
+
+- **C Privacy, for the site.** There are still no accounts. The published pages now send Google,
+  acting as the site's analytics processor:
+  - the page path, which names the hospital file a reader opened;
+  - the referrer, browser, device and language, and a coarse location Google derives from the IP
+    address (GA4 does not store the IP address);
+  - scroll, outbound-click and download events;
+  - a random client ID in first-party `_ga`/`_ga_57DWCFVLWQ` cookies, kept up to two years.
+
+  Retention is 14 months, and processing is in the US. Google signals and ad personalization are
+  off, and the ad consent signals are denied. In the EEA, the UK and Switzerland,
+  `analytics_storage` is denied by default and only cookieless pings are sent. Nothing loads under
+  Global Privacy Control or Do Not Track, after the footer opt-out (a localStorage flag, never
+  sent), or anywhere but the published address. Nothing about a reader's own health or care is
+  asked for or sent: the site has no form and no search box. The visitor-facing account is the
+  site's `privacy/` page, linked from every footer.
+- **Unchanged.** The retrieval, grading, comparison and export paths, and the published JSON and
+  CSV files, carry no analytics. So do the CLI, the GitHub Action, the MCP server and the
+  pre-commit hook. The standing rule on individual-level data in fetched files is untouched.
+- **E Accessibility.** The opt-out is a real `<button>` with a 24px target. The privacy page is
+  one more page the Lighthouse job audits, because that job audits every rendered HTML file.

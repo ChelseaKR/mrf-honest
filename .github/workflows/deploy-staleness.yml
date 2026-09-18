@@ -1,0 +1,163 @@
+# Is the site at chelseakr.github.io/mrf-honest the site this repository has?
+#
+# `pages.yml` fires on every push to `master` and on dispatch, and that trigger is correct.
+# This workflow does not change it and does not need to. What was missing is anyone noticing
+# when a firing produced nothing: a run that goes red in the re-derivation step, is canceled,
+# or loses its pending slot under `concurrency: {group: pages, cancel-in-progress: false}`
+# leaves the published site on the previous commit while every gate here stays green -- because
+# the gates are green. `make verify` re-derives the committed comparisons, `accessibility.yml`
+# audits a render it performs itself, and `pages.yml` checks the bytes it is about to upload.
+# All three measure a build. None of them measures the *published* build, and this repository
+# has no `live-integrity.yml` and no other scheduled job that reaches the live URL at all.
+#
+# This workflow publishes NOTHING. It holds no `pages: write`, no `id-token: write` and no
+# deploy credential of any kind, and it dispatches no workflow. It reads the deployment record
+# and reports the distance.
+#
+# Why the deployment record rather than `pages.yml`'s run history: a run is an attempt, and the
+# failure being caught here is exactly a run that finished without publishing. A `github-pages`
+# deployment exists only because bytes were uploaded and accepted, and it names the commit they
+# were built from. `tools/deploy_staleness.py` carries the full argument.
+#
+# The output is an issue, not a red run. A scheduled check that goes red whenever a deploy is
+# overdue stays red for weeks and is then ignored. This run goes red only when the comparison
+# cannot be made at all: no github-pages deployment, none reporting a successful status, a
+# deployed commit this clone does not contain, or a history that has diverged. A detector that
+# cannot tell must look broken rather than report a comfortable zero.
+#
+# Both actions are pinned to full 40-char commit SHAs already in use elsewhere in this
+# repository (`pages.yml`, `accessibility.yml`, `ci.yml`).
+name: deploy staleness sentinel
+
+on:
+  schedule:
+    # Mondays, 16:19 UTC. A minute of its own: `security.yml` runs at 06:17 on Mondays, and the
+    # sibling sentinels in this portfolio sit at 15:37 and 15:41, so nothing here shares a slot.
+    # Weekly is the right cadence -- the question is "did a publish quietly stop landing", and
+    # asking it hourly would produce the same answer 168 times.
+    - cron: "19 16 * * 1"
+  workflow_dispatch:
+    inputs:
+      max_age_days:
+        description: "Days an unpublished visitor-visible commit may wait before this reports"
+        required: false
+        default: "14"
+        type: string
+
+# Least privilege at the workflow level; the one job grants itself what it needs.
+permissions: {}
+
+# This job writes -- it files, updates or closes one issue. Never cancel a run mid-write, and
+# never let a manual dispatch race the Monday schedule onto the same issue.
+concurrency:
+  group: deploy-staleness
+  cancel-in-progress: false
+
+jobs:
+  report:
+    name: measure how far the published site is behind master
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read # the checkout, and the git history the comparison walks
+      deployments: read # which commit the published build was made from
+      issues: write # the report itself; nothing here writes anywhere else
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Required, not incidental. On a shallow clone the deployed commit is simply absent,
+          # `git log <deployed>..origin/master` prints nothing, and the site reads as up to
+          # date. tools/deploy_staleness.py refuses that case rather than reporting it as zero
+          # -- this is what keeps it from having to.
+          fetch-depth: 0
+          persist-credentials: false # this job only reads; it never pushes
+
+      # Pinned rather than relying on whatever `python3` the runner image ships: the module
+      # targets 3.12 (`datetime.UTC`, PEP 604 unions at runtime under `from __future__`), and
+      # an interpreter too old for it would surface as a refusal -- a red run reading "cannot
+      # measure" when the site is in fact fine. The sentinel's red must mean one thing.
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Measure the distance
+        id: measure
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MAX_AGE_DAYS: ${{ inputs.max_age_days || '14' }}
+          REPOSITORY: ${{ github.repository }}
+        # Deliberately a bare `python3` with no install step: tools/deploy_staleness.py imports
+        # only the standard library and nothing from `mrf_honest`, so the sentinel needs no
+        # dependency resolution and cannot be broken by one. `|| true` so a refusal reaches the
+        # reporting step, which turns it into the red run, rather than ending the job here with
+        # no explanation attached.
+        run: |
+          set -euo pipefail
+          python3 tools/deploy_staleness.py \
+            --repo "$REPOSITORY" \
+            --head origin/master \
+            --max-age-days "$MAX_AGE_DAYS" \
+            > "$RUNNER_TEMP/report.txt" 2> "$RUNNER_TEMP/error.txt" || true
+          cat "$RUNNER_TEMP/report.txt" "$RUNNER_TEMP/error.txt"
+          {
+            echo "## Deploy staleness"
+            echo
+            echo '```'
+            cat "$RUNNER_TEMP/report.txt" "$RUNNER_TEMP/error.txt"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: File, update or close the report
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          MEASURED: ${{ steps.measure.outputs.measured }}
+          OVERDUE: ${{ steps.measure.outputs.overdue }}
+          TITLE: "The published site is behind master"
+        run: |
+          set -euo pipefail
+
+          existing=$(gh issue list --repo "$REPOSITORY" --state open \
+            --json number,title --jq "[.[] | select(.title == env.TITLE)] | .[0].number // empty")
+
+          if [ "$MEASURED" != "true" ]; then
+            echo "::error::the staleness comparison could not be made; see the report above"
+            exit 1
+          fi
+
+          if [ "$OVERDUE" != "true" ]; then
+            if [ -n "$existing" ]; then
+              gh issue close "$existing" --repo "$REPOSITORY" --reason completed \
+                --comment "The published site is no longer overdue. ${RUN_URL}"
+              echo "closed #$existing"
+            else
+              echo "not overdue; no open report to close"
+            fi
+            exit 0
+          fi
+
+          # Written to a file rather than inlined: a heredoc inside this block would have to
+          # start its own lines at column zero, which ends the YAML block scalar and makes the
+          # workflow unparseable at dispatch time rather than in CI.
+          {
+            echo '```'
+            cat "$RUNNER_TEMP/report.txt"
+            echo '```'
+            echo
+            echo "Publishing is \`.github/workflows/pages.yml\`, which fires on every push to"
+            echo "\`master\`. That it fired is not in question; that it landed is. Check the"
+            echo "most recent runs for a red build step, a cancellation, or a run whose pending"
+            echo "slot was taken by the next push, then re-run it from the Actions tab."
+            echo
+            echo "This sentinel deploys nothing and holds no credential that could."
+            echo "Measured by \`tools/deploy_staleness.py\` in ${RUN_URL}."
+          } > "$RUNNER_TEMP/body.md"
+
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --repo "$REPOSITORY" --body-file "$RUNNER_TEMP/body.md"
+            echo "updated #$existing"
+          else
+            gh issue create --repo "$REPOSITORY" --title "$TITLE" \
+              --body-file "$RUNNER_TEMP/body.md"
+          fi

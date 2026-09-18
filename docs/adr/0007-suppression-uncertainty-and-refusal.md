@@ -68,7 +68,7 @@ enough to publish, and publishing it anyway would invite a reader to compare two
 intervals overlap almost entirely.
 
 The number was chosen against the measured width of a 95 percent Wilson interval at the least
-favourable point, p = 0.5:
+favorable point, p = 0.5:
 
 | n | interval width at p = 0.5 |
 |---:|---:|
@@ -96,7 +96,7 @@ be written down rather than discovered later in a diff.
 | `pooled_strata` | more than one stratum was offered for one proportion, whatever their kinds |
 | `empty_denominator` | the denominator is zero |
 | `below_suppression_threshold` | the denominator is under the floor above |
-| `incomplete_accounting` | the cohort accounts for only part of its stratum, so the denominator would be one the frame does not recognise |
+| `incomplete_accounting` | the cohort accounts for only part of its stratum, so the denominator would be one the frame does not recognize |
 
 A refusal carries its code, its stated reason, the stratum it concerned and the denominator it
 saw. It is a thing to render, not a `None` to skip.
