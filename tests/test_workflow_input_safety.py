@@ -17,7 +17,7 @@ is cheap only while the workflow is still unwritten.
 Two rules, and they are different rules:
 
 **A capability never reaches a rendered surface.** An input is a *capability* when possessing
-its value is what authorises something -- a download token, a signed URL, a delivery address.
+its value is what authorizes something -- a download token, a signed URL, a delivery address.
 Today no workflow in this repository declares one, and :data:`CAPABILITY_INPUTS` says so per
 workflow rather than by silence, so the first workflow that adds one has to answer the question
 in a diff rather than inherit an absence.
@@ -51,14 +51,17 @@ ROOT = Path(__file__).resolve().parent.parent
 WORKFLOWS = ROOT / ".github" / "workflows"
 
 #: Which of each workflow's ``workflow_dispatch`` inputs are capabilities: values whose
-#: possession authorises something, and which therefore may not be rendered anywhere public.
+#: possession authorizes something, and which therefore may not be rendered anywhere public.
 #:
 #: Every workflow that declares dispatch inputs appears here, including the ones whose answer is
 #: "none of them" -- an empty set is an answer, an absent entry is an unanswered question, and
 #: ``test_every_dispatchable_workflow_has_answered_the_capability_question`` refuses the second.
 CAPABILITY_INPUTS: Mapping[str, frozenset[str]] = {
+    # How many days an unpublished commit may wait before the sentinel reports. A threshold, not
+    # a secret: knowing it authorizes nothing, and it reaches the shell only through env:.
+    "deploy-staleness.yml": frozenset(),
     # The tag to release from. It names a public git ref that is already pushed; knowing it
-    # authorises nothing, and release.yml verifies its signature before anything is built.
+    # authorizes nothing, and release.yml verifies its signature before anything is built.
     "release.yml": frozenset(),
 }
 
@@ -71,17 +74,7 @@ CAPABILITY_INPUTS: Mapping[str, frozenset[str]] = {
 #: which deletes the finding instead of recording it.
 #: ``test_every_recorded_shell_interpolation_is_still_there`` fails when an entry no longer
 #: matches, so a repair forces the entry out rather than leaving a permanent hole.
-SHELL_INTERPOLATION_NOT_YET_REPAIRED: Mapping[tuple[str, str], str] = {
-    ("release.yml", "github.event.inputs.tag"): (
-        'release.yml:44 assigns the dispatched tag with tag="${{ github.event.inputs.tag || '
-        'github.ref_name }}" inside a bash run: block. The exposure is bounded -- '
-        "workflow_dispatch on a public repository requires write access, and the value is "
-        "checked against a signed tag two steps later -- but it is the documented injection "
-        "shape and the repair is an env: entry and a $TAG. Recorded 2026-09-12 rather than "
-        "fixed here, because release.yml belongs to the release lane and an edit from a second "
-        "branch would collide with it."
-    ),
-}
+SHELL_INTERPOLATION_NOT_YET_REPAIRED: Mapping[tuple[str, str], str] = {}
 
 #: Anything GitHub renders on a run page from a ``run:`` block: a workflow command becomes an
 #: annotation, and an ``echo`` in a step that writes ``$GITHUB_STEP_SUMMARY`` becomes the run
