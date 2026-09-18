@@ -7,19 +7,28 @@
     "--budget-path looks exactly like a working budget and enforces nothing.",
     "These numbers are therefore asserted by perf/score_lighthouse.py against the",
     "resource-summary audit, which is present in every report and carries the real counts.",
-    "Every non-document resource type is budgeted at zero because the site genuinely has none:",
-    "no scripts, no external stylesheets, no fonts, no images, no third parties. The budget",
-    "exists so that adding one is a failed build rather than a change nobody noticed."
+    "Every non-document resource type is budgeted at zero because the pages request none: no",
+    "script files, no external stylesheets, no fonts, no images, no third parties. The one script",
+    "on the pages is the inline Google Analytics loader (docs/adr/0009), which is not a request",
+    "and fetches nothing on 127.0.0.1, where these numbers are measured. On the published address",
+    "it adds Google's gtag.js and GA's requests, outside this budget by the owner's decision of",
+    "2026-09-17. The budget exists so that adding anything else is a failed build rather than a",
+    "change nobody noticed.",
+    "The document and total caps were 61,440 bytes (60 KiB) until 2026-09-17. That loader and",
+    "its footer opt-out cost 2,647 bytes on every page, and the index, the heaviest page, had",
+    "less headroom than that once response headers are counted. They are 65,536 bytes (64 KiB)",
+    "now: the owner's decision, paid for once, with the loader written compactly so the widening",
+    "buys the analytics and nothing else. Content growth past it is still a failed build."
   ],
   "max_transfer_bytes": {
-    "document": 61440,
+    "document": 65536,
     "script": 0,
     "stylesheet": 0,
     "font": 0,
     "image": 0,
     "media": 0,
     "third-party": 0,
-    "total": 61440
+    "total": 65536
   },
   "max_request_count": {
     "script": 0,
