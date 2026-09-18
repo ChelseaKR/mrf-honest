@@ -12,7 +12,7 @@ outside it: 46 rows documented, 67 CSV codes documented nowhere, several of them
 published in the cohort comparisons and rendered on the site. The test's own name
 says *catalogs*, plural.
 
-And nothing anywhere asked whether a catalogued rule ever fires. Four ERROR rules
+And nothing anywhere asked whether a cataloged rule ever fires. Four ERROR rules
 -- ``CMS_V3_CHARGE_GROUP_NOT_OBJECT``, ``CMS_V3_CHARGE_VALUE_MISSING``,
 ``CMS_V3_PAYERS_INFORMATION_INVALID`` and ``CMS_V3_PAYER_RATE_NOT_OBJECT`` --
 appeared in exactly two files each: their emit site and their catalog row. Renaming
@@ -118,7 +118,7 @@ def discover_catalogs() -> tuple[Catalog, ...]:
     )
 
 
-def catalogued_codes(catalogs: tuple[Catalog, ...]) -> dict[str, FindingDefinition]:
+def cataloged_codes(catalogs: tuple[Catalog, ...]) -> dict[str, FindingDefinition]:
     """The union of every discovered catalog, keyed by code.
 
     Two codes are declared by more than one catalog. Where that happens the
@@ -181,7 +181,7 @@ class EmissionCensus:
 def assess(
     *,
     emitted: frozenset[str],
-    catalogued: frozenset[str],
+    cataloged: frozenset[str],
     reasons: Mapping[str, str],
     whole_run: bool,
     whole_run_reason: str,
@@ -193,17 +193,17 @@ def assess(
     test file cannot distinguish "this rule never fires" from "that test did not
     run" -- which is the defect this module exists to refuse, one level up.
     """
-    never = tuple(sorted(catalogued - emitted))
-    outside = tuple(sorted(emitted - catalogued))
+    never = tuple(sorted(cataloged - emitted))
+    outside = tuple(sorted(emitted - cataloged))
     stale = tuple(
-        sorted(code for code in reasons if code in emitted or code not in catalogued),
+        sorted(code for code in reasons if code in emitted or code not in cataloged),
     )
     if not whole_run:
         return EmissionCensus(
             verdict="not_checked_here",
             reason=whole_run_reason,
-            examined=len(emitted & catalogued),
-            available=len(catalogued),
+            examined=len(emitted & cataloged),
+            available=len(cataloged),
             never_emitted=never,
             unexplained=(),
             stale_reasons=(),
@@ -213,8 +213,8 @@ def assess(
     return EmissionCensus(
         verdict="checked",
         reason=whole_run_reason,
-        examined=len(emitted & catalogued),
-        available=len(catalogued),
+        examined=len(emitted & cataloged),
+        available=len(cataloged),
         never_emitted=never,
         unexplained=unexplained,
         stale_reasons=stale,

@@ -114,6 +114,46 @@ class TestTheKeyStaysWithTheMaintainer:
             )
 
 
+class TestNoInputReachesAShell:
+    """`${{ }}` inside a `run:` block is substitution into the script before bash sees a token.
+
+    Demonstrated rather than asserted, on a copy of the old and new shapes with the dispatched
+    value `v1"; touch <path>; echo "`: the old form created the file, the new form printed the
+    whole string as `tag`. The exposure here was bounded -- `workflow_dispatch` on a public
+    repository requires write access, and the tag's signature is checked two steps later -- but
+    this is the one workflow that exists to be trusted, and the repair is an `env:` entry.
+
+    The taint does not stop at the input: `steps.resolve.outputs.tag` is that same dispatched
+    value one hop later, so all three sites were the same defect and are checked together here.
+    A rule that covered only the literal `github.event.inputs.tag` would have passed a workflow
+    that still pasted the same string into bash twice.
+    """
+
+    def test_no_expression_is_interpolated_into_any_run_block(self) -> None:
+        offenders = [
+            (job, str(step.get("name")), expression.strip())
+            for job in JOBS
+            for step in _steps(job)
+            if step.get("run")
+            for expression in re.findall(r"\$\{\{([^}]*)\}\}", str(step["run"]))
+        ]
+        assert offenders == [], (
+            f"these reach bash by substitution into the script rather than through env: {offenders}"
+        )
+
+    def test_the_dispatched_tag_reaches_the_script_as_an_environment_variable(self) -> None:
+        """The other direction: the value still has to get there, or the step does nothing."""
+        resolve = next(
+            step for step in _steps("verify-tag") if str(step.get("id", "")) == "resolve"
+        )
+        env = cast(dict[str, str], resolve["env"])
+        assert "github.event.inputs.tag" in env["DISPATCHED_TAG"]
+        assert "github.ref_name" in env["REF_NAME"]
+        # The bash fallback has to mean what GitHub's `||` meant: dispatched value if non-empty,
+        # otherwise the ref name.
+        assert "${DISPATCHED_TAG:-${REF_NAME}}" in str(resolve["run"])
+
+
 class TestTheReleaseIsAClaimAboutOneCommit:
     def test_the_gate_runs_again_at_the_tagged_commit(self) -> None:
         assert "make verify" in _run_text("build")
@@ -146,13 +186,28 @@ class TestVersionAgreement:
     def test_a_changelog_entry_is_required(self) -> None:
         assert "CHANGELOG.md" in _run_text("verify-tag")
 
-    def test_the_current_version_would_be_refused_today(self) -> None:
-        """This is the honest state of the repository: 0.1.0.dev0 is not releasable, and the
-        workflow says so rather than shipping a wheel that claims otherwise."""
+    def test_the_declared_version_is_one_this_workflow_would_accept(self) -> None:
+        """The honest state of the repository, held against the workflow's own refusals.
+
+        This used to assert the opposite -- that the declared version was `0.1.0.dev0` and
+        therefore *not* releasable -- which was the honest state while nothing had been
+        released, and was one of the things that made the first release impossible to land.
+        What it was checking is that the declared version and the workflow agree about whether
+        a release is possible, and that is what it checks now, against the same two refusals
+        `release.yml` implements: the `*dev*|*rc*|*a*|*b*` case pattern, and the changelog
+        section keyed on the declared version.
+        """
 
         version = re.search(r'^version = "([^"]+)"', (ROOT / "pyproject.toml").read_text(), re.M)
         assert version is not None
-        assert "dev" in version.group(1)
+        declared = version.group(1)
+        for marker in ("dev", "rc"):
+            assert marker not in declared, (
+                f"pyproject.toml declares {declared!r}; release.yml refuses a pre-release version."
+            )
+        assert f"[{declared}]" in (ROOT / "CHANGELOG.md").read_text(encoding="utf-8"), (
+            f"release.yml requires a CHANGELOG.md section named [{declared}] and there is none."
+        )
 
 
 class TestNothingIsPublished:
@@ -187,7 +242,7 @@ class TestSupplyChain:
         assert re.fullmatch(r"[0-9a-f]{40}", reference), f"{uses} is not SHA-pinned"
 
     def test_the_workflow_uses_at_least_one_action(self) -> None:
-        """An empty parametrisation above would make the pinning check vacuous."""
+        """An empty parametrization above would make the pinning check vacuous."""
 
         assert "uses:" in TEXT
 

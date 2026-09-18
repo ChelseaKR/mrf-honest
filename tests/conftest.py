@@ -13,6 +13,7 @@ firing, and counting it would make a fixture look like a gate.
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -22,7 +23,7 @@ from catalog_coverage import (
     NOT_EXERCISED_HERE,
     EmissionCensus,
     assess,
-    catalogued_codes,
+    cataloged_codes,
     discover_catalogs,
 )
 from frame_coverage import census_lines as frame_census_lines
@@ -41,8 +42,36 @@ _PACKAGE_ROOT = Path(mrf_honest.__file__).resolve().parent
 RECORDER_INSTALLED = False
 
 
+#: The variables that tell git which repository it is in, as ``git rev-parse --local-env-vars``
+#: lists them. Git exports ``GIT_DIR`` to its hooks, so when the pre-push hook runs this suite
+#: from a linked worktree, every ``git -C <fixture repo>`` below inherited the real repository
+#: instead: measured on 2026-09-17, ``tests/test_deploy_staleness.py``'s fixtures ran
+#: ``git init`` and ``git config user.name sentinel`` against it, set ``core.bare = true`` in
+#: its shared config, and staged fixture files into the worktree's index, and 13 tests failed.
+#: Scrubbed once, before any test runs, so a fixture repository is only ever itself.
+_REPOSITORY_ENV = (
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_CONFIG",
+    "GIT_CONFIG_PARAMETERS",
+    "GIT_CONFIG_COUNT",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_IMPLICIT_WORK_TREE",
+    "GIT_GRAFT_FILE",
+    "GIT_INDEX_FILE",
+    "GIT_NO_REPLACE_OBJECTS",
+    "GIT_REPLACE_REF_BASE",
+    "GIT_PREFIX",
+    "GIT_SHALLOW_FILE",
+    "GIT_COMMON_DIR",
+)
+
+
 def pytest_configure(config: pytest.Config) -> None:
     global RECORDER_INSTALLED
+    for name in _REPOSITORY_ENV:
+        os.environ.pop(name, None)
     original = Finding.__init__
 
     def record(self: Finding, *args: Any, **kwargs: Any) -> None:
@@ -91,7 +120,7 @@ def whole_run(config: pytest.Config) -> tuple[bool, str]:
 
 def census(config: pytest.Config, *, failures: int) -> EmissionCensus:
     catalogs = discover_catalogs()
-    catalogued = frozenset(catalogued_codes(catalogs))
+    cataloged = frozenset(cataloged_codes(catalogs))
     ran_all, reason = whole_run(config)
     if ran_all and failures:
         ran_all, reason = (
@@ -103,7 +132,7 @@ def census(config: pytest.Config, *, failures: int) -> EmissionCensus:
         )
     return assess(
         emitted=frozenset(EMITTED),
-        catalogued=catalogued,
+        cataloged=cataloged,
         reasons=NOT_EXERCISED_HERE,
         whole_run=ran_all,
         whole_run_reason=reason,

@@ -335,7 +335,7 @@ class TestACohortIdIsNeverAPath:
                 assert "comparison_scope" not in answer or answer["comparison_scope"], label
 
     def test_an_index_that_names_an_escaping_cohort_fails_loudly(self, tmp_path: Path) -> None:
-        """Defence in depth: membership cannot help if the published index is itself wrong."""
+        """Defense in depth: membership cannot help if the published index is itself wrong."""
 
         site_dir = tmp_path / "site"
         (site_dir / "api" / "cohorts").mkdir(parents=True)

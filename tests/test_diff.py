@@ -4,7 +4,7 @@ The fixtures are deep copies of a *committed* comparison document rather than ha
 objects, so a shape change in ``mrf_honest.cohort`` cannot leave this module testing a document
 the project no longer publishes.
 
-The behaviour worth reading twice is the negative space: what this module refuses to compare.
+The behavior worth reading twice is the negative space: what this module refuses to compare.
 Every assertion about a "policy changed" layer is an assertion that a change this repository
 made to itself was not published as a change a hospital made to its file.
 """
@@ -82,7 +82,7 @@ def test_the_reader_reads_exactly_up_to_the_version_this_build_writes() -> None:
 
     The upper-bound assertion is the load-bearing half. Membership alone is satisfied by a
     derived bound such as ``frozenset(range(1, 99))``, which would accept a future document
-    shape and read the fields it recognises out of a document it does not understand -- measured
+    shape and read the fields it recognizes out of a document it does not understand -- measured
     as a silent no-op when this test asserted membership only.
     """
     assert COMPARISON_VERSION in READABLE_COMPARISON_VERSIONS
@@ -141,9 +141,9 @@ def test_two_records_differing_only_in_last_updated_on_diff_to_exactly_that_line
         }
     ]
     assert cast(dict[str, object], subject["retrieval"])["changes"] == []
-    judgement = cast(dict[str, object], subject["judgement"])
-    assert judgement["findings"] == []
-    assert cast(dict[str, object], judgement["grade"])["direction"] == "unchanged"
+    judgment = cast(dict[str, object], subject["judgement"])
+    assert judgment["findings"] == []
+    assert cast(dict[str, object], judgment["grade"])["direction"] == "unchanged"
     assert subject["regression"] is False
 
 
@@ -171,10 +171,10 @@ def test_a_moved_assessment_policy_is_a_policy_change_and_no_finding_comparison(
     assert cast(dict[str, object], layers["judgement"])["state"] == POLICY_CHANGED
     assert cast(dict[str, object], layers["retrieval"])["state"] == COMPARED
 
-    judgement = cast(dict[str, object], _subject(result)["judgement"])
-    assert judgement["state"] == POLICY_CHANGED
-    assert judgement["findings"] == []
-    assert cast(dict[str, object], judgement["grade"])["direction"] == "not_compared"
+    judgment = cast(dict[str, object], _subject(result)["judgement"])
+    assert judgment["state"] == POLICY_CHANGED
+    assert judgment["findings"] == []
+    assert cast(dict[str, object], judgment["grade"])["direction"] == "not_compared"
     assert _subject(result)["regression"] is None
     assert "policy" in human_report(result)
 
@@ -242,8 +242,8 @@ def test_a_changed_file_reports_its_bytes_and_its_findings() -> None:
         for change in cast(list[object], cast(dict[str, object], subject["retrieval"])["changes"])
     }
     assert fields == {"content_sha256", "size_bytes"}
-    judgement = cast(dict[str, object], subject["judgement"])
-    findings = cast(list[dict[str, object]], judgement["findings"])
+    judgment = cast(dict[str, object], subject["judgement"])
+    findings = cast(list[dict[str, object]], judgment["findings"])
     assert [(item["change"], item["code"]) for item in findings] == [("appeared", "a_new_warning")]
     assert subject["regression"] is False
 
@@ -399,8 +399,8 @@ def test_a_changed_occurrence_count_is_reported_without_being_a_regression() -> 
     after_findings[-1]["occurrences"] = 9
 
     subject = _subject(compare_cohorts(before, after))
-    judgement = cast(dict[str, object], subject["judgement"])
-    findings = cast(list[dict[str, object]], judgement["findings"])
+    judgment = cast(dict[str, object], subject["judgement"])
+    findings = cast(list[dict[str, object]], judgment["findings"])
     assert findings == [
         {
             "change": "occurrences",
@@ -417,7 +417,7 @@ def test_a_changed_occurrence_count_is_reported_without_being_a_regression() -> 
 def test_fail_on_regression_cannot_pass_when_nothing_could_be_judged() -> None:
     """The gate that must not be a gate that cannot fail.
 
-    Every subject's judgement layer is closed by a policy move, so the flag's question was never
+    Every subject's judgment layer is closed by a policy move, so the flag's question was never
     answered. Returning 0 would report a clean run over zero comparisons.
     """
     before = _one_subject()

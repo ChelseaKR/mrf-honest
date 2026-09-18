@@ -23,7 +23,7 @@ only lengthen it, never shorten it. The interval is enforced between requests to
 host rather than per invocation, which is the difference between a paced run and a serial
 operator who happened to be slow.
 
-**``Retry-After`` is honoured on 429 and 503, and the wait is recorded.** Retry backoff is a
+**``Retry-After`` is honored on 429 and 503, and the wait is recorded.** Retry backoff is a
 policy this tool chose; ``Retry-After`` is the server saying what it wants. For hospital file
 hosts serving multi-hundred-megabyte JSON that distinction is not academic.
 
@@ -427,7 +427,7 @@ class Politeness:
     def observe_retry_after(
         self, url: str, http_status: int, headers: Mapping[str, str]
     ) -> float | None:
-        """Honour a server's ``Retry-After`` on 429/503; return the seconds it asked for."""
+        """Honor a server's ``Retry-After`` on 429/503; return the seconds it asked for."""
         if http_status not in RETRY_AFTER_STATUSES:
             return None
         raw = next(

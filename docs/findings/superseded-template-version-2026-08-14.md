@@ -78,7 +78,7 @@ v3 schema requires at the top level is present and usable, which is why the insp
 The honest reading is that this publisher migrated its content to v3.0.0 and did not update the
 `version` field. That does not make the finding go away — the file as retrieved still declares a
 version its own contents contradict, and a consumer keying on the declared version still cannot
-use it as v3 — but it does bound what the finding says. This is a mislabelled file, and this
+use it as v3 — but it does bound what the finding says. This is a mislabeled file, and this
 document should not be read as evidence that the hospital failed to adopt the CY 2026 data
 elements. On the evidence above, it adopted them.
 

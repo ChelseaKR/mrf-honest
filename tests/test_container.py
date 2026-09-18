@@ -227,7 +227,7 @@ class TestRefusals:
         bound happens to be, so it pins the *relationship* and nothing about the number. A reader
         of ``container.py`` is told 64 is a stated cap, and until now nothing checked that it was.
 
-        The two behavioural halves matter in opposite directions. A silently *lowered* cap starts
+        The two behavioral halves matter in opposite directions. A silently *lowered* cap starts
         refusing real publications; a silently *raised* one is an unbounded enumeration the
         comment says this reader will not do.
         """
@@ -341,8 +341,8 @@ class TestRefusals:
         assert outcome.reason is ArchiveRefusal.NOT_AN_ARCHIVE
 
 
-class TestSerialisation:
-    def test_a_selection_serialises_with_what_it_selected(self, tmp_path: Path) -> None:
+class TestSerialization:
+    def test_a_selection_serializes_with_what_it_selected(self, tmp_path: Path) -> None:
         archive = _zip(tmp_path / "a.zip", {"standardcharges.json": CMS_JSON})
         outcome = select_member(archive)
         assert isinstance(outcome, ArchiveMember)
@@ -350,7 +350,7 @@ class TestSerialisation:
         assert payload["outcome"] == "selected"
         assert json.dumps(payload)
 
-    def test_a_refusal_serialises_with_its_reason_and_candidates(self, tmp_path: Path) -> None:
+    def test_a_refusal_serializes_with_its_reason_and_candidates(self, tmp_path: Path) -> None:
         archive = _zip(
             tmp_path / "a.zip",
             {"standardcharges.json": CMS_JSON, "other.json": CMS_JSON},

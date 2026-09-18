@@ -1,13 +1,99 @@
 # Changelog
 
 All notable changes to this project are documented here, in the
-[Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format. The project is pre-release with
-no version tags yet; until the first dated release (phase 5 of
-[docs/IMPLEMENTATION-PLAN.md](docs/IMPLEMENTATION-PLAN.md)), entries are grouped by date.
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format. Entries before `0.1.0` are
+grouped by date rather than by version: they were written while nothing had been released, and
+they are left as they were written rather than retrofitted into versions that never existed.
 
 ## [Unreleased]
 
 ### Added
+
+- **Whether cheap revalidation generalizes beyond the one origin PR #113 measured, checked at
+  ten more.** [docs/findings/cross-origin-conditional-revalidation-2026-09-14.md](docs/findings/cross-origin-conditional-revalidation-2026-09-14.md)
+  sends a real conditional `GET` at ten more real hospital origins, spanning the gzip/plain
+  encoding split. **9 of 10 measurable origins answered `304` and moved no body** — `chihealth.com`
+  (0 of 3, PR #113) is the outlier this sample found, not the rule. Two origins could not be
+  measured at all: one (`www.frederickhealth.org`) refuses an automated client outright, the same
+  class of finding as #99 at a different origin; the other's committed `mrf_url`
+  (`hospitalpricedisclosure.com`) now redirects to an error page, meaning a refresh there needs
+  re-discovery before it needs a conditional request.
+
+- **The published site counts visits with Google Analytics 4**, by the owner's decision of
+  2026-09-17 ([ADR 0009](docs/adr/0009-the-published-site-counts-visits-with-google-analytics.md)).
+  `src/mrf_honest/analytics.py` holds the ID, `G-57DWCFVLWQ`, and renders one inline loader
+  that `mrf-honest site` puts in the head of every page by default (`--ga4-id ""` turns it off;
+  `render_site()` without an ID is byte-for-byte what it was). The loader loads nothing off
+  `https://chelseakr.github.io/mrf-honest/`, under Global Privacy Control or Do Not Track, or
+  after the new footer "Opt out of analytics" button (localStorage key
+  `mrf-honest:analytics-opt-out`). Google signals and ad personalization are off, the ad consent
+  signals are denied, `analytics_storage` is denied by default in the EEA, the UK and
+  Switzerland, and `page_location` is the origin and path only. Every footer says so and links a
+  new `privacy/` page, which says plainly that a page's address names the hospital file being
+  read. `tests/test_analytics.py` runs the loader under Node, with negative controls. The README,
+  the metrics ledger and `perf/resource-budget.json` no longer say the site has no script, and
+  `docs/RESPONSIBLE-TECH-AUDITS.md` carries a dated appendix.
+
+### Fixed
+
+- **`v0.1.0` is now an actual GitHub Release, and the README's "there is no release yet" line
+  was left behind when it was cut.** `release.yml` verifies the signed tag, re-runs `make verify`
+  at the tagged commit, builds the distributions and uploads them as a run artifact for the
+  maintainer to inspect — by design it stops there and does not call the Releases API, so the tag
+  existing and being signed was not the same claim as a release existing
+  (`gh api repos/.../releases` returned zero after the tag push). The two wheel/sdist files
+  attached to the release are byte-identical to the ones that artifact held, verified against the
+  sha256 digests the workflow itself printed. Nothing here is published to PyPI or to any MCP
+  registry, which is a different, still-true claim the README now states separately from the
+  release one.
+
+## [0.1.0] - 2026-09-13
+
+### Security
+
+- **A `workflow_dispatch` input reached a bash script by substitution, in the one workflow that
+  exists to be trusted.** `.github/workflows/release.yml` assigned the dispatched tag with
+  `tag="${{ github.event.inputs.tag || github.ref_name }}"` inside a `run:` block. An expression
+  inside `run:` is textual substitution **into the script** before bash sees a token, which is the
+  documented command-injection shape; an `env:` entry makes the value a variable the shell can
+  only read. All three interpolations in that workflow now go through `env:` — the input itself
+  and, one hop later, the two uses of `steps.resolve.outputs.tag`, which is the same dispatched
+  value and would have left the defect standing twice.
+
+  The exposure was bounded and is stated rather than dramatized: `workflow_dispatch` on a public
+  repository requires write access, and the tag's signature is verified against
+  `.github/allowed_signers` two steps further down. Bounded is not absent, and this is the
+  workflow that mints releases.
+
+  Demonstrated rather than asserted, on copies of the old and new shapes with the dispatched value
+  `v1"; touch <path>; echo "`: the old form **executed the `touch`**; the new form printed the
+  whole string as `tag` and created nothing. `tests/test_release_workflow.py` now fails if any
+  expression is interpolated into any `run:` block of that workflow, and, in the other direction,
+  if the dispatched tag stops reaching the script through `env:` at all.
+
+### Added
+
+- **The first release.** `v0.1.0` is the first signed tag this project has ever had.
+  [ADR 0008](docs/adr/0008-release-versioning-applies.md) supersedes ADR 0001's
+  Release & Versioning **N/A** declaration, whose own "revisit if" clause had fired on every
+  count: the repository is public, the site is published from it, and `action.yml` and
+  `.pre-commit-hooks.yaml` are surfaces built for *other* repositories, both of which told a
+  consumer to pin a ref that did not exist. Documenting a pinning discipline while shipping
+  nothing to pin asks a consumer to do the careful thing and then leaves the careless thing as
+  the only option — which matters here more than usual, because the grade is a pure function of
+  bytes, an `as_of` date and a policy fingerprint the commit determines, so a floated branch
+  floats the grading policy.
+
+  `docs/before-you-post-it.md` and `.pre-commit-hooks.yaml` now name `v0.1.0`.
+  `CITATION.cff` gains `version` and `date-released`, which ADR 0001 had it omit. Nothing is
+  published to any index: `release.yml` has no upload step and no registry credential, and
+  adding one is a separate decision. The site is **not** versioned with the package — it stays a
+  continuously rebuilt artifact of committed data, and what dates a published grade is the
+  cohort's `as_of`.
+
+  The dated headings further down stay grouped by date. They were written while nothing had
+  been released, and retrofitting them into versions that never existed would be a fabricated
+  history of releases.
 
 - **What a refresh actually costs, measured rather than assumed.**
   [docs/findings/what-a-re-collection-actually-cost-2026-09-12.md](docs/findings/what-a-re-collection-actually-cost-2026-09-12.md)
@@ -48,7 +134,7 @@ no version tags yet; until the first dated release (phase 5 of
   enumerates locations named by documents, and the join does not exist — a test asserts every
   population is an integer so a share across it cannot appear. Contact details gathered during
   discovery are never carried, which `docs/CORRECTIONS.md` promises and a test asserts over the
-  whole serialised document.
+  whole serialized document.
 
   One discriminator was added after the fact and is worth naming: on a checkout with **no**
   discovery registry the first version reported "17 graded row(s) match no located file", having
@@ -265,7 +351,7 @@ no version tags yet; until the first dated release (phase 5 of
     constructs both sub-cases rather than racing for them. The branch's expiry is written into
     its docstring.
   - A new gate, `test_the_roadmap_does_not_promise_the_recovery_this_code_does_not_have`,
-    **measures the behaviour by running it** and then requires the document to carry exactly
+    **measures the behavior by running it** and then requires the document to carry exactly
     one of two verdict sentences -- the one the measurement supports. Both directions, so the
     day #80 is settled it is the other verdict the paragraph has to carry.
   - The first version of that gate was the wrong shape and is worth recording: it forbade the
@@ -275,7 +361,7 @@ no version tags yet; until the first dated release (phase 5 of
     narrates the history.
 
   **This does not settle #80.** Whether an invalid warehouse database should be removed
-  automatically or refused with a named, actionable error is a durability judgement, and the
+  automatically or refused with a named, actionable error is a durability judgment, and the
   issue stays open for it.
 
 ### Added
@@ -289,7 +375,7 @@ no version tags yet; until the first dated release (phase 5 of
   `MAX_MEMBER_EXPANSION_RATIO = 200.0` was pinned in one direction only — raising it to a million
   fails, and *lowering* it to `4.0` was silent, which is the direction that refuses ordinary CMS
   CSV as an archive bomb and reads as the publisher's fault. Both are now pinned against
-  literals, on both sides, with the behavioural halves planted separately from the constants so a
+  literals, on both sides, with the behavioral halves planted separately from the constants so a
   changed comparison is caught as well as a changed number.
 
   **And the refusal reason was a claim about contents made without opening them.** `_choose`
@@ -315,13 +401,13 @@ no version tags yet; until the first dated release (phase 5 of
 
 - **The two sub-cases of the `"database opened"` kill are now measured every run instead of
   sampled by luck** (the third option in #80, which needs none of that issue's durability
-  judgement). The crash matrix could previously say only "the warehouse database opened or it
+  judgment). The crash matrix could previously say only "the warehouse database opened or it
   did not"; it now names the state -- `absent`, `valid`, `invalid` -- for every stage of the
   sweep, and two new tests construct the recoverable and unrecoverable states by hand rather
   than racing for them, so the difference between them is exercised on every run.
 
   **Measured, and it corrects the analysis in #80.** That issue reasons that a kill leaving zero
-  bytes on disk is benign because "`duckdb.connect()` initialises it happily". On DuckDB 1.5.5 it
+  bytes on disk is benign because "`duckdb.connect()` initializes it happily". On DuckDB 1.5.5 it
   does not: a `warehouse.duckdb` that exists and is not a valid database is refused whether it
   holds zero bytes, four bytes, or 4 KiB of nulls. The recoverable sub-case is therefore not
   "the file is empty" but "the header write finished before the kill", and the unrecoverable
@@ -342,7 +428,7 @@ no version tags yet; until the first dated release (phase 5 of
   carries.** `retrieval_policy_fingerprint` governs the bytes (`content_sha256`, `size_bytes`,
   retrieval coverage); `inspection_fingerprint` governs the document (`template_version`,
   `last_updated_on`); `assessment_policy_fingerprint` **and** the presentation grade's
-  `policy_fingerprint` together govern the judgement (the grade and the finding list). A layer
+  `policy_fingerprint` together govern the judgment (the grade and the finding list). A layer
   whose fingerprint moved is reported as `policy_changed` with both fingerprints and is not
   compared at all — not compared and found equal, which is the reading a single yes/no would
   have produced. Diffing the two committed JSON cohorts exercises exactly this: the six subjects
@@ -356,7 +442,7 @@ no version tags yet; until the first dated release (phase 5 of
   would publish this project's failure as the hospital's. A location graded at a *different* URL
   closes every layer for that subject, because two files are not one file that changed.
 
-  **`--fail-on-regression` exits 2 when no subject's judgement layer was comparable.** Returning
+  **`--fail-on-regression` exits 2 when no subject's judgment layer was comparable.** Returning
   0 there would be a gate that reports a clean run over zero comparisons.
 
 - **A `systems` verb: what a hospital system's `cms-hpt.txt` lists, against what this project
@@ -388,7 +474,7 @@ no version tags yet; until the first dated release (phase 5 of
   the locations pointed at it. Element differences across a system's files are all published with
   both files named, and only `version` and `last_updated_on` are *counted*: the rest are defined
   per location by the dictionary, and counting `license_information` would have made Stanford
-  Health Care's licence beside Stanford Health Care Tri-Valley's into a finding against a system
+  Health Care's license beside Stanford Health Care Tri-Valley's into a finding against a system
   publishing correctly.
 
 - **A receipt, a `verify` verb and a badge, so "every published grade can be re-derived from its
@@ -468,7 +554,7 @@ no version tags yet; until the first dated release (phase 5 of
   dimensions by name so a clean severity run can never be read as "nothing was missed".
   **Clearing the gate certifies nothing**, said in the summary every time and asserted with the
   disclaimer stripped out first, so its own presence cannot be what makes the test pass.
-  `grade_local_evidence` raises on an unrecognised profile instead of falling back to the JSON
+  `grade_local_evidence` raises on an unrecognized profile instead of falling back to the JSON
   policy -- the substitution that would grade a CSV file against the JSON dictionary and publish
   the result as the file's own defects.
 
@@ -522,7 +608,7 @@ no version tags yet; until the first dated release (phase 5 of
   most common in practice, and the refusal actually rendered on the published CSV cohort page
   — and left ADR 0007's "Five refusals" heading, its five-row table, and
   `docs/how-we-compare.md`'s "the five refusals" untouched. Both documents are corrected, and
-  two new tests now derive the catalogue and the count from `RefusalCode` itself, so the prose
+  two new tests now derive the catalog and the count from `RefusalCode` itself, so the prose
   cannot drift from the enum again without failing.
 
 - **An assessment policy this build cannot identify was reported as a broken comparison
@@ -642,7 +728,7 @@ no version tags yet; until the first dated release (phase 5 of
   fails if a digit reappears in it.
 
   Observed failing four ways: the Open Graph block removed; the error page's `noindex`
-  removed so it canonicalises to `/404/` again; the pooled count restored to the
+  removed so it canonicalizes to `/404/` again; the pooled count restored to the
   description; the canonical pointed at the bare shared origin. The deploy check in
   `pages.yml` was extended over the same ground, so it reads all 45 rendered pages rather
   than only the ones the test fixtures cover, and its `robots.txt` line now records that
@@ -681,7 +767,7 @@ no version tags yet; until the first dated release (phase 5 of
   of artifact promotion left every marker green, because that window is too narrow for a kill to
   land in. Three deterministic fault injections close it, at promotion, at the Parquet write and
   at the manifest write, and the reordering fails them. What stays open is named rather than
-  implied: historical migrations, fsync behaviour (which needs a filesystem fault injector, not a
+  implied: historical migrations, fsync behavior (which needs a filesystem fault injector, not a
   signal), and the one-statement window `_clean_promoted` guards, which no fault this suite can
   inject reaches. That last one has a test whose only job is to say so.
 
@@ -707,7 +793,7 @@ no version tags yet; until the first dated release (phase 5 of
 - **A correction and removal flow, and the record of what this project got wrong (phase 10).**
   [docs/CORRECTIONS.md](docs/CORRECTIONS.md) says what is published about a named institution,
   gives four routes for raising a problem, and states the rule the rest of the page is built on:
-  **a removal request is honoured on request, with no proof asked for and no case to make.** A
+  **a removal request is honored on request, with no proof asked for and no case to make.** A
   withdrawn row leaves a stated trace in the cohort's accounting, because a cohort that quietly
   shrinks would misstate its own denominator and the statistics layer would then compute a share
   of a population edited after the fact. Two GitHub issue forms match, and a test asserts the
@@ -866,7 +952,7 @@ no version tags yet; until the first dated release (phase 5 of
   committed comparison by a third test, so growing a cohort without editing the prose fails the
   build rather than shipping a stale number.
 - **The methods page publishes how subjects were chosen, or says plainly that they were not.** A
-  grade distribution invites a reader to generalise from it whether or not the page invites them
+  grade distribution invites a reader to generalize from it whether or not the page invites them
   to, so `mrf-honest site` now renders the cohort's sampling frame and its format rule; a cohort
   with no frame renders that fact rather than an empty heading.
 
@@ -1090,7 +1176,7 @@ no version tags yet; until the first dated release (phase 5 of
   manifest and ingest evidence and requires the committed `*.comparison.json` back byte for
   byte. Nothing checked this before: the site renders a committed document, so a change to the
   comparison layer, the grade policy or the finding catalog could ship green while the artifact
-  on disk -- and therefore every number on the site -- still described the old behaviour. The
+  on disk -- and therefore every number on the site -- still described the old behavior. The
   same derivation runs on the deploy path in `.github/workflows/pages.yml`, because `verify` is
   a separate workflow and a red run there does not by itself stop a publish.
 - **The ingest evidence documents themselves**, under `data/cohorts/<date>.ingest/`. Until now
@@ -1106,7 +1192,7 @@ no version tags yet; until the first dated release (phase 5 of
   `Disallow` matching the `mrf-honest` product token is a hard stop, an unreachable `robots.txt`
   is a complete disallow (RFC 9309 section 2.3.1.4), and a 4xx means none exists and the fetch
   may proceed (section 2.3.1.3). A per-host minimum interval is held across a whole run and a
-  `Crawl-delay` can lengthen it but never shorten it. `Retry-After` on 429 and 503 is honoured
+  `Crawl-delay` can lengthen it but never shorten it. `Retry-After` on 429 and 503 is honored
   ahead of this tool's own backoff. Every decision and every wait is retained as JSON-safe
   evidence for the registry.
 - **`FetchStatus.ROBOTS_DISALLOWED`**, mapped to **not graded** rather than F. A host that asks
@@ -1133,7 +1219,7 @@ no version tags yet; until the first dated release (phase 5 of
   ratchet.
 - **Contrast and heading-order assertions in `make verify`**, so the half of the gate that
   needs no browser runs on every push: the palette is a single `PALETTE` mapping with a
-  declared table of every text-on-background pair, each asserted at 4.5:1, and a colour added
+  declared table of every text-on-background pair, each asserted at 4.5:1, and a color added
   without a declared pair fails the suite.
 
 ### Fixed
@@ -1143,7 +1229,7 @@ no version tags yet; until the first dated release (phase 5 of
   the `FINDINGS` status chip and the `WARNING` severity chip rendered `#a35d00` on `#f6ead8` at
   11.2px bold, measured 4.28:1 against a 4.5:1 requirement, on every file page that recorded a
   warning; those pages scored 0.95. A new `--c-ink` token at 5.53:1 fixes the contrast without
-  changing the badge colours. All nine pages now score 1.0 on all four Lighthouse categories.
+  changing the badge colors. All nine pages now score 1.0 on all four Lighthouse categories.
 
 - **`make verify` gained a format gate, a lockfile-drift gate, and a dependency audit**, taking
   it from three checks to six: `ruff check`, `ruff format --check`, `mypy --strict`, pytest with

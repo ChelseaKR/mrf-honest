@@ -266,7 +266,7 @@ class TestCrashMatrix:
                 assert not manifests, "an unopenable database with a manifest beside it"
                 continue
             for _run_id, status in catalog:
-                assert status in CATALOG_STATUSES, f"unrecognised catalog status {status!r}"
+                assert status in CATALOG_STATUSES, f"unrecognized catalog status {status!r}"
             for manifest in manifests:
                 assert manifest["schema_version"] == MANIFEST_SCHEMA_VERSION
                 assert manifest["status"] in {"prepared", "success"}
@@ -448,7 +448,7 @@ class TestCrashMatrix:
         """Measured, and it corrects the analysis in #80.
 
         The issue reasons that the `"database opened"` kill has a benign sub-case -- "zero bytes
-        on disk, `duckdb.connect()` initialises it happily" -- and a rare non-benign one where
+        on disk, `duckdb.connect()` initializes it happily" -- and a rare non-benign one where
         some bytes are written but not a valid header. On DuckDB 1.5.5 both are the same state:
         a `warehouse.duckdb` that exists and is not a valid database is refused whether it holds
         zero bytes or four. So the recoverable sub-case is not "the file is empty", it is "the
@@ -473,7 +473,7 @@ class TestCrashMatrix:
     def test_the_roadmap_does_not_promise_the_recovery_this_code_does_not_have(
         self, tmp_path: Path
     ) -> None:
-        """The published claim, gated on the measured behaviour, in both directions.
+        """The published claim, gated on the measured behavior, in both directions.
 
         Between the lakehouse landing and 2026-09-08, `docs/ROADMAP.md` said of a warehouse
         killed while DuckDB was writing the database header that "it is not permanent; a re-run
@@ -725,7 +725,7 @@ def test_one_window_this_suite_does_not_reach() -> None:
     green. Reaching it needs a fault injected into the database driver rather than into this
     module, which is a different tool than the one this suite is built on.
 
-    fsync behaviour is unmeasured here for the same reason: it needs a filesystem-level fault
+    fsync behavior is unmeasured here for the same reason: it needs a filesystem-level fault
     injector. `docs/ROADMAP.md` says so rather than letting "crash matrix" imply it.
     """
 

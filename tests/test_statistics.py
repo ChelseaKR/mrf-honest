@@ -231,7 +231,7 @@ class TestInterval:
     def test_a_wider_denominator_never_widens_the_interval_at_the_midpoint(
         self, denominator: int
     ) -> None:
-        """More observations cannot buy less precision at the least favourable point."""
+        """More observations cannot buy less precision at the least favorable point."""
 
         here = estimate(denominator // 2, denominator)
         there = estimate(denominator, denominator * 2)
@@ -249,7 +249,7 @@ class TestRendering:
         assert "95% interval" in sentence
         assert "stratum B" in sentence
 
-    def test_a_proportion_serialises_with_its_denominator_and_interval(self) -> None:
+    def test_a_proportion_serializes_with_its_denominator_and_interval(self) -> None:
         result = estimate(11, 48)
         assert isinstance(result, Proportion)
         payload = result.as_dict()
@@ -259,7 +259,7 @@ class TestRendering:
         assert payload["interval_high"] is not None
         assert json.dumps(payload)
 
-    def test_a_refusal_serialises_with_its_code_and_reason(self) -> None:
+    def test_a_refusal_serializes_with_its_code_and_reason(self) -> None:
         result = estimate(3, 4)
         assert isinstance(result, Refusal)
         payload = result.as_dict()

@@ -52,7 +52,7 @@ they describe the template a file was written to and the date it was last update
 system's files should agree on them. The rest are defined per location by the dictionary itself
 ("the legal business name of the hospital associated with the file"), and #74 asked for
 ``license_information`` among the counted ones before anybody had run it -- on the committed
-2026-08-14 cohort that produces exactly one row, Stanford Health Care's licence beside Stanford
+2026-08-14 cohort that produces exactly one row, Stanford Health Care's license beside Stanford
 Health Care Tri-Valley's, which is two separately licensed hospitals in one system publishing
 correctly. Counting it would have manufactured a finding out of that.
 """
@@ -88,11 +88,11 @@ ELEMENTS_THAT_MUST_AGREE = ("version", "last_updated_on")
 #: Every other general data element is defined *per location* by the CMS dictionary, so a
 #: system's files differing on it is those files doing their job. The difference is still
 #: published -- suppressing it would hide the data the reader needs to judge -- but it is
-#: labelled, and it is never counted as a system whose files disagree.
+#: labeled, and it is never counted as a system whose files disagree.
 MUST_AGREE = "must_agree_within_a_system"
 EXPECTED_TO_VARY = "expected_to_vary_by_location"
 
-#: Measured, and the reason ``license_information`` is labelled rather than counted. On the
+#: Measured, and the reason ``license_information`` is labeled rather than counted. On the
 #: committed 2026-08-14 cohort it produces exactly one row: Stanford Health Care
 #: (``070000662``) beside Stanford Health Care Tri-Valley (``140000114``). Those are two
 #: separately licensed hospitals in one system, which is correct publication. Counting it as a
@@ -103,7 +103,7 @@ ELEMENT_BASIS_REASON = (
     "last updated, so one system's files should agree on them. Every other general data element "
     "is defined per location by the CMS data dictionary -- hospital_name is 'the legal business "
     "name of the hospital associated with the file' -- so a system's files differing on it is "
-    "correct publication. Those differences are published here and labelled, never counted."
+    "correct publication. Those differences are published here and labeled, never counted."
 )
 
 #: What the sampling field means, stated in the document so nobody has to infer it.

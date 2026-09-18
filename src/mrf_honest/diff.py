@@ -50,9 +50,9 @@ hospital's.
 
 **Exit codes**, matching :mod:`mrf_honest.receipt`, and only under ``--fail-on-regression``:
 
-``0``  at least one subject's judgement layer was comparable, and none of those regressed.
+``0``  at least one subject's judgment layer was comparable, and none of those regressed.
 ``1``  a subject regressed: a worse letter, or a new error-severity finding.
-``2``  the question could not be answered -- no subject had a comparable judgement layer. A
+``2``  the question could not be answered -- no subject had a comparable judgment layer. A
        gate that returned ``0`` there would be a gate that cannot fail.
 """
 
@@ -73,11 +73,11 @@ DIFF_VERSION = 2
 #: Comparison-document versions whose fields this reader has actually been checked against.
 #:
 #: Deliberately a literal set and not ``range(1, COMPARISON_VERSION + 1)``. A derived bound would
-#: quietly accept a future document shape and read the fields it recognises out of a document it
+#: quietly accept a future document shape and read the fields it recognizes out of a document it
 #: does not understand, which is the failure this project keeps finding elsewhere. A test asserts
 #: that the current ``COMPARISON_VERSION`` is a member, so bumping the cohort document forces
 #: somebody to look at this reader instead of discovering the mismatch in published output.
-READABLE_COMPARISON_VERSIONS = frozenset({1, 2, 3, 4})
+READABLE_COMPARISON_VERSIONS = frozenset({1, 2, 3, 4, 5})
 
 #: Compared, and nothing moved.
 EXIT_NO_REGRESSION = 0
@@ -88,7 +88,7 @@ EXIT_CANNOT_COMPARE = 2
 
 #: The presentation grades, worst last. ``NOT_GRADED`` is deliberately absent: it is not a
 #: position on this scale, and putting it at either end would make a limit of this tool read as
-#: a judgement about a file.
+#: a judgment about a file.
 GRADE_ORDER = ("A", "B", "C", "D", "F")
 
 #: A layer both documents governed identically, so its fields were compared.
@@ -164,6 +164,7 @@ def _identity(document: Mapping[str, object], *, where: str) -> dict[str, object
 _LAYER_GATES: Mapping[str, tuple[str, ...]] = {
     "retrieval": ("retrieval_policy_fingerprint",),
     "document": ("inspection_fingerprint",),
+    # British-spelled layer name kept: `judgement` is a published `mrf-honest diff` JSON field.
     "judgement": ("assessment_policy_fingerprint", "grade_policy_fingerprint"),
 }
 
@@ -349,22 +350,22 @@ def _subject_diff(
         "document", _field_changes(before_row, after_row, ("template_version", "last_updated_on"))
     )
 
-    judgement: dict[str, object]
+    judgment: dict[str, object]
     if url_changed or layers["judgement"]["state"] != COMPARED:
-        judgement = _layer("judgement", [])
-        judgement["grade"] = {
+        judgment = _layer("judgement", [])
+        judgment["grade"] = {
             "before": cast(Mapping[str, object], before_row["grade"]).get("grade"),
             "after": cast(Mapping[str, object], after_row["grade"]).get("grade"),
             "direction": "not_compared",
             "regression": None,
         }
-        judgement["findings"] = []
+        judgment["findings"] = []
     else:
         before_receipt = receipt_from_row(before_row, before_document)
         after_receipt = receipt_from_row(after_row, after_document)
         move = _grade_move(before_receipt.grade, after_receipt.grade)
         findings = _finding_changes(before_receipt, after_receipt)
-        judgement = {
+        judgment = {
             "state": COMPARED,
             "reason": None,
             "changes": [],
@@ -376,35 +377,35 @@ def _subject_diff(
             },
             "findings": findings,
         }
-    entry["judgement"] = judgement
+    entry["judgement"] = judgment
 
-    entry["regression"] = _subject_regression(judgement)
+    entry["regression"] = _subject_regression(judgment)
     entry["changed"] = bool(
         cast(Sequence[object], cast(Mapping[str, object], entry["retrieval"])["changes"])
         or cast(Sequence[object], cast(Mapping[str, object], entry["document"])["changes"])
-        or cast(Sequence[object], judgement["findings"])
-        or cast(Mapping[str, object], judgement["grade"])["direction"]
+        or cast(Sequence[object], judgment["findings"])
+        or cast(Mapping[str, object], judgment["grade"])["direction"]
         not in ("unchanged", "not_compared")
         or url_changed
     )
     return entry
 
 
-def _subject_regression(judgement: Mapping[str, object]) -> bool | None:
+def _subject_regression(judgment: Mapping[str, object]) -> bool | None:
     """Whether this subject regressed, or ``None`` when this build may not say.
 
     A new *error*-severity finding is a regression on its own, because the grade bands are
     coarse: a file can acquire an error and keep its letter.
     """
-    if judgement["state"] != COMPARED:
+    if judgment["state"] != COMPARED:
         return None
-    grade = cast(Mapping[str, object], judgement["grade"])
+    grade = cast(Mapping[str, object], judgment["grade"])
     if grade["regression"] is None:
         return None
     new_error = any(
         cast(Mapping[str, object], finding)["change"] == "appeared"
         and cast(Mapping[str, object], finding)["severity"] == "error"
-        for finding in cast(Sequence[object], judgement["findings"])
+        for finding in cast(Sequence[object], judgment["findings"])
     )
     return bool(grade["regression"]) or new_error
 
@@ -444,6 +445,7 @@ def _summary(subjects: Sequence[Mapping[str, object]]) -> dict[str, object]:
         "only_in_after": sum(1 for item in subjects if item["presence"] == "only_in_after"),
         "changed": sum(1 for item in both if item["changed"]),
         "unchanged": sum(1 for item in both if not item["changed"]),
+        # Published summary keys; British spelling kept (see _LAYER_GATES).
         "judgement_compared": len(judged),
         "judgement_undetermined": len(both) - len(judged),
         "regressions": sum(1 for item in judged if item["regression"]),
@@ -461,7 +463,7 @@ def compare_cohorts(
     ``before`` and ``after`` are cohort comparison documents as ``mrf-honest compare`` writes
     them. Two cohorts of different profiles are refused outright rather than diffed under a
     "policy changed" heading: a JSON grade and a CSV grade are measurements of different file
-    formats, and the finding catalogues do not even share codes.
+    formats, and the finding catalogs do not even share codes.
     """
     before_identity = _identity(before, where="the before document")
     after_identity = _identity(after, where="the after document")
@@ -518,7 +520,7 @@ def exit_code(document: Mapping[str, object], *, fail_on_regression: bool) -> in
     """The process status for one diff document.
 
     Without ``--fail-on-regression`` a diff is a report and always succeeds. With it, the third
-    state is the one that matters: if no subject's judgement layer was comparable, the flag's
+    state is the one that matters: if no subject's judgment layer was comparable, the flag's
     question was not answered, and returning ``0`` would be a gate that cannot fail.
     """
     if not fail_on_regression:
@@ -610,11 +612,11 @@ def human_report(document: Mapping[str, object]) -> str:
         lines.extend(_subject_url_lines(cast(Mapping[str, object], subject["subject_url"])))
         lines.extend(_change_lines("retrieval", cast(Mapping[str, object], subject["retrieval"])))
         lines.extend(_change_lines("document", cast(Mapping[str, object], subject["document"])))
-        judgement = cast(Mapping[str, object], subject["judgement"])
-        grade = cast(Mapping[str, object], judgement["grade"])
-        if judgement["state"] != COMPARED:
+        judgment = cast(Mapping[str, object], subject["judgement"])
+        grade = cast(Mapping[str, object], judgment["grade"])
+        if judgment["state"] != COMPARED:
             lines.append(
-                f"    judgement: {judgement['reason']} "
+                f"    judgment: {judgment['reason']} "
                 f"(published grade {grade['before']} then {grade['after']})"
             )
         else:
@@ -622,7 +624,7 @@ def human_report(document: Mapping[str, object]) -> str:
                 lines.append(
                     f"    grade: {grade['before']} -> {grade['after']} ({grade['direction']})"
                 )
-            for finding in cast(Sequence[object], judgement["findings"]):
+            for finding in cast(Sequence[object], judgment["findings"]):
                 item = cast(Mapping[str, object], finding)
                 lines.append(
                     f"    finding {item['change']}: {item['code']} "

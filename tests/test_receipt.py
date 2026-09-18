@@ -378,7 +378,7 @@ def test_publishing_receipts_does_not_change_the_page_count(tmp_path: Path) -> N
 # --- the badge ------------------------------------------------------------------------------
 
 
-def test_the_badge_is_labelled_for_a_screen_reader(tmp_path: Path) -> None:
+def test_the_badge_is_labeled_for_a_screen_reader(tmp_path: Path) -> None:
     receipt = _receipt_for_file(_write(tmp_path, _document()))
     svg = badge_svg(receipt)
     assert 'role="img"' in svg

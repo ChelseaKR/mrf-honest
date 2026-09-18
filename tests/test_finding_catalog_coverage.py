@@ -23,7 +23,7 @@ from catalog_coverage import (
     MINIMUM_CATALOGS,
     NOT_EXERCISED_HERE,
     assess,
-    catalogued_codes,
+    cataloged_codes,
     discover_catalogs,
 )
 
@@ -36,10 +36,10 @@ ROW = re.compile(r"^\| `([A-Z0-9_]+)` \| ([A-Z]+) \| (.*?) \| (.*?) \|\s*$", re.
 LINK = re.compile(r"^\[([^\]]+)\]: (\S+)$", re.MULTILINE)
 
 
-def _normalise(text: str) -> str:
+def _normalize(text: str) -> str:
     """The document writes identifiers in backticks; the catalog writes them bare.
 
-    Only the markup differs, so only the markup is normalised -- an escaped table
+    Only the markup differs, so only the markup is normalized -- an escaped table
     pipe, a backtick, and the single quotes the catalog uses where the document
     uses code style. Nothing else is stripped, so a description that drifts in
     substance still fails.
@@ -87,17 +87,17 @@ def test_the_grading_document_rows_say_what_the_catalog_says() -> None:
     """
     document = GRADING_DOCUMENT.read_text(encoding="utf-8")
     links = dict(LINK.findall(document))
-    catalogued = catalogued_codes(discover_catalogs())
+    cataloged = cataloged_codes(discover_catalogs())
     rows = ROW.findall(document)
 
-    assert len(rows) == len(catalogued), (
-        f"{len(rows)} rows parsed against {len(catalogued)} catalogued codes; a row "
+    assert len(rows) == len(cataloged), (
+        f"{len(rows)} rows parsed against {len(cataloged)} cataloged codes; a row "
         "this pattern cannot read is a row nothing checks"
     )
     for code, severity, description, citations in rows:
-        definition = catalogued[code]
+        definition = cataloged[code]
         assert severity == definition.severity, code
-        assert _normalise(description) == _normalise(definition.description), code
+        assert _normalize(description) == _normalize(definition.description), code
         labels = [label.strip(" []") for label in citations.split("], [")]
         assert tuple(links[label] for label in labels) == definition.citations, code
 
@@ -106,7 +106,7 @@ def test_no_code_is_declared_twice_with_two_meanings() -> None:
     """Two codes are shared between the JSON and CSV catalogs.
 
     ``mrf-honest explain CODE`` resolves one answer and the document carries one
-    row, so the definitions have to agree. :func:`catalogued_codes` raises if they
+    row, so the definitions have to agree. :func:`cataloged_codes` raises if they
     do not; this asserts the shared codes are really shared rather than that the
     check is unreachable.
     """
@@ -118,7 +118,7 @@ def test_no_code_is_declared_twice_with_two_meanings() -> None:
 
     shared = {code: labels for code, labels in seen.items() if len(labels) > 1}
     assert shared, "no code is shared, so the agreement check above never runs"
-    assert catalogued_codes(catalogs)  # raises if two catalogs disagree
+    assert cataloged_codes(catalogs)  # raises if two catalogs disagree
 
 
 def test_the_written_reason_list_is_empty_and_the_gate_says_why() -> None:
@@ -132,7 +132,7 @@ def test_the_written_reason_list_is_empty_and_the_gate_says_why() -> None:
 def _assess(**overrides: object) -> object:
     base: dict[str, object] = {
         "emitted": frozenset({"A", "B"}),
-        "catalogued": frozenset({"A", "B"}),
+        "cataloged": frozenset({"A", "B"}),
         "reasons": {},
         "whole_run": True,
         "whole_run_reason": "the whole suite ran",
@@ -149,7 +149,7 @@ def test_a_complete_run_over_a_fully_exercised_catalog_passes() -> None:
     assert (census.examined, census.available) == (2, 2)
 
 
-def test_a_catalogued_code_nothing_emits_fails_with_no_written_reason() -> None:
+def test_a_cataloged_code_nothing_emits_fails_with_no_written_reason() -> None:
     census = _assess(emitted=frozenset({"A"}))
 
     assert census.never_emitted == ("B",)

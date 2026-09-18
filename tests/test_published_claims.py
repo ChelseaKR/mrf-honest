@@ -9,7 +9,7 @@ true. Each test here reads a published claim and re-derives it:
   it was generated from. The publish workflow renders that file and checks the HTML agrees with
   it, which is the right shape -- but nothing checked the *comparison* itself, so a change to
   ``build_comparison``, the grade policy, or the finding catalog could ship green while the
-  artifact on disk, and therefore every number on the site, described the old behaviour. The
+  artifact on disk, and therefore every number on the site, described the old behavior. The
   generator was gated; its output was not. The evidence files under
   ``data/cohorts/<date>.ingest/`` exist for this: before them, the only copy of each ingest
   result lived inside the derived artifact, so the derivation had no inputs to be re-run
@@ -29,6 +29,7 @@ import random
 import re
 import subprocess
 import sys
+from collections.abc import Mapping
 from pathlib import Path
 from typing import cast
 
@@ -37,7 +38,7 @@ import pytest
 
 from mrf_honest.ai.corpus import CorpusIndex
 from mrf_honest.ai.eval import summarize
-from mrf_honest.cohort import build_comparison
+from mrf_honest.cohort import RETRIEVAL_FAILURE_MINIMUM_ATTEMPTS, build_comparison
 from mrf_honest.scorecard import AssessmentRegistry
 from mrf_honest.site import render_site
 
@@ -84,7 +85,7 @@ def test_committed_comparison_is_reproducible_from_committed_inputs(
     assert _canonical(rebuilt) == _canonical(committed), (
         f"{comparison_path.name} is not what the current code derives from "
         f"{prefix}.assessments.jsonl, {prefix}.json and {prefix}.ingest/. The published site "
-        "renders the committed file, so it is now describing behaviour the code no longer has. "
+        "renders the committed file, so it is now describing behavior the code no longer has. "
         "Regenerate it with `mrf-honest compare`."
     )
 
@@ -374,7 +375,7 @@ def test_the_random_stratum_is_the_seeded_draw_it_claims_to_be(comparison_path: 
 
     ``docs/SAMPLING-FRAME.md`` states a universe, a filter, a seed, and a sample size, and the
     honesty of every proportion computed over the random stratum rests on the recorded sample
-    being that draw rather than a list someone assembled and labelled one. The eligible identifier
+    being that draw rather than a list someone assembled and labeled one. The eligible identifier
     list is committed because CMS refreshes the dataset: a frame that cannot be reconstructed is
     not a frame.
 
@@ -1132,7 +1133,7 @@ HOW_WE_COMPARE = ROOT / "docs" / "how-we-compare.md"
 
 
 def test_adr_0007_lists_exactly_the_refusal_codes_this_build_can_emit() -> None:
-    """The ADR's table is the published catalogue of refusals; the enum is the real one."""
+    """The ADR's table is the published catalog of refusals; the enum is the real one."""
     from mrf_honest.statistics import RefusalCode
 
     text = ADR_0007.read_text(encoding="utf-8")
@@ -1404,7 +1405,7 @@ def test_a_document_that_merely_mentions_the_capability_is_not_a_finding() -> No
     assert (
         retired_blocker_finding(
             "politeness.py obeys robots.txt before the first request, holds a per-host interval, "
-            "and honours Retry-After on 429 and 503 ahead of this tool's own backoff."
+            "and honors Retry-After on 429 and 503 ahead of this tool's own backoff."
         )
         is None
     )
@@ -1428,3 +1429,184 @@ def test_each_of_those_documents_names_the_gate_that_is_actually_left(document: 
     """Deleting the wrong reason without stating the right one leaves no reason at all."""
     text = " ".join((ROOT / document).read_text(encoding="utf-8").split())
     assert "service/job tier declaration" in text, document
+
+
+# --- what stands behind a published letter (#99) ---------------------------------------------
+
+LETTER_EVIDENCE_FINDING = (
+    ROOT / "docs" / "findings" / ("what-stands-behind-a-published-letter-2026-09-13.md")
+)
+
+
+def _cohort_of(path: Path) -> Mapping[str, object]:
+    return cast(Mapping[str, object], json.loads(path.read_text(encoding="utf-8"))["cohort"])
+
+
+def _letter_evidence(paths: list[Path]) -> dict[str, int]:
+    """Count what each published letter rests on, before and after the attempt floor.
+
+    The "before" column is re-derived rather than remembered. Every committed cohort was
+    published under a floor of 1, where a retrievability ``FINDINGS`` row was always ``F`` and
+    nothing else changed, so the prior letter of any row is recoverable from the row itself.
+    That keeps the finding document's comparison honest without asking a test to read git.
+    """
+    counts = dict.fromkeys(
+        (
+            "rows",
+            "letters_before",
+            "letters_after",
+            "from_a_verified_body",
+            "attributed_before",
+            "attributed_before_confirmed",
+            "attributed_after",
+            "attributed_after_confirmed",
+            "not_graded_before",
+            "not_graded_after",
+        ),
+        0,
+    )
+    for path in paths:
+        document = json.loads(path.read_text(encoding="utf-8"))
+        for row in cast(list[dict[str, object]], document["files"]):
+            grade = cast(dict[str, object], row["grade"])
+            dimensions = cast(dict[str, dict[str, object]], row["dimensions"])
+            findings_row = dimensions["retrievability"]["status"] == "FINDINGS"
+            after = str(grade["grade"])
+            before = "F" if findings_row else after
+            attempts = grade.get("retrieval_attempts")
+            confirmed = (
+                isinstance(attempts, int)
+                and not isinstance(attempts, bool)
+                and attempts >= RETRIEVAL_FAILURE_MINIMUM_ATTEMPTS
+            )
+            counts["rows"] += 1
+            for column, letter in (("before", before), ("after", after)):
+                if letter == "NOT_GRADED":
+                    counts[f"not_graded_{column}"] += 1
+                    continue
+                counts[f"letters_{column}"] += 1
+                if row.get("content_sha256"):
+                    if column == "after":
+                        counts["from_a_verified_body"] += 1
+                    continue
+                counts[f"attributed_{column}"] += 1
+                if confirmed:
+                    counts[f"attributed_{column}_confirmed"] += 1
+    return counts
+
+
+def _letters_resting_on_one_request(document: Mapping[str, object]) -> list[str]:
+    """Slugs whose letter is attributed to a retrieval this project observed once.
+
+    The check the whole of #99 reduces to. A letter is either backed by bytes that arrived --
+    whose digest is published beside it, so one observation carries it -- or it is a statement
+    about a server, which one request from one client on one date cannot establish.
+    """
+    offenders: list[str] = []
+    for row in cast(list[dict[str, object]], document["files"]):
+        grade = cast(dict[str, object], row["grade"])
+        if str(grade["grade"]) == "NOT_GRADED" or row.get("content_sha256"):
+            continue
+        attempts = grade.get("retrieval_attempts")
+        if (
+            not isinstance(attempts, int)
+            or isinstance(attempts, bool)
+            or attempts < RETRIEVAL_FAILURE_MINIMUM_ATTEMPTS
+        ):
+            offenders.append(str(row["slug"]))
+    return offenders
+
+
+def test_the_single_request_check_refuses_the_document_it_exists_to_refuse() -> None:
+    """Drive the gate from a document it must refuse and one it must accept.
+
+    Every committed document passes this check, which is the point of the change -- and a check
+    that only ever sees passing input is a check nobody has watched fail (#95). These two
+    synthetic rows differ in exactly the field under test.
+    """
+
+    def row(slug: str, *, attempts: int | None, body: str | None) -> dict[str, object]:
+        return {
+            "slug": slug,
+            "content_sha256": body,
+            "grade": {"grade": "F", "retrieval_attempts": attempts},
+        }
+
+    refused = {"files": [row("one/request", attempts=1, body=None)]}
+    assert _letters_resting_on_one_request(refused) == ["one/request"]
+
+    unrecorded = {"files": [row("no/count", attempts=None, body=None)]}
+    assert _letters_resting_on_one_request(unrecorded) == ["no/count"]
+
+    accepted = {
+        "files": [
+            row("confirmed/failure", attempts=RETRIEVAL_FAILURE_MINIMUM_ATTEMPTS, body=None),
+            row("body/arrived", attempts=1, body="a" * 64),
+            {"slug": "not/graded", "content_sha256": None, "grade": {"grade": "NOT_GRADED"}},
+        ]
+    }
+    assert _letters_resting_on_one_request(accepted) == []
+
+
+@pytest.mark.parametrize("comparison_path", PUBLISHED, ids=lambda path: path.name)
+def test_no_published_letter_rests_on_a_single_unconfirmed_request(comparison_path: Path) -> None:
+    """The invariant #99 asked for, over every letter this project has committed."""
+    document = json.loads(comparison_path.read_text(encoding="utf-8"))
+    offenders = _letters_resting_on_one_request(document)
+    assert offenders == [], (
+        f"{comparison_path.name} publishes a letter under a named hospital that rests on fewer "
+        f"than {RETRIEVAL_FAILURE_MINIMUM_ATTEMPTS} recorded requests and no verified body: "
+        f"{offenders}"
+    )
+
+
+def test_every_published_letter_states_how_many_requests_are_behind_it() -> None:
+    """A letter whose evidence is invisible is the condition #99 was filed in."""
+    for path in PUBLISHED:
+        document = json.loads(path.read_text(encoding="utf-8"))
+        for row in cast(list[dict[str, object]], document["files"]):
+            grade = cast(dict[str, object], row["grade"])
+            assert "retrieval_attempts" in grade, (
+                f"{path.name}: {row['slug']} publishes a grade with no attempt count; "
+                "regenerate it with `mrf-honest compare`"
+            )
+
+
+def test_the_letter_evidence_finding_states_the_numbers_the_documents_carry() -> None:
+    """Re-derive every figure in the #99 write-up from the committed comparison documents."""
+    counts = _letter_evidence(PUBLISHED)
+    rendered_ids = {
+        str(cast(dict[str, object], comparison["cohort"])["cohort_id"])
+        for comparison in _rendered_comparisons()
+    }
+    site_paths = [path for path in PUBLISHED if str(_cohort_of(path)["cohort_id"]) in rendered_ids]
+    assert site_paths, "no committed comparison matches what the site renders"
+    site = _letter_evidence(site_paths)
+
+    text = " ".join(LETTER_EVIDENCE_FINDING.read_text(encoding="utf-8").split())
+
+    for claim in (
+        f"| Rows published | {counts['rows']} | {counts['rows']} |",
+        f"| **Letters published** | **{counts['letters_before']}** "
+        f"| **{counts['letters_after']}** |",
+        f"| Letters derived from a verified body | {counts['from_a_verified_body']} "
+        f"| {counts['from_a_verified_body']} |",
+        f"| **Letters attributed to a failed retrieval** | **{counts['attributed_before']}** "
+        f"| **{counts['attributed_after']}** |",
+        f"| …of those, resting on {RETRIEVAL_FAILURE_MINIMUM_ATTEMPTS} or more recorded "
+        f"attempts | **{counts['attributed_before_confirmed']}** "
+        f"| **{counts['attributed_after_confirmed']}** |",
+        f"| `NOT_GRADED` with the reason stated | {counts['not_graded_before']} "
+        f"| {counts['not_graded_after']} |",
+        f"**{site['letters_before']} letters published, {site['attributed_before']} attributed "
+        f"to a failed retrieval, {site['attributed_before_confirmed']} of those "
+        f"{site['attributed_before']} resting on more than one attempt.**",
+        f"**{site['letters_after']} letters published, {site['attributed_after']} attributed to "
+        f"a failed retrieval.**",
+        f"the project now publishes {counts['letters_after']} letters where it published "
+        f"{counts['letters_before']}",
+    ):
+        assert claim in text, (
+            f"{LETTER_EVIDENCE_FINDING.name} no longer states a figure the committed documents "
+            f"carry: {claim!r}"
+        )

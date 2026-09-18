@@ -137,7 +137,7 @@ its fields are not compared. It is never reported as an unchanged layer: "compar
 
 Two cohorts of different profiles, publisher types or URL provenance are refused outright rather
 than diffed under a policy heading. A JSON grade and a CSV grade are measurements of different
-file formats whose finding catalogues do not share codes.
+file formats whose finding catalogs do not share codes.
 
 Three absences are stated rather than scored:
 
@@ -153,8 +153,8 @@ Three absences are stated rather than scored:
   smaller print.
 
 `--fail-on-regression` turns the diff into a gate: `1` when a subject's letter got worse or a new
-error-severity finding appeared, `0` when at least one subject's judgement layer was comparable
-and none of those regressed, and `2` when **no** subject's judgement layer was comparable. The
+error-severity finding appeared, `0` when at least one subject's judgment layer was comparable
+and none of those regressed, and `2` when **no** subject's judgment layer was comparable. The
 third is the one that matters: returning `0` there would report a clean run over zero comparisons.
 
 ## The publication set, beside the files (`mrf-honest systems`)

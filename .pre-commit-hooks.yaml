@@ -6,7 +6,7 @@
 #
 #   repos:
 #     - repo: https://github.com/ChelseaKR/mrf-honest
-#       rev: <a tag or commit>
+#       rev: v0.1.0   # a tag or a commit sha, never a branch
 #       hooks:
 #         - id: mrf-honest
 #           args: [--fail-on, error, --min-grade, B]
