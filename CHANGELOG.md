@@ -9,6 +9,16 @@ they are left as they were written rather than retrofitted into versions that ne
 
 ### Added
 
+- **Whether cheap revalidation generalizes beyond the one origin PR #113 measured, checked at
+  ten more.** [docs/findings/cross-origin-conditional-revalidation-2026-09-14.md](docs/findings/cross-origin-conditional-revalidation-2026-09-14.md)
+  sends a real conditional `GET` at ten more real hospital origins, spanning the gzip/plain
+  encoding split. **9 of 10 measurable origins answered `304` and moved no body** — `chihealth.com`
+  (0 of 3, PR #113) is the outlier this sample found, not the rule. Two origins could not be
+  measured at all: one (`www.frederickhealth.org`) refuses an automated client outright, the same
+  class of finding as #99 at a different origin; the other's committed `mrf_url`
+  (`hospitalpricedisclosure.com`) now redirects to an error page, meaning a refresh there needs
+  re-discovery before it needs a conditional request.
+
 - **The published site counts visits with Google Analytics 4**, by the owner's decision of
   2026-09-17 ([ADR 0009](docs/adr/0009-the-published-site-counts-visits-with-google-analytics.md)).
   `src/mrf_honest/analytics.py` holds the ID, `G-57DWCFVLWQ`, and renders one inline loader
