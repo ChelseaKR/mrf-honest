@@ -705,3 +705,10 @@ maintainer. The two options are: re-assess and regenerate
 inspection semantics share one fingerprint — which the code comment forbids, and which is
 the weaker choice for a project whose case rests on findings being traceable to the exact
 policy that produced them.
+
+**Resolved 2026-09-18: re-assessed.** The maintainer chose the first option. Both CSV cohorts
+(2026-08-19 and 2026-09-12) were re-assessed from the verified cache under `…-inspection-v2` with
+`tools/reassess_cohort.py`, and their comparisons were regenerated. No grade and no finding moved
+for any of the 25 hospitals in either cohort, because none of the 40 inspected files reported
+`CMS_CSV_CODE_PAIRING_MISSING`, the only state the fix changes. See
+[docs/findings/csv-cohorts-reassessed-2026-09-18.md](findings/csv-cohorts-reassessed-2026-09-18.md).

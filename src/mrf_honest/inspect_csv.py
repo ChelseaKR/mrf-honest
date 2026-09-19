@@ -511,7 +511,7 @@ CSV_FINDING_CATALOG: Mapping[str, FindingDefinition] = _build_finding_catalog()
 # Bump this value whenever inspection behavior changes without a corresponding catalog or rule-set
 # change below. The scorecard assessment fingerprint includes CSV_INSPECTION_FINGERPRINT so prior
 # findings cannot be silently reused after grading semantics change.
-CSV_INSPECTION_POLICY_VERSION = "cms-hospital-csv-v3-inspection-v1"
+CSV_INSPECTION_POLICY_VERSION = "cms-hospital-csv-v3-inspection-v2"
 CSV_INSPECTION_FINGERPRINT = hashlib.sha256(
     json.dumps(
         {
@@ -1347,6 +1347,69 @@ def _inspect_data_row(
         )
 
 
+def _check_encoded_item_row(row: _Row, book: _FindingBook, *, any_charge: bool) -> None:
+    """A row with a complete code pairing: note 5, plus the two no-blanks elements."""
+
+    if not row.has("description"):
+        book.add(
+            "CMS_CSV_DESCRIPTION_MISSING",
+            "A data row with codes or charges has no usable description.",
+        )
+    if not any_charge:
+        book.add(
+            "CMS_CSV_CHARGE_VALUE_MISSING",
+            "An encoded item or service row carries no gross, cash, or payer-specific charge.",
+        )
+    if any_charge and not row.has("setting"):
+        book.add(
+            "CMS_CSV_SETTING_INVALID",
+            "A setting cell is blank where blanks are not accepted.",
+        )
+
+
+def _check_modifier_row(row: _Row, book: _FindingBook, *, any_payer_charge: bool) -> None:
+    """Note 11: a modifier encoded without an item or service needs a description and one of a
+    payer-specific charge or an accompanying note. `setting` is deliberately not on that list,
+    so a modifier row is never held to the blank-setting requirement below.
+    """
+
+    allowed = (
+        any_payer_charge
+        or row.has("additional_generic_notes")
+        or any(
+            not _is_blank(row.wide_value(combo, "additional_payer_notes"))
+            for combo in row.header.combos
+        )
+    )
+    if not (row.has("description") and allowed):
+        book.add(
+            "CMS_CSV_MODIFIER_ROW_CONTEXT_MISSING",
+            "A modifier row without an item or service lacks the required description or "
+            "accompanying charge or note.",
+        )
+
+
+def _check_charged_row_without_codes(row: _Row, book: _FindingBook) -> None:
+    """A row that discloses a standard charge but pairs no code is still a charged row.
+
+    `description` and `setting` are both "Blanks Accepted: No" in the data dictionary's
+    required standard-charge, item/service and coding table, and neither requirement is
+    conditioned on the code columns being populated; the absent pairing is already its own
+    finding (`CMS_CSV_CODE_PAIRING_MISSING`). Modifier rows never reach here.
+    """
+
+    if not row.has("description"):
+        book.add(
+            "CMS_CSV_DESCRIPTION_MISSING",
+            "A data row with codes or charges has no usable description.",
+        )
+    if not row.has("setting"):
+        book.add(
+            "CMS_CSV_SETTING_INVALID",
+            "A setting cell is blank where blanks are not accepted.",
+        )
+
+
 def _check_item_completeness(
     row: _Row,
     book: _FindingBook,
@@ -1355,40 +1418,13 @@ def _check_item_completeness(
     any_charge: bool,
     any_payer_charge: bool,
 ) -> None:
-    has_description = row.has("description")
     if is_item:
-        if not has_description:
-            book.add(
-                "CMS_CSV_DESCRIPTION_MISSING",
-                "A data row with codes or charges has no usable description.",
-            )
-        if not any_charge:
-            book.add(
-                "CMS_CSV_CHARGE_VALUE_MISSING",
-                "An encoded item or service row carries no gross, cash, or payer-specific charge.",
-            )
-        if any_charge and not row.has("setting"):
-            book.add(
-                "CMS_CSV_SETTING_INVALID",
-                "A setting cell is blank where blanks are not accepted.",
-            )
-        return
-    if row.has("modifiers"):
-        allowed = (
-            any_payer_charge
-            or row.has("additional_generic_notes")
-            or any(
-                not _is_blank(row.wide_value(combo, "additional_payer_notes"))
-                for combo in row.header.combos
-            )
-        )
-        if not (has_description and allowed):
-            book.add(
-                "CMS_CSV_MODIFIER_ROW_CONTEXT_MISSING",
-                "A modifier row without an item or service lacks the required description or "
-                "accompanying charge or note.",
-            )
-    elif has_description and not any_charge:
+        _check_encoded_item_row(row, book, any_charge=any_charge)
+    elif row.has("modifiers"):
+        _check_modifier_row(row, book, any_payer_charge=any_payer_charge)
+    elif any_charge:
+        _check_charged_row_without_codes(row, book)
+    elif row.has("description"):
         book.add(
             "CMS_CSV_CHARGE_VALUE_MISSING",
             "An encoded item or service row carries no gross, cash, or payer-specific charge.",
