@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "note": "Publishers re-collected by `mrf-honest recollect`. Each domain is the origin whose https://<domain>/cms-hpt.txt a committed cohort manifest already records as discovered, and whose published file URLs sit on that origin. Display names are labels. Add a publisher only with a domain that evidence in this repository ties to it.",
+  "publishers": [
+    {"publisher_id": "central-maine-healthcare", "name": "Central Maine Healthcare", "domain": "cmhc.org"},
+    {"publisher_id": "chi-health", "name": "CHI Health", "domain": "chihealth.com"},
+    {"publisher_id": "christus-health", "name": "CHRISTUS Health", "domain": "christushealth.org"},
+    {"publisher_id": "commonspirit-health", "name": "CommonSpirit Health", "domain": "commonspirit.org"},
+    {"publisher_id": "northside-hospital", "name": "Northside Hospital", "domain": "northside.com"},
+    {"publisher_id": "st-elizabeth-healthcare", "name": "St. Elizabeth Healthcare", "domain": "stelizabeth.com"}
+  ]
+}
