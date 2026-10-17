@@ -1,7 +1,7 @@
 PYTHON ?= .venv/bin/python
 UV ?= uv
 
-.PHONY: verify lint format typecheck test lock audit metrics
+.PHONY: verify lint format typecheck test lock audit metrics workflow-lint
 
 verify: lint format typecheck test lock audit
 
@@ -68,3 +68,13 @@ audit:
 	$(UV) export --frozen --no-emit-project --all-extras --no-hashes \
 		--format requirements-txt -o "$$req" -q && \
 	$(PYTHON) -m pip_audit --strict --no-deps -r "$$req" --progress-spinner off
+
+# Lints .github/workflows with actionlint, which also runs shellcheck over every `run:` script
+# when shellcheck is on the PATH. Outside `verify` on purpose: it needs two binaries that are not
+# Python dependencies, and .github/workflows/workflow-lint.yml runs it on every push and pull
+# request with a pinned, checksum-verified actionlint. Install actionlint and shellcheck first
+# (for example `go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12` and your
+# package manager's shellcheck).
+workflow-lint:
+	@command -v shellcheck >/dev/null || { echo "shellcheck is required: without it actionlint skips every run: script"; exit 1; }
+	actionlint -color

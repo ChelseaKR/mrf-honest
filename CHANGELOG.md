@@ -9,6 +9,15 @@ they are left as they were written rather than retrofitted into versions that ne
 
 ### Added
 
+- **`actionlint` over every workflow, in CI and as `make workflow-lint`.**
+  `.github/workflows/workflow-lint.yml` runs a pinned actionlint (1.7.12, SHA-256 committed in
+  the file and checked before the archive is unpacked) on every pull request and push to
+  `master`, and fails if `shellcheck` is missing, because actionlint skips every `run:` script
+  without it. The first run found two shellcheck findings, both fixed without changing what the
+  scripts do: `recollect.yml` read the newest earlier comparison with `ls | grep`, and now uses a
+  glob loop; `pages.yml`'s export check expanded `$(cat render-list | tr)` unquoted, and now
+  reads the list with `mapfile` and passes `"${render_list[@]}"`. Refs #142.
+
 - **Scheduled re-collection, off by default, and a regression alert on top of `diff`.**
   `mrf-honest recollect` re-runs `cms-hpt.txt` discovery and assessment for a committed
   watchlist (`data/recollections/watchlist.json`) through the same politeness gate every cohort

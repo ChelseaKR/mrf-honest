@@ -114,8 +114,15 @@ jobs:
             [ -e "${after}" ] || continue
             # Newest earlier comparison of the same profile. The glob has no wildcard for the
             # suffix, so the JSON profile cannot pick up a CSV file.
-            prior="$(ls data/recollections/????-??-??${suffix}.comparison.json 2>/dev/null \
-              | grep -v "^data/recollections/${COLLECTED_ON}" | sort | tail -n 1 || true)"
+            # The glob expands in sorted order, so the last match that is not today's is the newest.
+            prior=""
+            for candidate in data/recollections/????-??-??"${suffix}".comparison.json; do
+              [ -e "${candidate}" ] || continue
+              case "${candidate}" in
+                "data/recollections/${COLLECTED_ON}"*) continue ;;
+              esac
+              prior="${candidate}"
+            done
             if [ -z "${prior}" ]; then
               echo "no earlier committed collection for profile suffix '${suffix}'; nothing to compare yet" | tee -a "${GITHUB_STEP_SUMMARY}"
               continue
