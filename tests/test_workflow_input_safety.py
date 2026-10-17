@@ -63,6 +63,9 @@ CAPABILITY_INPUTS: Mapping[str, frozenset[str]] = {
     # The tag to release from. It names a public git ref that is already pushed; knowing it
     # authorizes nothing, and release.yml verifies its signature before anything is built.
     "release.yml": frozenset(),
+    # How many files to fetch per publisher in a manual run. A count, not a secret; it reaches the
+    # shell only through env:, and tests/test_recollect_workflow.py pins that.
+    "recollect.yml": frozenset(),
 }
 
 #: Interpolations of a dispatch input into a ``run:`` block that are known, recorded, and not

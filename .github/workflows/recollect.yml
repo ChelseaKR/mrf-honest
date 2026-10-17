@@ -1,0 +1,234 @@
+# Scheduled re-collection: re-run discovery and assessment for the committed watchlist, relate the
+# result to the previous collection, and report what moved.
+#
+# Off until a maintainer turns it on. The schedule below is registered, but the job runs on the
+# schedule only when the repository variable MRF_RECOLLECT_ENABLED is exactly "true". A manual
+# dispatch always runs. Merging this file therefore starts no retrieval from anyone's server,
+# and removing the variable (or setting it to anything else) stops the schedule without a commit.
+# docs/adr/0010-scheduled-recollection.md records why it ships off and what turning it on commits
+# this project to.
+#
+# What it does, in order:
+#   1. `mrf-honest recollect` fetches each watchlisted publisher's cms-hpt.txt and the files it
+#      lists, through the same politeness gate every cohort was collected under (robots.txt
+#      obeyed in code with no override, a per-host interval held across the whole run, Retry-After
+#      honored), at most N files per publisher. A failure is recorded as "no evidence" and never
+#      as a pass. The result is dated and schema-versioned, and a second run on the same UTC date
+#      fetches nothing.
+#   2. `mrf-honest alert` diffs each new comparison against the newest earlier one committed under
+#      data/recollections/ and renders Markdown (run summary, issue) and Atom (artifact).
+#   3. The dated files and the alert renderings are uploaded as an artifact.
+#   4. Optionally, only when MRF_RECOLLECT_OPEN_PR is "true", the dated files are committed to a
+#      branch and a pull request is opened, so the next run has a baseline. Nothing is ever pushed
+#      to master, and the pull request is for a person to read and merge.
+#   5. If a verified file regressed, one issue is opened or updated; when a later comparison finds
+#      none, it is closed.
+#
+# The token is not in the environment of any step that touches a publisher's server. It is passed
+# only to the two steps that write to this repository.
+#
+# Both actions are pinned to full 40-char commit SHAs already in use elsewhere in this repository.
+name: scheduled re-collection
+
+on:
+  schedule:
+    # The 1st of each month, 07:41 UTC. Monthly because a re-collection of this watchlist is
+    # measured in hundreds of megabytes moved across other organizations' servers
+    # (docs/findings/what-a-re-collection-actually-cost-2026-09-12.md), and a week is not long
+    # enough for most hospital files to change. A minute of its own: security.yml runs Mondays
+    # at 06:17 and deploy-staleness.yml Mondays at 16:19.
+    - cron: "41 7 1 * *"
+  workflow_dispatch:
+    inputs:
+      max_files_per_publisher:
+        description: "Distinct files fetched per publisher in this run"
+        required: false
+        default: "5"
+        type: string
+
+permissions: {}
+
+# Never overlap two runs: they would share one verified cache and one per-host interval, and the
+# interval is only a courtesy to a server if a single process is holding it.
+concurrency:
+  group: recollect
+  cancel-in-progress: false
+
+jobs:
+  recollect:
+    name: re-collect the watchlist
+    if: github.event_name == 'workflow_dispatch' || vars.MRF_RECOLLECT_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    permissions:
+      contents: write # only the optional branch push below; the checkout holds no credential
+      pull-requests: write # only the optional pull request below
+      issues: write # only the regression issue below
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false # fetching steps must not be able to push
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: python -m pip install -e .
+
+      - name: Re-collect
+        id: collect
+        shell: bash
+        env:
+          CONTACT: ${{ vars.MRF_RECOLLECT_CONTACT }}
+          MAX_FILES: ${{ inputs.max_files_per_publisher || '5' }}
+        run: |
+          set -euo pipefail
+          # The fetcher refuses to run without an identifying contact, and so does this step.
+          # A crawler nobody can reach is not polite however slowly it goes.
+          if [ -z "${CONTACT}" ]; then
+            echo "::error title=No contact::set the repository variable MRF_RECOLLECT_CONTACT to an email address or https URL that identifies the operator."
+            exit 1
+          fi
+          python -m mrf_honest recollect \
+            --watchlist data/recollections/watchlist.json \
+            --out-dir data/recollections \
+            --cache-dir "${RUNNER_TEMP}/cache" \
+            --contact "${CONTACT}" \
+            --max-files-per-publisher "${MAX_FILES}" \
+            | tee "${RUNNER_TEMP}/recollect.json"
+          echo "collected_on=$(jq -r .collected_on "${RUNNER_TEMP}/recollect.json")" >> "${GITHUB_OUTPUT}"
+
+      - name: Compare with the previous collection
+        id: alert
+        shell: bash
+        env:
+          COLLECTED_ON: ${{ steps.collect.outputs.collected_on }}
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/alerts"
+          compared=false
+          regressed=false
+          for suffix in "" "-csv"; do
+            after="data/recollections/${COLLECTED_ON}${suffix}.comparison.json"
+            [ -e "${after}" ] || continue
+            # Newest earlier comparison of the same profile. The glob has no wildcard for the
+            # suffix, so the JSON profile cannot pick up a CSV file.
+            prior="$(ls data/recollections/????-??-??${suffix}.comparison.json 2>/dev/null \
+              | grep -v "^data/recollections/${COLLECTED_ON}" | sort | tail -n 1 || true)"
+            if [ -z "${prior}" ]; then
+              echo "no earlier committed collection for profile suffix '${suffix}'; nothing to compare yet" | tee -a "${GITHUB_STEP_SUMMARY}"
+              continue
+            fi
+            name="alert${suffix}"
+            status=0
+            python -m mrf_honest alert "${prior}" "${after}" --format markdown \
+              --fail-on-regression > "${RUNNER_TEMP}/alerts/${name}.md" || status=$?
+            python -m mrf_honest alert "${prior}" "${after}" --format atom \
+              > "${RUNNER_TEMP}/alerts/${name}.atom"
+            cat "${RUNNER_TEMP}/alerts/${name}.md" >> "${GITHUB_STEP_SUMMARY}"
+            case "${status}" in
+              0) compared=true ;;
+              1) compared=true; regressed=true ;;
+              *) echo "no file could be judged on both dates for profile suffix '${suffix}'" | tee -a "${GITHUB_STEP_SUMMARY}" ;;
+            esac
+          done
+          echo "compared=${compared}" >> "${GITHUB_OUTPUT}"
+          echo "regressed=${regressed}" >> "${GITHUB_OUTPUT}"
+          cat "${RUNNER_TEMP}/alerts/"*.md > "${RUNNER_TEMP}/alerts/body.md" 2>/dev/null || true
+
+      - name: Keep the dated results
+        if: always()
+        shell: bash
+        env:
+          COLLECTED_ON: ${{ steps.collect.outputs.collected_on }}
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/results"
+          if [ -n "${COLLECTED_ON}" ]; then
+            cp data/recollections/"${COLLECTED_ON}"* "${RUNNER_TEMP}/results/" 2>/dev/null || true
+          fi
+          cp "${RUNNER_TEMP}/alerts/"*.atom "${RUNNER_TEMP}/alerts/"*.md "${RUNNER_TEMP}/results/" 2>/dev/null || true
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: recollection-${{ github.run_id }}
+          path: ${{ runner.temp }}/results
+          if-no-files-found: ignore
+          retention-days: 90
+
+      - name: Open a pull request with the dated results
+        if: ${{ vars.MRF_RECOLLECT_OPEN_PR == 'true' && steps.collect.outcome == 'success' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COLLECTED_ON: ${{ steps.collect.outputs.collected_on }}
+          REPOSITORY: ${{ github.repository }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          branch="recollection/${COLLECTED_ON}"
+          # The token reaches git through its environment, not its arguments, and is masked.
+          encoded="$(printf 'x-access-token:%s' "${GH_TOKEN}" | base64 -w0)"
+          echo "::add-mask::${encoded}"
+          export GIT_CONFIG_COUNT=1
+          export GIT_CONFIG_KEY_0="http.https://github.com/.extraheader"
+          export GIT_CONFIG_VALUE_0="AUTHORIZATION: basic ${encoded}"
+          git remote set-url origin "https://github.com/${REPOSITORY}.git"
+          if git ls-remote --exit-code --heads origin "${branch}" > /dev/null 2>&1; then
+            echo "branch ${branch} already exists; leaving it for a person to merge or close"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "${branch}"
+          git add data/recollections/"${COLLECTED_ON}"*
+          if git diff --cached --quiet; then
+            echo "nothing to commit"
+            exit 0
+          fi
+          git commit -m "data(recollection): scheduled re-collection ${COLLECTED_ON}"
+          git push origin "${branch}"
+          {
+            echo "Dated results of the scheduled re-collection for ${COLLECTED_ON}. These are the"
+            echo "files \`mrf-honest recollect\` wrote; merging them makes this collection the"
+            echo "baseline the next one is compared against."
+            echo
+            cat "${RUNNER_TEMP}/alerts/body.md" 2>/dev/null || echo "No earlier collection to compare with."
+          } > "${RUNNER_TEMP}/pr-body.md"
+          gh pr create --repo "${REPOSITORY}" --base "${DEFAULT_BRANCH}" --head "${branch}" \
+            --title "data(recollection): ${COLLECTED_ON}" --body-file "${RUNNER_TEMP}/pr-body.md"
+
+      - name: Open, update or close the regression issue
+        if: ${{ steps.alert.outputs.compared == 'true' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          REGRESSED: ${{ steps.alert.outputs.regressed }}
+          TITLE: "Grade regression found by the scheduled re-collection"
+        run: |
+          set -euo pipefail
+          existing="$(gh issue list --repo "${REPOSITORY}" --state open \
+            --json number,title --jq "[.[] | select(.title == env.TITLE)] | .[0].number // empty")"
+          if [ "${REGRESSED}" != "true" ]; then
+            if [ -n "${existing}" ]; then
+              gh issue close "${existing}" --repo "${REPOSITORY}" --reason completed \
+                --comment "The latest collection found no regression. ${RUN_URL}"
+            fi
+            exit 0
+          fi
+          {
+            cat "${RUNNER_TEMP}/alerts/body.md"
+            echo
+            echo "A regression here is a worse letter or a new error-severity finding between two"
+            echo "collections that each read a verified file. It is not a compliance finding."
+            echo "Run: ${RUN_URL}"
+          } > "${RUNNER_TEMP}/issue.md"
+          if [ -n "${existing}" ]; then
+            gh issue comment "${existing}" --repo "${REPOSITORY}" --body-file "${RUNNER_TEMP}/issue.md"
+          else
+            gh issue create --repo "${REPOSITORY}" --title "${TITLE}" --body-file "${RUNNER_TEMP}/issue.md"
+          fi
