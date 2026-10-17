@@ -1,0 +1,58 @@
+# Static checks on the workflow files themselves: syntax, expression types, unknown contexts,
+# bad `needs:`, and (through the shellcheck that ubuntu-latest ships) every `run:` script.
+#
+# Why this exists: recollect.yml was merged in #139 without ever having been linted, and the
+# first lint found two shellcheck findings (an `ls | grep` pipeline and an unquoted command
+# substitution in pages.yml's deploy-gate script). A workflow that only runs on a schedule or on
+# dispatch can carry a typo for weeks before anything executes it.
+#
+# The binary is downloaded from the actionlint release page at a pinned version and checked
+# against a SHA-256 committed in this file, so a replaced release asset fails the job instead of
+# running. Nothing else leaves github.com. To bump: change ACTIONLINT_VERSION, take the new
+# `actionlint_<version>_linux_amd64.tar.gz` line from that release's checksums file, and update
+# ACTIONLINT_SHA256 in the same commit. Run it locally the same way (`make workflow-lint`).
+name: workflow lint
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  actionlint:
+    name: actionlint
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      ACTIONLINT_VERSION: "1.7.12"
+      ACTIONLINT_SHA256: "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install actionlint (pinned, checksum-verified)
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          curl -sSfL -o "${RUNNER_TEMP}/${archive}" \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/${archive}"
+          echo "${ACTIONLINT_SHA256}  ${RUNNER_TEMP}/${archive}" | sha256sum --check --strict
+          tar -xzf "${RUNNER_TEMP}/${archive}" -C "${RUNNER_TEMP}" actionlint
+          "${RUNNER_TEMP}/actionlint" -version
+
+      - name: Lint every workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Without the shellcheck binary, the `run:` scripts go unchecked without saying so.
+          command -v shellcheck > /dev/null
+          "${RUNNER_TEMP}/actionlint" -color
