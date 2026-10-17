@@ -129,7 +129,7 @@ README quotes a ledger figure, this table is the source and the README follows i
 
 | Metric | Target | Measured by | Gate | Last measured |
 |---|---|---|---|---|
-| Branch coverage | >= 85% | `pytest --cov` (branch mode, `fail_under = 85`) | AUTO (`make verify`) | 93.48%, 1212 tests passing and 4 skipped, 2026-10-17 || Lint findings (ruff `E,F,I,B,S,C90,UP,RUF`, `max-complexity=10`) | 0 | `ruff check src tests perf tools` | AUTO (`make verify`) | 0, 2026-08-16 |
+| Branch coverage | >= 85% | `pytest --cov` (branch mode, `fail_under = 85`) | AUTO (`make verify`) | 93.48%, 1223 tests passing and 4 skipped, 2026-10-17 || Lint findings (ruff `E,F,I,B,S,C90,UP,RUF`, `max-complexity=10`) | 0 | `ruff check src tests perf tools` | AUTO (`make verify`) | 0, 2026-08-16 |
 | Formatting findings | 0 | `ruff format --check src tests perf tools` | AUTO (`make verify`) | 0, 2026-08-16 |
 | `mypy --strict` errors | 0 | `mypy` over `src`, `perf` and `tools` | AUTO (`make verify`) | 0, 2026-08-16 |
 | Lockfile drift | none | `uv lock --check` (**not** `uv sync --frozen`, which cannot see drift) | AUTO (`make verify`, CI `uv sync --locked`) | in sync, 2026-08-16 |

@@ -115,14 +115,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p /tmp/lh
-          while read -r page; do
-            # site/index.html -> /, site/how-we-grade/index.html -> /how-we-grade/,
-            # site/404.html -> /404.html
-            route="${page#site}"
-            route="${route%index.html}"
-            slug="$(printf '%s' "${route}" | tr -c 'A-Za-z0-9' '_')"
-            echo "::group::${route}"
+          mkdir -p /tmp/lh /tmp/lh/retries
+          audit() {
+            # $1 = route, $2 = output path.
             # The URL is the first argument on purpose: lighthouse takes it positionally and
             # exits "Please provide a url" without auditing anything when it trails the flags.
             # No --budget-path. It does not exist in Lighthouse 12 (measured on 12.8.2:
@@ -131,10 +126,36 @@ jobs:
             # silence, so passing it would look like a budget and enforce nothing. The
             # budget in perf/resource-budget.json is asserted by the scoring step instead,
             # against the resource-summary audit the reports really do carry.
-            npx --yes lighthouse@12 "http://127.0.0.1:8000${route}" \
-              --output=json --output-path="/tmp/lh/${slug}.json" --quiet \
+            npx --yes lighthouse@12 "http://127.0.0.1:8000$1" \
+              --output=json --output-path="$2" --quiet \
               --chrome-flags="--headless" \
               --only-categories=accessibility,best-practices,seo,performance
+          }
+          while read -r page; do
+            # site/index.html -> /, site/how-we-grade/index.html -> /how-we-grade/,
+            # site/404.html -> /404.html
+            route="${page#site}"
+            route="${route%index.html}"
+            slug="$(printf '%s' "${route}" | tr -c 'A-Za-z0-9' '_')"
+            echo "::group::${route}"
+            audit "${route}" "/tmp/lh/${slug}.json"
+            # Performance is simulated from one trace, so a busy runner can score a one-file
+            # page below the floor with nothing about the page changed (#140: /404.html scored
+            # 0.93 on one run and passed on re-run of the same commit). A page that misses the
+            # floor is audited twice more and the median-performance report is kept. A real
+            # regression is low in all three and still fails; a page at or above the floor
+            # costs no extra run. The floor itself is unchanged.
+            if python perf/settle_report.py below-floor "/tmp/lh/${slug}.json" \
+              --baseline perf/baseline.json; then
+              echo "performance is below the floor on the first run; auditing ${route} twice more"
+              cp "/tmp/lh/${slug}.json" "/tmp/lh/retries/${slug}.run1.json"
+              audit "${route}" "/tmp/lh/retries/${slug}.run2.json"
+              audit "${route}" "/tmp/lh/retries/${slug}.run3.json"
+              python perf/settle_report.py median "/tmp/lh/${slug}.json" \
+                "/tmp/lh/retries/${slug}.run1.json" \
+                "/tmp/lh/retries/${slug}.run2.json" \
+                "/tmp/lh/retries/${slug}.run3.json"
+            fi
             echo "::endgroup::"
           done < /tmp/pages.txt
 
