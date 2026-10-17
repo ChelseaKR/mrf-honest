@@ -9,6 +9,23 @@ they are left as they were written rather than retrofitted into versions that ne
 
 ### Added
 
+- **Scheduled re-collection, off by default, and a regression alert on top of `diff`.**
+  `mrf-honest recollect` re-runs `cms-hpt.txt` discovery and assessment for a committed
+  watchlist (`data/recollections/watchlist.json`) through the same politeness gate every cohort
+  was collected under, and writes a dated, schema-versioned, idempotent result
+  (`<date>.recollection.json`, written last and atomically). A failure is recorded as no evidence
+  with its reason and no letter, never as a pass. A second run on the same UTC date fetches
+  nothing, an interrupted run resumes without refetching, and at most 5 distinct files per
+  publisher are fetched unless told otherwise. `mrf-honest alert` turns the existing diff of two
+  collections into Markdown, Atom or JSON and reports a regression only when a verified file was
+  read on both dates, so an unreachable server is never a regression.
+  `.github/workflows/recollect.yml` runs it monthly, but its schedule fires only when the
+  repository variable `MRF_RECOLLECT_ENABLED` is `true`; merging it starts no retrieval. No grade
+  rule, retrieval rule or published cohort changes.
+  [docs/scheduled-collection.md](docs/scheduled-collection.md) describes the behavior and
+  [ADR 0010](docs/adr/0010-scheduled-recollection.md) records the decision and the open
+  question about the service/job tier declaration the schedule still waits on.
+
 - **Whether cheap revalidation generalizes beyond the one origin PR #113 measured, checked at
   ten more.** [docs/findings/cross-origin-conditional-revalidation-2026-09-14.md](docs/findings/cross-origin-conditional-revalidation-2026-09-14.md)
   sends a real conditional `GET` at ten more real hospital origins, spanning the gzip/plain

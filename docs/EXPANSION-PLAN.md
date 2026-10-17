@@ -260,7 +260,7 @@ Steps 1 and 2 are the maintainer's. Step 3 and everything after it are not.
 
 - [x] The release path up to the tag, which is everything except the two acts named below
 - [ ] Dated releases (blocked: the signing key and the tag are the maintainer's)
-- [ ] A scheduled refresh (blocked: needs a service/job tier declaration, an owner decision)
+- [ ] A scheduled refresh (the mechanism is built and ships switched off, [ADR 0010](adr/0010-scheduled-recollection.md); turning it on is blocked on a service/job tier declaration, an owner decision)
 - [ ] The manual screen-reader pass (blocked: needs a person)
 
 ### What only a person can do
@@ -283,6 +283,12 @@ These are recorded here so that no future phase quietly reports them as done:
 - **A scheduled refresh.** The ROADMAP states the precondition: "any future scheduled job must
   take a real service/job tier declaration before shipping." That declaration is an owner
   decision about what this project promises to keep running, not a file an agent should author.
+  What an agent could build without deciding it is built: `mrf-honest recollect`, `mrf-honest
+  alert` and `.github/workflows/recollect.yml`
+  ([docs/scheduled-collection.md](scheduled-collection.md)). The workflow's schedule fires only
+  when a repository variable a maintainer sets says so, and
+  [ADR 0010](adr/0010-scheduled-recollection.md) lists the questions that declaration has to
+  answer. This item stays unchecked until it is answered.
 - **The manual screen-reader pass.** The metrics ledger already carries it as **not performed**,
   the standing open obligation. Automated Lighthouse scores are not a substitute and the ledger
   says so.
