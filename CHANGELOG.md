@@ -53,6 +53,18 @@ they are left as they were written rather than retrofitted into versions that ne
 
 ### Fixed
 
+- **The Lighthouse job no longer fails a page on one low performance score (issue #140).** On
+  2026-10-17 `/404.html` scored 0.93 against the 0.95 floor on master and passed on re-run of the
+  same commit, with no rendered page changed. Performance is simulated from a single trace, so
+  one busy runner moves it; accessibility, best-practices and SEO are rule results and do not.
+  A page whose first performance score is below the floor is now audited twice more
+  (`perf/settle_report.py`) and the median-performance report is the one scored. Pages at or
+  above the floor cost no extra run, the floor stays 0.95, and three low runs still fail. The
+  retried reports are uploaded with the others under `retries/`. Auditing `/404.html` locally seven
+  times, three of them under full CPU load, scored 1.0 every time, so the low score was not
+  reproduced; the cause on the runner is not established, only that the page is audited first,
+  on a freshly started browser.
+
 - **A charged CSV row with no code pairing was excused from the description and setting
   requirements (issue #28).** In `_check_item_completeness`, `CMS_CSV_DESCRIPTION_MISSING` and
   `CMS_CSV_SETTING_INVALID` both sat behind `is_item`, which is `complete_codes > 0`. A data row
