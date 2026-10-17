@@ -11,6 +11,8 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import cast
 
+from mrf_honest.alert import build_alert, default_feed_id, render_atom, render_markdown
+from mrf_honest.alert import exit_code as alert_exit_code
 from mrf_honest.analytics import GA4_MEASUREMENT_ID, measurement_id_or_none
 from mrf_honest.census import build_census
 from mrf_honest.census import human_report as census_human_report
@@ -46,6 +48,12 @@ from mrf_honest.lakehouse import (
 from mrf_honest.mcp import serve as serve_mcp
 from mrf_honest.politeness import Politeness
 from mrf_honest.receipt import verify_receipt
+from mrf_honest.recollect import (
+    DEFAULT_MAX_FILES_PER_PUBLISHER,
+    RecollectionError,
+    load_watchlist,
+    recollect,
+)
 from mrf_honest.registry import Registry, discover_domain
 from mrf_honest.scorecard import (
     CSV_PROFILE,
@@ -505,6 +513,68 @@ def _run_diff(args: argparse.Namespace) -> int:
     return diff_exit_code(document, fail_on_regression=cast(bool, args.fail_on_regression))
 
 
+def _run_recollect(args: argparse.Namespace) -> int:
+    """Re-collect every watchlisted publisher once for today's UTC date.
+
+    Publisher-side failures are recorded in the result document as no evidence and are not a
+    command failure. The exit status is ``1`` only when this machine could not do the work: a
+    cache or registry that would not write, or a watchlist or prior result that is unusable.
+    """
+    try:
+        watchlist = load_watchlist(cast(Path, args.watchlist))
+    except RecollectionError as refusal:
+        print(f"error: {refusal}", file=sys.stderr)
+        return _FAILURE
+    policy = FetchPolicy(contact=cast(str, args.contact), max_bytes=cast(int, args.max_bytes))
+    try:
+        result = recollect(
+            watchlist,
+            out_dir=cast(Path, args.out_dir),
+            cache_dir=cast(Path, args.cache_dir),
+            policy=policy,
+            politeness=_politeness(policy),
+            max_files_per_publisher=cast(int, args.max_files_per_publisher),
+        )
+    except RecollectionError as refusal:
+        print(f"error: {refusal}", file=sys.stderr)
+        return _FAILURE
+    _emit_json(
+        {
+            "already_complete": result.already_complete,
+            "collected_on": result.document["collected_on"],
+            "result": str(result.path),
+            "comparisons": result.document["comparisons"],
+            "summary": result.document["summary"],
+        }
+    )
+    return _FAILURE if result.infrastructure_failures else _SUCCESS
+
+
+def _run_alert(args: argparse.Namespace) -> int:
+    """Turn the diff of two dated collections into an alert. Reads documents; opens no socket."""
+    before = _load_json_object(cast(Path, args.before), "comparison document")
+    after = _load_json_object(cast(Path, args.after), "comparison document")
+    try:
+        alert = build_alert(before, after, slug=cast(str | None, args.slug))
+    except DiffError as refusal:
+        print(f"error: {refusal}", file=sys.stderr)
+        return DIFF_EXIT_CANNOT_COMPARE
+    output_format = cast(str, args.output_format)
+    if output_format == "json":
+        _emit_json(alert)
+    elif output_format == "atom":
+        sys.stdout.write(
+            render_atom(
+                alert,
+                feed_id=cast(str | None, args.feed_id) or default_feed_id(alert),
+                self_url=cast(str | None, args.self_url),
+            )
+        )
+    else:
+        sys.stdout.write(render_markdown(alert))
+    return alert_exit_code(alert, fail_on_regression=cast(bool, args.fail_on_regression))
+
+
 def _run_systems(args: argparse.Namespace) -> int:
     """Reconcile one cohort against the discovery evidence its URLs came from.
 
@@ -807,6 +877,44 @@ def _build_parser() -> argparse.ArgumentParser:
         "--format", dest="output_format", choices=("human", "json"), default="human"
     )
     diff_parser.set_defaults(handler=_run_diff)
+
+    recollect_parser = commands.add_parser(
+        "recollect",
+        help="re-collect each watchlisted publisher's cms-hpt.txt files once for today's UTC date",
+    )
+    recollect_parser.add_argument("--watchlist", type=Path, required=True)
+    recollect_parser.add_argument(
+        "--out-dir", type=Path, required=True, help="where the dated result files are written"
+    )
+    recollect_parser.add_argument("--cache-dir", type=Path, required=True)
+    recollect_parser.add_argument("--contact", required=True)
+    recollect_parser.add_argument(
+        "--max-files-per-publisher",
+        type=_positive_int,
+        default=DEFAULT_MAX_FILES_PER_PUBLISHER,
+        help="distinct files fetched per publisher; the rest are listed as not attempted",
+    )
+    recollect_parser.add_argument("--max-bytes", type=_positive_int, default=_DEFAULT_MAX_BYTES)
+    recollect_parser.set_defaults(handler=_run_recollect)
+
+    alert_parser = commands.add_parser(
+        "alert",
+        help="report grade regressions between two dated collections (Markdown, Atom or JSON)",
+    )
+    alert_parser.add_argument("before", type=Path, metavar="BEFORE")
+    alert_parser.add_argument("after", type=Path, metavar="AFTER")
+    alert_parser.add_argument("--slug", help="restrict the alert to one file slug")
+    alert_parser.add_argument(
+        "--format", dest="output_format", choices=("markdown", "atom", "json"), default="markdown"
+    )
+    alert_parser.add_argument("--feed-id", help="Atom feed id (default: a URN per profile)")
+    alert_parser.add_argument("--self-url", help="Atom rel=self link, if the feed is published")
+    alert_parser.add_argument(
+        "--fail-on-regression",
+        action="store_true",
+        help="exit 1 on a regression, 2 when no file could be judged on both dates",
+    )
+    alert_parser.set_defaults(handler=_run_alert)
 
     systems_parser = commands.add_parser(
         "systems",
