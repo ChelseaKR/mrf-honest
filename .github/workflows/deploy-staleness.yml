@@ -76,7 +76,7 @@ jobs:
       # targets 3.12 (`datetime.UTC`, PEP 604 unions at runtime under `from __future__`), and
       # an interpreter too old for it would surface as a refusal -- a red run reading "cannot
       # measure" when the site is in fact fine. The sentinel's red must mean one thing.
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.12"
 
