@@ -22,7 +22,7 @@ mrf-honest = "mrf_honest.cli:main"
 # wheel never carries (CQ-27).
 [project.optional-dependencies]
 lakehouse = [
-    "duckdb>=1.4,<2",
+    "duckdb>=1.4,<3",
 ]
 # AI narration outside the graded path (ADR 0006): the public Anthropic SDK
 # only; nothing in inspection, scoring, comparison, or the site imports it.
@@ -38,7 +38,7 @@ dev = [
     "mypy>=1.18",
     "ruff>=0.15",
     "pip-audit>=2.9",
-    "duckdb>=1.4,<2",
+    "duckdb>=1.4,<3",
     "pre-commit>=4,<5",
     # tests/test_corrections.py parses the issue forms. It was arriving transitively through
     # pre-commit, which is a dependency that could drop it without warning; a test that reads a
